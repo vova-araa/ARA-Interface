@@ -1,0 +1,14 @@
+node_modules/
+world.config.json
+dist/
+*.tsbuildinfo
+.DS_Store
+*.log
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+.env
+.env.*
+test-results/
+playwright-report/

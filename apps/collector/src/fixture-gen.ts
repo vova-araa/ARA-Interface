@@ -1,0 +1,104 @@
+/**
+ * Generates fixtures/demo.jsonl — a ~2 minute animated story used by
+ * `?demo=1` in the viewer and by tests. Timestamps are absolute at
+ * generation time; the viewer remaps them relative to "now" on replay.
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import type { AraEvent, AraEventKind } from '@ara/shared';
+import { FIXTURE_PATH } from './config.ts';
+
+const BASE = Date.now();
+const events: AraEvent[] = [];
+
+function emit(
+  offsetSec: number,
+  kind: AraEventKind,
+  sessionId: string,
+  project: string,
+  extra: Partial<AraEvent> = {},
+): void {
+  events.push({
+    id: crypto.randomUUID(),
+    ts: BASE + Math.round(offsetSec * 1000),
+    kind,
+    sessionId,
+    cwd: `/Users/vova/dev/${project}`,
+    project,
+    ...extra,
+  });
+}
+
+// ── Story ──────────────────────────────────────────────────────────────
+// Session A: traject-tms — busy build with a subagent and a happy ending.
+const A = 'demo-traject';
+emit(0, 'session.start', A, 'traject-tms');
+emit(2, 'prompt', A, 'traject-tms', { message: 'Fix the invoice PDF export' });
+emit(4, 'tool.pre', A, 'traject-tms', { tool: 'Read', toolSummary: 'Read invoice.ts' });
+emit(6, 'tool.post', A, 'traject-tms', { tool: 'Read', status: 'ok', durationMs: 1800 });
+emit(8, 'tool.pre', A, 'traject-tms', { tool: 'Grep', toolSummary: 'Search renderPdf usages' });
+emit(10, 'tool.post', A, 'traject-tms', { tool: 'Grep', status: 'ok', durationMs: 900 });
+emit(12, 'agent.start', A, 'traject-tms', { agentId: 'a1', agentType: 'Explore', toolSummary: 'Scout PDF pipeline' });
+emit(14, 'tool.pre', A, 'traject-tms', { agentId: 'a1', tool: 'Glob', toolSummary: 'Find *.pdf.ts' });
+emit(17, 'tool.post', A, 'traject-tms', { agentId: 'a1', tool: 'Glob', status: 'ok', durationMs: 700 });
+emit(20, 'agent.stop', A, 'traject-tms', { agentId: 'a1' });
+emit(24, 'tool.pre', A, 'traject-tms', { tool: 'Edit', toolSummary: 'Patch margin calculation' });
+emit(27, 'tool.post', A, 'traject-tms', { tool: 'Edit', status: 'ok', durationMs: 2500 });
+emit(30, 'tool.pre', A, 'traject-tms', { tool: 'Bash', toolSummary: 'pnpm test invoice' });
+emit(38, 'tool.post', A, 'traject-tms', { tool: 'Bash', status: 'error', durationMs: 8000 });
+emit(42, 'tool.pre', A, 'traject-tms', { tool: 'Edit', toolSummary: 'Fix failing snapshot' });
+emit(45, 'tool.post', A, 'traject-tms', { tool: 'Edit', status: 'ok', durationMs: 2100 });
+emit(48, 'tool.pre', A, 'traject-tms', { tool: 'Bash', toolSummary: 'pnpm test invoice' });
+emit(56, 'tool.post', A, 'traject-tms', { tool: 'Bash', status: 'ok', durationMs: 7600 });
+emit(60, 'task.completed', A, 'traject-tms', { message: 'Invoice export fixed, tests green' });
+emit(64, 'session.end', A, 'traject-tms');
+
+// Session B: blex — needs human mid-way.
+const B = 'demo-blex';
+emit(6, 'session.start', B, 'blex-logistics');
+emit(8, 'prompt', B, 'blex-logistics', { message: 'Sync trailer inventory to Supabase' });
+emit(11, 'tool.pre', B, 'blex-logistics', { tool: 'mcp__Supabase__execute_sql', toolSummary: 'Count trailers' });
+emit(15, 'tool.post', B, 'blex-logistics', { tool: 'mcp__Supabase__execute_sql', status: 'ok', durationMs: 3400 });
+emit(20, 'tool.pre', B, 'blex-logistics', { tool: 'Write', toolSummary: 'Write sync script' });
+emit(24, 'tool.post', B, 'blex-logistics', { tool: 'Write', status: 'ok', durationMs: 2900 });
+emit(30, 'notification', B, 'blex-logistics', { needsHuman: true, message: 'Permission needed: run migration on prod?' });
+emit(75, 'prompt', B, 'blex-logistics', { message: 'Yes, run it' });
+emit(78, 'tool.pre', B, 'blex-logistics', { tool: 'Bash', toolSummary: 'Run migration' });
+emit(86, 'tool.post', B, 'blex-logistics', { tool: 'Bash', status: 'ok', durationMs: 7800 });
+emit(90, 'stop', B, 'blex-logistics');
+
+// Session C: vovara — long research with two subagents in parallel.
+const C = 'demo-vovara';
+emit(15, 'session.start', C, 'vovara-site');
+emit(17, 'prompt', C, 'vovara-site', { message: 'Redesign the releases page' });
+emit(20, 'agent.start', C, 'vovara-site', { agentId: 'c1', agentType: 'Explore', toolSummary: 'Audit components' });
+emit(21, 'agent.start', C, 'vovara-site', { agentId: 'c2', agentType: 'Plan', toolSummary: 'Draft layout plan' });
+emit(24, 'tool.pre', C, 'vovara-site', { agentId: 'c1', tool: 'Read', toolSummary: 'Read Releases.tsx' });
+emit(28, 'tool.post', C, 'vovara-site', { agentId: 'c1', tool: 'Read', status: 'ok', durationMs: 3600 });
+emit(32, 'tool.pre', C, 'vovara-site', { agentId: 'c2', tool: 'WebSearch', toolSummary: 'Music site inspiration' });
+emit(40, 'tool.post', C, 'vovara-site', { agentId: 'c2', tool: 'WebSearch', status: 'ok', durationMs: 7800 });
+emit(45, 'agent.stop', C, 'vovara-site', { agentId: 'c1' });
+emit(50, 'agent.stop', C, 'vovara-site', { agentId: 'c2' });
+emit(55, 'tool.pre', C, 'vovara-site', { tool: 'Edit', toolSummary: 'Apply new grid layout' });
+emit(60, 'tool.post', C, 'vovara-site', { tool: 'Edit', status: 'ok', durationMs: 4200 });
+emit(70, 'tool.pre', C, 'vovara-site', { tool: 'Bash', toolSummary: 'pnpm build' });
+emit(82, 'tool.post', C, 'vovara-site', { tool: 'Bash', status: 'error', durationMs: 11000 });
+emit(86, 'tool.pre', C, 'vovara-site', { tool: 'Edit', toolSummary: 'Fix import path' });
+emit(89, 'tool.post', C, 'vovara-site', { tool: 'Edit', status: 'ok', durationMs: 1900 });
+emit(92, 'tool.pre', C, 'vovara-site', { tool: 'Bash', toolSummary: 'pnpm build' });
+emit(103, 'tool.post', C, 'vovara-site', { tool: 'Bash', status: 'ok', durationMs: 10400 });
+emit(107, 'task.completed', C, 'vovara-site', { message: 'Releases page shipped' });
+
+// Session D: a mystery repo lands in Nor Kaghak late in the story.
+const D = 'demo-mystery';
+emit(95, 'session.start', D, 'secret-lab');
+emit(97, 'prompt', D, 'secret-lab', { message: 'Prototype something new' });
+emit(100, 'tool.pre', D, 'secret-lab', { tool: 'Write', toolSummary: 'Scaffold prototype' });
+emit(105, 'tool.post', D, 'secret-lab', { tool: 'Write', status: 'ok', durationMs: 4600 });
+emit(112, 'stop', D, 'secret-lab');
+
+events.sort((a, b) => a.ts - b.ts);
+fs.mkdirSync(path.dirname(FIXTURE_PATH), { recursive: true });
+fs.writeFileSync(FIXTURE_PATH, events.map((e) => JSON.stringify(e)).join('\n') + '\n');
+console.log(`[fixture] wrote ${events.length} events → ${FIXTURE_PATH}`);

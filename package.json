@@ -1,0 +1,20 @@
+{
+  "name": "ara-world",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ARA World — real-time isometric 3D world visualizing Claude Code sessions, agents and tool-calls",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @ara/collector --filter @ara/viewer dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "fixture": "pnpm --filter @ara/collector fixture",
+    "map": "pnpm --filter @ara/collector map"
+  }
+}
