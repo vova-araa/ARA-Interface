@@ -1,0 +1,8 @@
+{
+  "name": "ara",
+  "description": "ARA World orchestration: streams every session/agent/tool event to the ARA collector and adds world commands (/ara-open, /ara-map), the ara-status skill and the ara-orchestrator agent.",
+  "version": "0.1.0",
+  "author": {
+    "name": "vova-araa"
+  }
+}

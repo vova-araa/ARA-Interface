@@ -12,6 +12,7 @@ import type { EventStore } from './db.ts';
 import { WorldState } from './state.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
 import { FIXTURE_PATH } from './config.ts';
+import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
 export interface CollectorApp {
   app: express.Express;
@@ -60,6 +61,21 @@ export function createCollector(store: EventStore): CollectorApp {
     broadcast(event);
     return event;
   }
+
+  // Raw Claude Code hook payloads from plugins/ara/hooks/emit.sh.
+  app.post('/hook/:name', (req, res) => {
+    try {
+      const incoming = mapHookPayload(req.params.name, req.body as HookPayload);
+      if (!incoming) {
+        res.json({ ok: true, ignored: true });
+        return;
+      }
+      const event = ingest(incoming);
+      res.json({ ok: true, id: event.id });
+    } catch (error) {
+      res.status(400).json({ ok: false, error: String(error) });
+    }
+  });
 
   app.post('/event', (req, res) => {
     try {

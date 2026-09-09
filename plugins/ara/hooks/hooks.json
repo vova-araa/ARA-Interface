@@ -1,0 +1,42 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/ensure-collector.sh\"", "timeout": 5 },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SessionStart" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SessionEnd" }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" UserPromptSubmit" }] }
+    ],
+    "PreToolUse": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PreToolUse" }] }
+    ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PostToolUse" }] }
+    ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SubagentStart" }] }
+    ],
+    "SubagentStop": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SubagentStop" }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" Stop" }] }
+    ],
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" Notification" }] }
+    ],
+    "TaskCompleted": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" TaskCompleted" }] }
+    ],
+    "TeammateIdle": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" TeammateIdle" }] }
+    ]
+  }
+}
