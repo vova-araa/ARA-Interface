@@ -27,6 +27,11 @@
       "managerTotal": 8
     }
   },
+  "chief": {
+    "agent": "ara-chief",
+    "role": "Enige gesprekspartner van de gebruiker (/ara). Intake voor taken, planning (assignee 'gepland' + due-datum), nieuwe agent-rollen, org- en monitorwijzigingen. Spawnt alleen de supervisor; keten blijft intact.",
+    "command": "/ara <bericht>"
+  },
   "ops": {
     "manager": "manager:ops",
     "standing": true,

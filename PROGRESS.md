@@ -99,7 +99,13 @@
 ## Bouwplan-audit (laatste gaten gedicht)
 - [x] **LOD** (spec §6): ver uitgezoomd → tool-icons, speech bubbles en projectlabels uit (venture-labels blijven); schakelt via camera-zoom in de render-loop.
 - [x] **Swipe-gestures mobiel** (spec §6): grip in de bottom sheet — omlaag vegen sluit; opener-grip onderaan het scherm — omhoog vegen (of tikken) opent de threadlijst.
-- [x] **Duur-soak**: 5 minuten × 3 sessies × 8 ev/s (los van de accelerated CI-soak); resultaat in dit document zodra afgerond — 30-min variant is op de Mac één commando: `ARA_SOAK_SECONDS=1800 pnpm soak`.
+- [x] **Duur-soak**: 5 minuten × 3 sessies × 8 ev/s → **PASS**: 7056/7056 events op SSE, 0 fouten, POST p50 2.0ms / p95 3.7ms / p99 13.6ms, /state 3.1ms. Geen degradatie over de duur. 30-min variant op de Mac: `ARA_SOAK_SECONDS=1800 pnpm soak`.
+
+## ARA Chief (super-agent, directe lijn met de gebruiker)
+- [x] `ara-chief` agent: intake voor alles (taak nu / gepland / nieuwe agent-rol / org-beleid / monitoring / vraag), zet het op de juiste plek, bevestigt compact. Rol-sjabloon voor nieuwe agents (verplicht: doel, bordprotocol, token-discipline, vangrails). Beschermde regels alleen te versoepelen op expliciet gebruikersverzoek.
+- [x] `/ara <bericht>` command — de directe lijn; leeg = compacte briefing.
+- [x] **Planning**: taken met assignee `gepland` + `due: <datum>` in detail; watchdog promoveert ze naar de supervisor zodra de datum verstreken is. End-to-end getest (verlopen → gepromoveerd + spawn-trigger; toekomstig → blijft staan).
+- [x] Watchdog spawnt supervisor nu ook voor chief-taken; supervisor-instructies en org-chart (README, org.json) bijgewerkt: chief ↔ gebruiker, supervisor operationeel.
 
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.

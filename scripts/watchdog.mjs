@@ -192,10 +192,29 @@ if (incidentsToHandle.length > 0) {
   );
 }
 
-// ── 5. Escalaties + gebruikers-taken → supervisor ─────────────────────────
+// ── 4b. Geplande taken promoveren zodra hun due-datum verstreken is ───────
+try {
+  const planned = await api('/tasks?assignee=gepland&status=open&limit=100');
+  for (const task of planned.tasks) {
+    const due = /^due:\s*(\S+)/m.exec(task.detail ?? '')?.[1];
+    if (!due) continue;
+    const dueTs = Date.parse(due);
+    if (Number.isFinite(dueTs) && dueTs <= Date.now()) {
+      await api(`/tasks/${task.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ assignee: 'supervisor', status: 'open' }),
+      });
+      log(`gepland → supervisor: "${task.title}" (due ${due})`);
+    }
+  }
+} catch (error) {
+  log(`planning-stap overgeslagen: ${String(error).slice(0, 80)}`);
+}
+
+// ── 5. Escalaties + gebruikers-/chief-taken → supervisor ──────────────────
 const escalated = await api('/tasks?assignee=supervisor&status=open&limit=50');
 const opsEscalations = escalated.tasks.filter((t) => t.createdBy === 'manager:ops');
-const userTasks = escalated.tasks.filter((t) => t.createdBy === 'user');
+const userTasks = escalated.tasks.filter((t) => t.createdBy === 'user' || t.createdBy === 'chief');
 if (opsEscalations.length > 0 || userTasks.length > 0) {
   const parts = [];
   if (opsEscalations.length > 0)
@@ -204,7 +223,7 @@ if (opsEscalations.length > 0 || userTasks.length > 0) {
     );
   if (userTasks.length > 0)
     parts.push(
-      `de gebruiker plaatste ${userTasks.length} ta(a)k(en) via het bord (createdBy "user"): claim ze en voer je normale dispatch uit (managers/agents); sluit elke taak af met een resultaat.`,
+      `er staan ${userTasks.length} ta(a)k(en) van de gebruiker/chief op het bord (createdBy "user" of "chief", incl. gepromoveerde geplande taken): claim ze en voer je normale dispatch uit (managers/agents); sluit elke taak af met een resultaat.`,
     );
   spawnClaude(
     'supervisor-ops',

@@ -71,12 +71,19 @@ never empty.
 ## De organisatie
 
 ```
-JIJ ← escalaties direct + /ara-report dagrapport (/loop 24h /ara-report)
- └─ ara-supervisor (/ara-run <doel>)      — enige stem naar jou
+JIJ ↔ ara-chief (/ara <bericht>)          — jouw directe lijn: taken, planning,
+ │                                          nieuwe agent-rollen, org-wijzigingen
+ └─ ara-supervisor (/ara-run <doel>)      — operationele top
      └─ takenbord (collector /tasks)      — al het werk & alle resultaten
-         └─ manager:<venture>             — headless sessie, eigen pod, on-demand
+         │   assignee "gepland" + due-datum → watchdog promoveert op tijd
+         └─ manager:<venture> + manager:ops — headless sessies, eigen pod
              └─ ara-worker / ara-web-scout / Explore
 ```
+
+Voorbeelden voor de chief: `/ara laat traject de facturen-export fixen` ·
+`/ara plan voor vrijdag een dependency-update in alle repos` · `/ara maak een
+agent-rol die wekelijks de Supabase-kosten checkt` · `/ara verhoog het
+tokenbudget naar 3M` · `/ara houd https://mijnsite.nl in de gaten`.
 
 Beleid (in `plugins/ara/org.json`): managers **on-demand** per venture ·
 schrijfwerk alleen op **`ara/*`-branches** (mergen/deployen/geld = escalatie
