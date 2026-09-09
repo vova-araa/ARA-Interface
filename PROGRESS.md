@@ -22,6 +22,14 @@
 - [x] 8 hookmap unit tests + doneToday test (23 unit tests totaal).
 - [x] GitHub Actions CI: typecheck, unit tests, build, Playwright smoke (nu ook scrubber-flow), accelerated soak.
 
+## Online-ready batch
+- [x] Collector serveert de gebouwde viewer → één deploybare service (lokaal op :4747, Render-ready); SPA-fallback, API-routes uitgezonderd.
+- [x] `ARA_TOKEN` auth: Bearer / X-ARA-Token / ?token= (SSE), /health open; emit.sh stuurt token mee; viewer pakt ?token= en bewaart in localStorage. 1 nieuwe auth-testsuite.
+- [x] `render.yaml` blueprint: build+start, persistent disk voor SQLite, healthcheck, ARA_TOKEN verplicht via dashboard. PORT-env support in collector.
+- [x] PWA: manifest + icons (Chromium-gerasterd) + apple-meta → iPhone Home Screen full-screen.
+- [x] 3D-labels: venture-naam boven elk district, projectnaam boven elk cluster (canvas-sprites, geen font-fetch).
+- [x] `/stats` endpoint (events/errors per project per uur) + 24u activiteits-sparkline in de detail-drawer.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

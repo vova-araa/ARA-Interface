@@ -1,5 +1,6 @@
 import type { AraEvent, WorldConfig } from '@ara/shared';
 import { useAra } from './store.ts';
+import { withToken } from './api.ts';
 
 /**
  * Demo mode (?demo=1): replays the bundled fixture as a ~2 minute story.
@@ -9,7 +10,7 @@ export async function runDemo(): Promise<void> {
   const store = useAra.getState();
 
   try {
-    const world = (await (await fetch('/world')).json()) as WorldConfig;
+    const world = (await (await fetch(withToken('/world'))).json()) as WorldConfig;
     store.setWorld(world);
   } catch {
     /* viewer still renders a hub-only world */
@@ -17,7 +18,7 @@ export async function runDemo(): Promise<void> {
 
   let events: AraEvent[] = [];
   try {
-    events = ((await (await fetch('/fixture')).json()) as { events: AraEvent[] }).events;
+    events = ((await (await fetch(withToken('/fixture'))).json()) as { events: AraEvent[] }).events;
   } catch {
     /* no fixture — nothing to replay */
   }

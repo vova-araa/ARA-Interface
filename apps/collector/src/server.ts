@@ -11,7 +11,7 @@ import {
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
-import { FIXTURE_PATH, PROJECTS_JSON_PATH, WORLD_CONFIG_PATH } from './config.ts';
+import { ARA_TOKEN, FIXTURE_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
 export interface CollectorApp {
@@ -23,6 +23,25 @@ export interface CollectorApp {
 export function createCollector(store: EventStore): CollectorApp {
   const app = express();
   app.use(express.json({ limit: '256kb' }));
+
+  // Optional shared-secret auth (set ARA_TOKEN when exposing beyond the tailnet).
+  // /health stays open for probes; static viewer assets are served unauthenticated —
+  // all data flows through the guarded API. EventSource can't set headers, so a
+  // ?token= query param is accepted too.
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats)(\/|$)/;
+  app.use((req, res, next) => {
+    if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
+      next();
+      return;
+    }
+    const header = req.get('authorization') ?? '';
+    const presented =
+      (header.startsWith('Bearer ') ? header.slice(7) : header) ||
+      req.get('x-ara-token') ||
+      String(req.query.token ?? '');
+    if (presented === ARA_TOKEN) next();
+    else res.status(401).json({ ok: false, error: 'unauthorized' });
+  });
 
   const state = new WorldState();
   const clients = new Set<Response>();
@@ -155,6 +174,12 @@ export function createCollector(store: EventStore): CollectorApp {
     res.json({ events: store.range(from, to) });
   });
 
+  app.get('/stats', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const from = Number(req.query.from ?? Date.now() - 24 * 60 * 60 * 1000);
+    res.json({ stats: store.stats(from) });
+  });
+
   app.get('/fixture', (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     try {
@@ -166,6 +191,19 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
+
+  // Serve the built viewer when present → collector is a single deployable
+  // service (Render, or just one port on the Mac).
+  if (fs.existsSync(VIEWER_DIST)) {
+    app.use(express.static(VIEWER_DIST));
+    app.get('*', (req, res, next) => {
+      if (API_PATHS.test(req.path)) {
+        next();
+        return;
+      }
+      res.sendFile('index.html', { root: VIEWER_DIST });
+    });
+  }
 
   return { app, state, ingest };
 }

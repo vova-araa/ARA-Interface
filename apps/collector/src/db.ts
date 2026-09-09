@@ -12,8 +12,17 @@ export interface EventStore {
   forSession(sessionId: string, limit?: number): AraEvent[];
   /** All events, ascending — used to rebuild state on boot. */
   all(limit?: number): AraEvent[];
+  /** Hourly activity per project since `from` (for sparklines). */
+  stats(from: number): ProjectStats[];
   prune(): void;
   close(): void;
+}
+
+export interface ProjectStats {
+  project: string;
+  hour: number; // epoch hours (ts / 3_600_000, floored)
+  events: number;
+  errors: number;
 }
 
 export function openStore(dbPath = DB_PATH): EventStore {
@@ -47,6 +56,16 @@ export function openStore(dbPath = DB_PATH): EventStore {
     'SELECT json FROM (SELECT json, ts, rowid AS rid FROM events ORDER BY ts DESC, rowid DESC LIMIT ?) ORDER BY ts ASC, rid ASC',
   );
   const pruneStmt = db.prepare('DELETE FROM events WHERE ts < ?');
+  const statsStmt = db.prepare(`
+    SELECT project,
+           CAST(ts / 3600000 AS INTEGER) AS hour,
+           COUNT(*) AS events,
+           SUM(CASE WHEN json LIKE '%"status":"error"%' THEN 1 ELSE 0 END) AS errors
+    FROM events
+    WHERE ts >= ?
+    GROUP BY project, hour
+    ORDER BY project, hour
+  `);
 
   const parse = (rows: unknown[]): AraEvent[] =>
     (rows as { json: string }[]).map((r) => JSON.parse(r.json) as AraEvent);
@@ -63,6 +82,9 @@ export function openStore(dbPath = DB_PATH): EventStore {
     },
     all(limit = 50_000) {
       return parse(allStmt.all(limit));
+    },
+    stats(from) {
+      return statsStmt.all(from) as ProjectStats[];
     },
     prune() {
       pruneStmt.run(Date.now() - RETENTION_MS);

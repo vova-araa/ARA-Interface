@@ -16,3 +16,7 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 12. **District center hex is reserved for the venture landmark**; project pods spiral around it so they never overlap.
 13. **Backdrop uses flat `meshBasicMaterial` cartoon shading** — with an ortho camera + directional light, big distant cones catch no light and render black; basic materials keep the skyline reliable.
 14. **Plugin distribution**: repo doubles as a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`); install.sh registers it via the `claude` CLI when available.
+15. **Online architecture = one service**: the collector serves the built viewer (SPA fallback), so Render needs a single web service + disk. Locally :4747 now serves the whole world too; :4748 stays for dev/preview.
+16. **Auth is a single shared token** (`ARA_TOKEN`), off by default for tailnet use. EventSource can't send headers → `?token=` accepted; viewer persists it from the URL to localStorage. Static assets stay open; all data is behind the gated API.
+17. **PWA icons are rasterized with the bundled Chromium** (`apps/viewer/scripts/make-icons.mjs`) — no image tooling dependency.
+18. **3D labels are canvas sprites**, not troika/drei Text — no font fetching, crisp under the ortho camera, cheap to cache.

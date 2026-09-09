@@ -8,6 +8,7 @@ import { Landmarks } from './Landmarks.tsx';
 import { Pods } from './Pods.tsx';
 import { Figures } from './Figures.tsx';
 import { EffectsLayer } from './EffectsLayer.tsx';
+import { Labels } from './Labels.tsx';
 
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
@@ -45,6 +46,7 @@ export function Scene(): JSX.Element {
         <Landmarks world={world} />
         {world && (
           <>
+            <Labels world={world} />
             <Pods world={world} />
             <Figures world={world} />
             <EffectsLayer world={world} />

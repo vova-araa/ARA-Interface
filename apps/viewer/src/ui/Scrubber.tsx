@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { WorldState, type AraEvent } from '@ara/shared';
 import { useAra } from '../store.ts';
+import { withToken } from '../api.ts';
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 const STEPS = 1000;
@@ -10,7 +11,7 @@ let historyCache: { events: AraEvent[]; fetchedAt: number } | null = null;
 async function loadHistory(): Promise<AraEvent[]> {
   if (historyCache && Date.now() - historyCache.fetchedAt < 60_000) return historyCache.events;
   const to = Date.now();
-  const res = (await (await fetch(`/history?from=${to - WINDOW_MS}&to=${to}`)).json()) as {
+  const res = (await (await fetch(withToken(`/history?from=${to - WINDOW_MS}&to=${to}`))).json()) as {
     events: AraEvent[];
   };
   historyCache = { events: res.events, fetchedAt: Date.now() };
