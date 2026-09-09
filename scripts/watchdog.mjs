@@ -192,14 +192,41 @@ if (incidentsToHandle.length > 0) {
   );
 }
 
-// ── 5. Escalaties → supervisor-feedbackronde ──────────────────────────────
+// ── 5. Escalaties + gebruikers-taken → supervisor ─────────────────────────
 const escalated = await api('/tasks?assignee=supervisor&status=open&limit=50');
 const opsEscalations = escalated.tasks.filter((t) => t.createdBy === 'manager:ops');
-if (opsEscalations.length > 0) {
+const userTasks = escalated.tasks.filter((t) => t.createdBy === 'user');
+if (opsEscalations.length > 0 || userTasks.length > 0) {
+  const parts = [];
+  if (opsEscalations.length > 0)
+    parts.push(
+      `manager:ops escaleerde ${opsEscalations.length} incident(en): volg je incident-feedbackprotocol (feedback + 1 herkansing via het bord; daarna pas needsHuman naar de mens via POST ${COLLECTOR}/event, kind "notification", needsHuman true, sessionId "ops-escalatie").`,
+    );
+  if (userTasks.length > 0)
+    parts.push(
+      `de gebruiker plaatste ${userTasks.length} ta(a)k(en) via het bord (createdBy "user"): claim ze en voer je normale dispatch uit (managers/agents); sluit elke taak af met een resultaat.`,
+    );
   spawnClaude(
     'supervisor-ops',
-    `Je bent ara-supervisor. manager:ops escaleerde ${opsEscalations.length} incident(en) (GET ${COLLECTOR}/tasks?assignee=supervisor&status=open). Volg je incident-feedbackprotocol: analyseer, geef concrete feedback door de taak te PATCHen (detail aanvullen) en opnieuw toe te wijzen aan manager:ops voor één herkansing. Is dit al een herkansing of zie jij ook geen oplossing: escaleer naar de mens — POST ${COLLECTOR}/event met kind "notification", needsHuman true, sessionId "ops-escalatie", cwd "${REPO}" en een korte duidelijke message; laat de taak op het bord staan voor het dagrapport.`,
+    `Je bent ara-supervisor. Op het bord (GET ${COLLECTOR}/tasks?assignee=supervisor&status=open): ${parts.join(' Daarnaast: ')}`,
   );
 }
 
-log(`klaar — ${failures} monitor(s) stuk, ${incidentsToHandle.length} open incident(en), ${opsEscalations.length} escalatie(s)`);
+// ── 6. needsHuman → Telegram-push (eenmalig per sessie, 0 tokens) ─────────
+try {
+  const { sendTelegram } = await import('./notify.mjs');
+  const state = await api('/state');
+  const needy = Object.values(state.sessions).filter((s) => s.needsHuman && !s.endedAt);
+  for (const session of needy) {
+    const lockName = `ara-tg-${session.sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    if (!lockFresh(lockName)) continue; // al gemeld
+    const result = await sendTelegram(
+      `🔴 ARA World — actie nodig\n${session.project}: ${session.message ?? 'sessie wacht op jou'}\nViewer: http://localhost:4747`,
+    );
+    log(`telegram needsHuman ${session.sessionId}: sent=${result.sent} (${result.reason})`);
+  }
+} catch (error) {
+  log(`telegram-stap overgeslagen: ${String(error).slice(0, 80)}`);
+}
+
+log(`klaar — ${failures} monitor(s) stuk, ${incidentsToHandle.length} open incident(en), ${opsEscalations.length} escalatie(s), ${userTasks.length} gebruikerstaak(en)`);

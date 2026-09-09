@@ -37,6 +37,8 @@ install_agent() {
       -e "s|__PATH__|$(dirname "$PNPM"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin|g" \
       -e "s|__LOGS__|$LOGS|g" \
       -e "s|__ARA_TOKEN__|${ARA_TOKEN:-}|g" \
+      -e "s|__TG_TOKEN__|${ARA_TELEGRAM_BOT_TOKEN:-}|g" \
+      -e "s|__TG_CHAT__|${ARA_TELEGRAM_CHAT_ID:-}|g" \
       "$REPO/ops/launchd/$name.plist" > "$plist"
   launchctl bootout "gui/$UID_NUM/$name" 2>/dev/null || true
   launchctl bootstrap "gui/$UID_NUM" "$plist"

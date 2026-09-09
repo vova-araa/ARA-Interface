@@ -42,6 +42,13 @@ test.describe('desktop 1280×800', () => {
     await expect(page.locator('.topbar-title')).toContainText('replay');
     await page.locator('.scrubber .btn').click();
     await expect(page.locator('.topbar-title')).not.toContainText('replay');
+    // Takenbord: ☷ opent het paneel met het nieuwe-taak formulier.
+    await page.locator('.topbar-actions .btn[title="Takenbord"]').click();
+    await expect(page.locator('.board')).toBeVisible();
+    await expect(page.locator('.board input').first()).toHaveAttribute('placeholder', /Nieuwe taak/);
+    await page.locator('.board-header .btn').click();
+    await expect(page.locator('.board')).toHaveCount(0);
+
     // With the collector proxied and running, no banner; if down, banner shows.
     const health = await page.request.get('/health').then((r) => r.ok()).catch(() => false);
     if (health) {

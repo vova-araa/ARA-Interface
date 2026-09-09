@@ -17,6 +17,10 @@
     <string>__PATH__</string>
     <key>ARA_TOKEN</key>
     <string>__ARA_TOKEN__</string>
+    <key>ARA_TELEGRAM_BOT_TOKEN</key>
+    <string>__TG_TOKEN__</string>
+    <key>ARA_TELEGRAM_CHAT_ID</key>
+    <string>__TG_CHAT__</string>
   </dict>
   <key>StartInterval</key>
   <integer>300</integer>

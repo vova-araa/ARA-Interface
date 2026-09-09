@@ -54,6 +54,18 @@ Lees `${CLAUDE_PLUGIN_ROOT}/org.json` voor venture-profielen en budgetten.
 - **Venture-profielen**: geef de `focus`-regel uit org.json door in de
   manager-prompt. Let op: trading = read-only op live orderlogica.
 
+## Run-journal (geheugen over runs heen)
+
+Het bord is ook je geheugen:
+
+- **Bij de start** van elke run: `GET /tasks?assignee=journal&limit=3` — lees
+  de laatste RUN-LOG's zodat je weet wat er vorige keer gebeurde, welke
+  branches open staan en welke follow-ups beloofd zijn.
+- **Aan het eind**: `POST /tasks {title:"RUN-LOG <ISO-datum>: <doel in 5 woorden>", assignee:"journal", createdBy:"supervisor", detail:"<taken → uitkomsten, open branches, follow-ups, geleerde lessen — max 15 regels>"}`
+  en PATCH hem meteen naar `done`.
+- Beloofde follow-ups uit een vorige RUN-LOG die nog open staan neem je mee
+  in je plan of benoem je expliciet als bewust uitgesteld.
+
 ## Incident-feedbackprotocol (24/7-keten: watchdog → manager:ops → jij → mens)
 
 De watchdog spawnt jou wanneer manager:ops een incident escaleerde

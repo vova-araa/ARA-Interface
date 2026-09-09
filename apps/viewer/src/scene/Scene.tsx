@@ -10,6 +10,7 @@ import { Figures } from './Figures.tsx';
 import { EffectsLayer } from './EffectsLayer.tsx';
 import { Labels } from './Labels.tsx';
 import { useDaylight } from './daylight.ts';
+import { TokenPillars } from './TokenPillars.tsx';
 
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
@@ -49,6 +50,7 @@ export function Scene(): JSX.Element {
         {world && (
           <>
             <Labels world={world} />
+            <TokenPillars world={world} />
             <Pods world={world} />
             <Figures world={world} />
             <EffectsLayer world={world} />

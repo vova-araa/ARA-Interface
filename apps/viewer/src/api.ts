@@ -57,6 +57,7 @@ export function connectLive(): void {
         .then((world: WorldConfig) => useAra.getState().setWorld(world))
         .catch(() => undefined);
     });
+    source.addEventListener('tasks', () => useAra.getState().bumpTasks());
     source.addEventListener('ara', (msg) => {
       try {
         useAra.getState().applyEvent(JSON.parse((msg as MessageEvent).data) as AraEvent);
@@ -89,6 +90,45 @@ export async function loadSessionEvents(sessionId: string): Promise<AraEvent[]> 
   }
 }
 
+export interface BoardTask {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  title: string;
+  detail: string;
+  project: string;
+  assignee: string;
+  createdBy: string;
+  parentId: string | null;
+  status: 'open' | 'claimed' | 'done' | 'failed';
+  result: string;
+}
+
+export async function loadTasks(): Promise<BoardTask[]> {
+  try {
+    const res = (await (await fetch(withToken('/tasks?limit=100'))).json()) as {
+      tasks: BoardTask[];
+    };
+    return res.tasks;
+  } catch {
+    return [];
+  }
+}
+
+/** Tap-to-prompt: een taak vanaf telefoon/laptop → supervisor pakt hem op (watchdog-tick, ≤5 min). */
+export async function createUserTask(title: string, project: string): Promise<boolean> {
+  try {
+    const res = await fetch(withToken('/tasks'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, project, assignee: 'supervisor', createdBy: 'user' }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export interface ProjectHourStats {
   project: string;
   hour: number;
@@ -107,10 +147,11 @@ export interface UsageRow {
 
 export async function loadUsage(): Promise<{ usage: UsageRow[]; budget: number }> {
   try {
-    return (await (await fetch(withToken('/usage'))).json()) as {
-      usage: UsageRow[];
-      budget: number;
+    const res = (await (await fetch(withToken('/usage'))).json()) as {
+      usage?: UsageRow[];
+      budget?: number;
     };
+    return { usage: res.usage ?? [], budget: res.budget ?? 2_000_000 };
   } catch {
     return { usage: [], budget: 2_000_000 };
   }

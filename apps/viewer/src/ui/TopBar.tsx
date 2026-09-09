@@ -23,6 +23,8 @@ export function TopBar(): JSX.Element {
   const toggleSound = useAra((s) => s.toggleSound);
   const panelOpen = useAra((s) => s.panelOpen);
   const setPanelOpen = useAra((s) => s.setPanelOpen);
+  const boardOpen = useAra((s) => s.boardOpen);
+  const setBoardOpen = useAra((s) => s.setBoardOpen);
   const demo = useAra((s) => s.demo);
 
   return (
@@ -52,6 +54,13 @@ export function TopBar(): JSX.Element {
         </button>
         <button className={`btn ${soundOn ? 'btn-active' : ''}`} onClick={toggleSound} title="Sound">
           {soundOn ? '🔔' : '🔕'}
+        </button>
+        <button
+          className={`btn ${boardOpen ? 'btn-active' : ''}`}
+          onClick={() => setBoardOpen(!boardOpen)}
+          title="Takenbord"
+        >
+          ☷
         </button>
         <button className="btn" onClick={() => setPanelOpen(!panelOpen)} title="Thread list">
           ☰

@@ -38,6 +38,9 @@ interface AraStore {
   followLive: boolean;
   soundOn: boolean;
   panelOpen: boolean;
+  boardOpen: boolean;
+  /** Verhoogd bij elk SSE 'tasks'-event zodat het bord live ververst. */
+  tasksVersion: number;
   flyTarget: { sessionId: string; ts: number } | null;
   /** Non-null while scrubbing history: snapshot reconstructed at replayTs. */
   replaySnapshot: WorldSnapshot | null;
@@ -55,6 +58,8 @@ interface AraStore {
   toggleFollowLive(): void;
   toggleSound(): void;
   setPanelOpen(open: boolean): void;
+  setBoardOpen(open: boolean): void;
+  bumpTasks(): void;
   flyTo(sessionId: string): void;
   pruneEphemera(): void;
   setReplay(ts: number | null, snapshot: WorldSnapshot | null): void;
@@ -142,6 +147,8 @@ export const useAra = create<AraStore>((set, get) => ({
   followLive: loadPref('ara.followLive', false),
   soundOn: loadPref('ara.soundOn', false),
   panelOpen: window.innerWidth > 800,
+  boardOpen: false,
+  tasksVersion: 0,
   flyTarget: null,
   replaySnapshot: null,
   replayTs: null,
@@ -214,6 +221,8 @@ export const useAra = create<AraStore>((set, get) => ({
       return { soundOn: !s.soundOn };
     }),
   setPanelOpen: (open) => set({ panelOpen: open }),
+  setBoardOpen: (open) => set({ boardOpen: open }),
+  bumpTasks: () => set((s) => ({ tasksVersion: s.tasksVersion + 1 })),
 
   flyTo: (sessionId) => set({ flyTarget: { sessionId, ts: Date.now() } }),
 

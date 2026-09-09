@@ -6,6 +6,7 @@ import { DetailDrawer } from './ui/DetailDrawer.tsx';
 import { NudgePulse, ReconnectBanner } from './ui/Banners.tsx';
 import { Scrubber } from './ui/Scrubber.tsx';
 import { Minimap } from './ui/Minimap.tsx';
+import { BoardPanel } from './ui/BoardPanel.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
 import { runDemo } from './demo.ts';
@@ -27,6 +28,7 @@ export function App(): JSX.Element {
       <ThreadPanel />
       <DetailDrawer />
       <Minimap />
+      <BoardPanel />
       <Scrubber />
       <ReconnectBanner />
       <NudgePulse />

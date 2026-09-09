@@ -88,6 +88,14 @@
 - [x] `monitors.json` met ara-zelfbewaking + placeholders voor eigen sites; org.json `ops`-sectie; watchdog-plist in install.sh.
 - [x] Keten end-to-end getest: incident aanmaken → dedupe → auto-herstel-sluiting → escalatie-detectie → juiste spawn-triggers (4 runs, alles klopte).
 
+## Uitbouwlijst-batch (Phase 2 compleet)
+- [x] **Takenbord-UI** in de viewer (☷ in topbar): escalaties (amber), actief, afgerond; live via SSE 'tasks' + 60s poll; mobiel als bottom sheet.
+- [x] **Tap-to-prompt vanaf telefoon**: "Nieuwe taak voor de supervisor…" formulier → bord (createdBy user) → watchdog spawnt de supervisor binnen ±5 min. Daarmee is het laatste originele Phase-2 punt (prompten vanaf de telefoon) gedekt zonder extra bridge.
+- [x] **Telegram-push**: notify.mjs (Bot API, dryrun-modus); watchdog pusht needsHuman-meldingen éénmalig per sessie (lock-dedupe); env vars via install.sh in de watchdog-plist. Getest: correcte payload + dedupe.
+- [x] **Token-pilaren in 3D**: gouden muntstapel per project (log-schaal, 1-8 munten) naast het cluster; ververst per minuut.
+- [x] **Supervisor run-journal**: RUN-LOG taken (assignee journal) — leest laatste 3 bij start, schrijft er één bij afronden; follow-ups worden meegenomen of expliciet uitgesteld.
+- [x] Defensief: /usage-client valt terug op 2M budget bij oudere collector.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

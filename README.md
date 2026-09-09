@@ -156,9 +156,9 @@ vanzelfsprekend niets te starten op een remote host.
 Token setup op de Mac: `export ARA_TOKEN="$(openssl rand -hex 24)" && ./scripts/install.sh`
 (de launchd agent krijgt het token mee; hooks sturen `X-ARA-Token` automatisch).
 
-## Phase 2 backlog (not built — hooks left in place)
+## Phase 2 — alles gebouwd ✔
 
-- Telegram push for "needs you" + nightly `ara-status` — recipe: `/loop 24h ara-status` piped to the `telegram@claude-plugins-official` channel plugin once installed; the collector's `/state` endpoint is the data source.
-- Tap-to-prompt from phone (Remote Control bridge).
-- `ara-orchestrator` running real per-venture task queues from `projects.json` (Phase 1 ships the read-only skeleton).
-- Cost/usage per district (`/usage` data not exposed yet → top-bar slot hidden).
+- ✔ Telegram-push: `scripts/notify.mjs` — zet `ARA_TELEGRAM_BOT_TOKEN` + `ARA_TELEGRAM_CHAT_ID` vóór `./scripts/install.sh` en de watchdog pusht elke needsHuman-melding naar je telefoon (eenmalig per sessie). Dagrapport: `/loop 24h /ara-report`.
+- ✔ Tap-to-prompt vanaf de telefoon: ☷ takenbord in de viewer → "Nieuwe taak voor de supervisor" → binnen ±5 min opgepakt (watchdog spawnt de supervisor).
+- ✔ Echte per-venture taakverdeling: supervisor → managers → agents via het bord.
+- ✔ Kosten per district: token-muntstapels in de 3D-wereld + ⚡-tabel + dagbudget.
