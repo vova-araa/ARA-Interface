@@ -1,0 +1,13 @@
+{
+  "name": "ara-world",
+  "owner": {
+    "name": "vova-araa"
+  },
+  "plugins": [
+    {
+      "name": "ara",
+      "source": "./plugins/ara",
+      "description": "ARA World orchestration: streams session/agent/tool events to the world map; /ara-open, /ara-map, ara-status, ara-orchestrator."
+    }
+  ]
+}

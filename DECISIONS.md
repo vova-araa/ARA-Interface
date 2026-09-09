@@ -12,3 +12,7 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 8. **Fixture timestamps are absolute at generation time**; the viewer remaps them relative to "now" on `?demo=1` replay.
 9. **Hook coverage**: Claude Code has no `SubagentStart`/`TeammateIdle`/`TaskCompleted` hook on all versions — hooks.json registers the full superset from the prompt; unsupported ones are simply never fired. Mapping lives in `emit.sh`.
 10. **Viewer serves over LAN/tailnet** by binding 0.0.0.0; the collector prints the tailnet URL (tailscale CLI, falls back to 100.x interface scan).
+11. **drei `<Html distanceFactor>` is broken under an orthographic camera** (scales the DOM overlay to fill the screen). Speech bubbles use fixed-pixel Html instead.
+12. **District center hex is reserved for the venture landmark**; project pods spiral around it so they never overlap.
+13. **Backdrop uses flat `meshBasicMaterial` cartoon shading** — with an ortho camera + directional light, big distant cones catch no light and render black; basic materials keep the skyline reliable.
+14. **Plugin distribution**: repo doubles as a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`); install.sh registers it via the `claude` CLI when available.
