@@ -37,6 +37,9 @@ export function CameraRig(): JSX.Element {
   useFrame((_, delta) => {
     const controls = controlsRef.current;
     if (!controls) return;
+    // LOD-schakelaar: ver uitgezoomd → icons/bubbles uit (goedkope frames).
+    const far = (camera as THREE.OrthographicCamera).zoom < 26;
+    if (far !== useAra.getState().lodFar) useAra.getState().setLodFar(far);
     if (goal.current) {
       // ~1s ease toward the pod.
       controls.target.lerp(goal.current, Math.min(1, delta * 4));

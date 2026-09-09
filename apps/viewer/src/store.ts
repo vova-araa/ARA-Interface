@@ -39,6 +39,8 @@ interface AraStore {
   soundOn: boolean;
   panelOpen: boolean;
   boardOpen: boolean;
+  /** LOD: true wanneer ver uitgezoomd — icons/bubbles verbergen (perf). */
+  lodFar: boolean;
   /** Verhoogd bij elk SSE 'tasks'-event zodat het bord live ververst. */
   tasksVersion: number;
   flyTarget: { sessionId: string; ts: number } | null;
@@ -59,6 +61,7 @@ interface AraStore {
   toggleSound(): void;
   setPanelOpen(open: boolean): void;
   setBoardOpen(open: boolean): void;
+  setLodFar(far: boolean): void;
   bumpTasks(): void;
   flyTo(sessionId: string): void;
   pruneEphemera(): void;
@@ -148,6 +151,7 @@ export const useAra = create<AraStore>((set, get) => ({
   soundOn: loadPref('ara.soundOn', false),
   panelOpen: window.innerWidth > 800,
   boardOpen: false,
+  lodFar: false,
   tasksVersion: 0,
   flyTarget: null,
   replaySnapshot: null,
@@ -222,6 +226,7 @@ export const useAra = create<AraStore>((set, get) => ({
     }),
   setPanelOpen: (open) => set({ panelOpen: open }),
   setBoardOpen: (open) => set({ boardOpen: open }),
+  setLodFar: (far) => set({ lodFar: far }),
   bumpTasks: () => set((s) => ({ tasksVersion: s.tasksVersion + 1 })),
 
   flyTo: (sessionId) => set({ flyTarget: { sessionId, ts: Date.now() } }),

@@ -56,6 +56,7 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
   const bubble = useAra((s) =>
     s.bubbles.find((b) => b.sessionId === agent.sessionId && b.agentId === agent.agentId),
   );
+  const lodFar = useAra((s) => s.lodFar);
 
   const color = AGENT_COLORS[slot % AGENT_COLORS.length]!;
   const start = useMemo(() => districtEdge(world, pod.session.project), [world, pod.session.project]);
@@ -148,14 +149,14 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
         <sphereGeometry args={[0.085, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
         <meshStandardMaterial color="#f7f5f2" />
       </mesh>
-      {/* tool icon sprite */}
-      {agent.activeTool && !agent.stopped && (
+      {/* tool icon sprite (LOD: uit wanneer ver uitgezoomd) */}
+      {agent.activeTool && !agent.stopped && !lodFar && (
         <sprite position={[0.14, 0.52, 0]} scale={[0.22, 0.22, 0.22]}>
           <spriteMaterial map={emojiTexture(icon)} transparent depthWrite={false} />
         </sprite>
       )}
-      {/* speech bubble with toolSummary */}
-      {bubble && !agent.stopped && (
+      {/* speech bubble with toolSummary (LOD: uit wanneer ver uitgezoomd) */}
+      {bubble && !agent.stopped && !lodFar && (
         <Html position={[0, 0.72, 0]} center zIndexRange={[10, 0]}>
           <div className="bubble">{bubble.text}</div>
         </Html>

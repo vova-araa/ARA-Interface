@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { VENTURES } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
 import { loadSessionEvents } from '../api.ts';
@@ -19,6 +19,8 @@ export function ThreadPanel(): JSX.Element | null {
   const flyTo = useAra((s) => s.flyTo);
   const selectedSessionId = useAra((s) => s.selectedSessionId);
   const demo = useAra((s) => s.demo);
+  const setPanelOpen = useAra((s) => s.setPanelOpen);
+  const touchStartY = useRef<number | null>(null);
 
   const groups = useMemo(() => {
     let sessions = Object.values(snapshot.sessions);
@@ -69,6 +71,20 @@ export function ThreadPanel(): JSX.Element | null {
 
   return (
     <div className="panel">
+      {/* Mobiel: sleep de grip omlaag om de sheet te sluiten */}
+      <div
+        className="grip"
+        onTouchStart={(e) => (touchStartY.current = e.touches[0]?.clientY ?? null)}
+        onTouchMove={(e) => {
+          const y = e.touches[0]?.clientY;
+          if (touchStartY.current !== null && y !== undefined && y - touchStartY.current > 55) {
+            touchStartY.current = null;
+            setPanelOpen(false);
+          }
+        }}
+      >
+        <span className="grip-bar" />
+      </div>
       <div className="panel-header">
         <input
           className="search"

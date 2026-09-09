@@ -96,6 +96,11 @@
 - [x] **Supervisor run-journal**: RUN-LOG taken (assignee journal) — leest laatste 3 bij start, schrijft er één bij afronden; follow-ups worden meegenomen of expliciet uitgesteld.
 - [x] Defensief: /usage-client valt terug op 2M budget bij oudere collector.
 
+## Bouwplan-audit (laatste gaten gedicht)
+- [x] **LOD** (spec §6): ver uitgezoomd → tool-icons, speech bubbles en projectlabels uit (venture-labels blijven); schakelt via camera-zoom in de render-loop.
+- [x] **Swipe-gestures mobiel** (spec §6): grip in de bottom sheet — omlaag vegen sluit; opener-grip onderaan het scherm — omhoog vegen (of tikken) opent de threadlijst.
+- [x] **Duur-soak**: 5 minuten × 3 sessies × 8 ev/s (los van de accelerated CI-soak); resultaat in dit document zodra afgerond — 30-min variant is op de Mac één commando: `ARA_SOAK_SECONDS=1800 pnpm soak`.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

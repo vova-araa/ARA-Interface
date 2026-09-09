@@ -13,6 +13,8 @@ import { runDemo } from './demo.ts';
 
 export function App(): JSX.Element {
   const demo = useAra((s) => s.demo);
+  const panelOpen = useAra((s) => s.panelOpen);
+  const setPanelOpen = useAra((s) => s.setPanelOpen);
 
   useEffect(() => {
     if (demo) void runDemo();
@@ -32,6 +34,27 @@ export function App(): JSX.Element {
       <Scrubber />
       <ReconnectBanner />
       <NudgePulse />
+      {/* Mobiel: veeg omhoog vanaf de onderrand om de threadlijst te openen */}
+      {!panelOpen && (
+        <div
+          className="sheet-opener"
+          onClick={() => setPanelOpen(true)}
+          onTouchStart={(e) => {
+            const startY = e.touches[0]?.clientY ?? 0;
+            const onMove = (move: TouchEvent): void => {
+              const y = move.touches[0]?.clientY ?? startY;
+              if (startY - y > 30) {
+                setPanelOpen(true);
+                window.removeEventListener('touchmove', onMove);
+              }
+            };
+            window.addEventListener('touchmove', onMove, { passive: true });
+            window.addEventListener('touchend', () => window.removeEventListener('touchmove', onMove), { once: true });
+          }}
+        >
+          <span className="grip-bar" />
+        </div>
+      )}
     </div>
   );
 }

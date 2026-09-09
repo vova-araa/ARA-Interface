@@ -311,6 +311,34 @@ html, body, #root {
   to { transform: none; opacity: 1; }
 }
 
+/* ── Swipe-grips (alleen mobiel zichtbaar) ─ */
+.grip { display: none; }
+.sheet-opener { display: none; }
+.grip-bar {
+  display: block;
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--text-dim);
+  opacity: 0.6;
+  margin: 0 auto;
+}
+@media (max-width: 800px) {
+  .grip { display: block; padding: 8px 0 2px; touch-action: none; }
+  .sheet-opener {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: 25%;
+    right: 25%;
+    bottom: 0;
+    height: 26px;
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 12;
+  }
+}
+
 /* ── Mobile (≤800px): bottom sheet ───────── */
 @media (max-width: 800px) {
   .topbar { gap: 8px; padding: 8px 10px; padding-top: calc(8px + env(safe-area-inset-top)); }

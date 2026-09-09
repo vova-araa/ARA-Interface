@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { axialToWorld, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
+import { useAra } from '../store.ts';
 
 const textureCache = new Map<string, { texture: THREE.CanvasTexture; aspect: number }>();
 
@@ -64,8 +65,10 @@ function Label({
   );
 }
 
-/** Venture name above each district landmark, project names above clusters. */
+/** Venture name above each district landmark, project names above clusters.
+ *  LOD: projectlabels verdwijnen wanneer ver uitgezoomd (venture-labels blijven). */
 export function Labels({ world }: { world: WorldConfig }): JSX.Element {
+  const lodFar = useAra((s) => s.lodFar);
   const labels = useMemo(() => {
     const out: { key: string; text: string; accent: string; pos: [number, number, number]; h: number }[] = [];
     for (const district of world.districts) {
@@ -93,9 +96,11 @@ export function Labels({ world }: { world: WorldConfig }): JSX.Element {
 
   return (
     <group>
-      {labels.map((label) => (
-        <Label key={label.key} text={label.text} accent={label.accent} position={label.pos} height={label.h} />
-      ))}
+      {labels
+        .filter((label) => !lodFar || label.key.startsWith('v-'))
+        .map((label) => (
+          <Label key={label.key} text={label.text} accent={label.accent} position={label.pos} height={label.h} />
+        ))}
     </group>
   );
 }
