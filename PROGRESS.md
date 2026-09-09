@@ -37,6 +37,14 @@
 - [x] Viewer: parent→child figuurdraden (goud) via parentAgentId; fixture toont geneste agent (c2 → c3).
 - [x] Empirisch bevestigd: subagents hebben geen Agent-tool (nesting geblokkeerd) → daarom breedte + sessie-recursie als ontwerp.
 
+## Toegangslaag (telefoon + laptop, alles via Claude Code)
+- [x] `scripts/expose.sh`: tailnet (Tailscale Serve HTTPS) / public (Funnel, weigert zonder ARA_TOKEN) / off / status.
+- [x] `emit.sh` remote-aware: lokale collector 0.2s, remote 3s — altijd gebackgroundd (gemeten: 3ms exit, sessie wacht nooit).
+- [x] `ensure-collector.sh` start niets op een remote host; alleen probe.
+- [x] ARA_TOKEN in de launchd plist via install.sh (`export ARA_TOKEN=… && ./scripts/install.sh`).
+- [x] Cloud/telefoon Claude Code-sessies: ARA_COLLECTOR_URL + ARA_TOKEN in de environment + plugin → events landen in dezelfde wereld. README-toegangsmatrix.
+- [x] `/ara-open` toont nu ook serve/funnel-URLs.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

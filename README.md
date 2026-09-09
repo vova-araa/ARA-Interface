@@ -82,15 +82,33 @@ and an accelerated soak on every push.
 **Time-scrubber**: the pill at the bottom of the live view replays the last 24h
 from SQLite — drag to any moment, hit LIVE to return.
 
-## Serving beyond the Mac
+## Toegang: telefoon én laptop, alles via Claude Code
 
-Everything runs through Claude Code itself — no external hosting. The collector
-serves the built viewer, so one port is the whole stack: after
-`pnpm --filter @ara/viewer build` the world lives at `http://localhost:4747`
-(and over Tailscale on the same port). If that port is ever exposed beyond the
-tailnet, start the collector with `ARA_TOKEN=<random>` — every API call then
-requires the token (hooks send `X-ARA-Token`; open the viewer once with
-`?token=…`, it persists). The PWA manifest lets the iPhone pin it full-screen.
+Geen externe hosting — de Mac + Tailscale is het platform. De collector
+serveert de gebouwde viewer, dus **één poort (4747) is de hele stack**.
+
+| Waar ben je | URL | Hoe |
+|---|---|---|
+| Mac zelf | `http://localhost:4747` | niets nodig |
+| Laptop/telefoon op je tailnet | `http://<tailnet-ip>:4747` | Tailscale-app aan; iPhone: PWA "Zet op beginscherm" |
+| Tailnet, maar met HTTPS | `https://<mac>.<tailnet>.ts.net` | `./scripts/expose.sh tailnet` |
+| Overal (geen Tailscale op het apparaat) | zelfde HTTPS-URL | `./scripts/expose.sh public` — **vereist ARA_TOKEN**, open eenmalig met `?token=…` |
+
+### Cloud- en telefoon-sessies van Claude Code zelf
+
+Sessies die niet op de Mac draaien (claude.ai/code, de mobiele app) kunnen hun
+events in dezelfde wereld laten landen:
+
+1. Zet funnel aan: `./scripts/expose.sh public` (met `ARA_TOKEN` geïnstalleerd).
+2. Geef die sessies/environments twee env vars: `ARA_COLLECTOR_URL=https://<mac>.<tailnet>.ts.net` en `ARA_TOKEN=<token>`.
+3. Installeer daar de `ara` plugin (deze repo is een plugin-marketplace).
+
+`emit.sh` herkent een remote collector automatisch (ruimere timeout, altijd
+fire-and-forget — een sessie wacht nooit), en `ensure-collector.sh` probeert
+vanzelfsprekend niets te starten op een remote host.
+
+Token setup op de Mac: `export ARA_TOKEN="$(openssl rand -hex 24)" && ./scripts/install.sh`
+(de launchd agent krijgt het token mee; hooks sturen `X-ARA-Token` automatisch).
 
 ## Phase 2 backlog (not built — hooks left in place)
 

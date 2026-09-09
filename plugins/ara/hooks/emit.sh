@@ -6,13 +6,21 @@
 HOOK_NAME="${1:-Unknown}"
 COLLECTOR="${ARA_COLLECTOR_URL:-http://127.0.0.1:4747}"
 
+# Local collector: 200ms is plenty. Remote collector (cloud session posting to
+# the Mac over funnel/tailnet): allow 3s — the curl is backgrounded, so the
+# session never waits either way.
+case "$COLLECTOR" in
+  http://127.*|http://localhost*|http://\[::1\]*) MAX_TIME=0.2 ;;
+  *) MAX_TIME=3 ;;
+esac
+
 # Cap payload at 100KB, fire-and-forget in the background, swallow all errors.
 # ARA_TOKEN is only needed when the collector runs with auth enabled (online).
 AUTH_ARGS=()
 [ -n "${ARA_TOKEN:-}" ] && AUTH_ARGS=(-H "X-ARA-Token: ${ARA_TOKEN}")
 
 head -c 100000 | curl -s -o /dev/null \
-  --max-time 0.2 \
+  --max-time "$MAX_TIME" \
   -X POST \
   -H 'Content-Type: application/json' \
   "${AUTH_ARGS[@]}" \

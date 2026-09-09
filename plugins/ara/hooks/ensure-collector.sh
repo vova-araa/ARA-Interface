@@ -8,6 +8,16 @@
 COLLECTOR="${ARA_COLLECTOR_URL:-http://127.0.0.1:4747}"
 ARA_REPO="${ARA_REPO:-$HOME/dev/ara-world}"
 
+# Remote collector (cloud session → Mac over funnel/tailnet): nothing to start
+# here — just probe and get out of the way.
+case "$COLLECTOR" in
+  http://127.*|http://localhost*) ;;
+  *)
+    curl -s -o /dev/null --max-time 2 "${COLLECTOR}/health" || true
+    exit 0
+    ;;
+esac
+
 if curl -s -o /dev/null --max-time 0.3 "${COLLECTOR}/health"; then
   exit 0
 fi

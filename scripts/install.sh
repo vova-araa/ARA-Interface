@@ -32,6 +32,7 @@ install_agent() {
       -e "s|__PNPM__|$PNPM|g" \
       -e "s|__PATH__|$(dirname "$PNPM"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin|g" \
       -e "s|__LOGS__|$LOGS|g" \
+      -e "s|__ARA_TOKEN__|${ARA_TOKEN:-}|g" \
       "$REPO/ops/launchd/$name.plist" > "$plist"
   launchctl bootout "gui/$UID_NUM/$name" 2>/dev/null || true
   launchctl bootstrap "gui/$UID_NUM" "$plist"
@@ -58,9 +59,11 @@ fi
 sleep 2
 TAILNET_IP="$(tailscale ip -4 2>/dev/null | head -1 || true)"
 echo ""
-echo "✔ ARA World is live:"
-echo "   Mac:    http://localhost:4748"
-[ -n "$TAILNET_IP" ] && echo "   iPhone: http://$TAILNET_IP:4748   (Tailscale)"
-echo "   Demo:   http://localhost:4748/?demo=1"
+echo "✔ ARA World is live (collector serveert ook de viewer):"
+echo "   Mac:      http://localhost:4747"
+[ -n "$TAILNET_IP" ] && echo "   Telefoon: http://$TAILNET_IP:4747   (Tailscale app aan)"
+echo "   Demo:     http://localhost:4747/?demo=1"
+[ -n "${ARA_TOKEN:-}" ] && echo "   Auth:     ARA_TOKEN actief — open eenmalig met ?token=…"
 echo ""
+echo "Verder weg dan je tailnet? → ./scripts/expose.sh tailnet|public"
 echo "Everything restarts automatically after reboot (launchd KeepAlive)."
