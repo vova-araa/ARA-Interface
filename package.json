@@ -16,6 +16,7 @@
     "test": "pnpm -r test",
     "fixture": "pnpm --filter @ara/collector fixture",
     "soak": "pnpm --filter @ara/collector soak",
+    "browse": "node apps/viewer/scripts/browse.mjs",
     "map": "pnpm --filter @ara/collector map"
   }
 }

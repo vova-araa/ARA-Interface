@@ -24,5 +24,9 @@ project affected, a specialist review), end your reply with one line per need:
 
 `SPAWN-REQUEST: <agent-type> | <one-line task> | <why it can't be you>`
 
+Typical types: `ara-worker` (a second project touched), `ara-web-scout`
+(anything on the open web — docs, prices, a site that must be screenshotted),
+`Explore` (broad read-only codebase sweep).
+
 The orchestrator decides. Never block your own task waiting for it; finish your
 scope first. Scope creep is a follow-up, not a SPAWN-REQUEST.

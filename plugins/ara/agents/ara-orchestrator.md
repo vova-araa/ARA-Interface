@@ -17,7 +17,10 @@ automatically via hooks.
 
 1. Break the goal into per-project tasks (TaskCreate, one task per unit of work).
 2. Spawn an `ara-worker` agent per task — in parallel where independent, with
-   `isolation: "worktree"` for anything that writes.
+   `isolation: "worktree"` for anything that writes. For research on the open
+   web (docs, prijzen, concurrentie, API-changelogs, screenshots van sites)
+   spawn an `ara-web-scout` instead — it has WebSearch/WebFetch plus the
+   headless browser (`pnpm browse`) and needs zero setup from the user.
 3. Read every worker reply. A worker may end with one or more lines:
    `SPAWN-REQUEST: <agent-type or ara-worker> | <task> | <why>`
    Honor a request only if it is (a) within the original goal, (b) within

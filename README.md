@@ -54,7 +54,9 @@ plugins/ara             hooks + ara-status skill + /ara-open + /ara-map + ara-or
 | `pnpm build` / `pnpm typecheck` / `pnpm test` | The usual |
 | `pnpm fixture` | Regenerate the demo story |
 | `pnpm map` | Rebuild `world.config.json` from `projects.json` |
+| `pnpm browse <url> [--shot]` | Headless-Chromium screener: tekst, meta, links, screenshot |
 | `/ara-open` (in Claude Code) | Print URLs + open the viewer |
+| `/ara-run <doel>` (in Claude Code) | Orchestrator verdeelt werk over agents/projecten |
 | `/ara-map` (in Claude Code) | Re-map world after editing projects.json |
 | `ara-status` skill | One-screen "what needs me" summary |
 

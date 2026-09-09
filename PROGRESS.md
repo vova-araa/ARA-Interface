@@ -45,6 +45,12 @@
 - [x] Cloud/telefoon Claude Code-sessies: ARA_COLLECTOR_URL + ARA_TOKEN in de environment + plugin → events landen in dezelfde wereld. README-toegangsmatrix.
 - [x] `/ara-open` toont nu ook serve/funnel-URLs.
 
+## Web-capability
+- [x] `pnpm browse <url>`: headless-Chromium screener (titel/meta/koppen/tekst/links als JSON, volledige tekst + screenshot naar /tmp/ara-browse), proxy- en NO_PROXY-aware, `--mobile`/`--full`/`--wait`. End-to-end geverifieerd tegen lokale site (status 200 + extractie + screenshot).
+- [x] `ara-web-scout` agent: WebSearch/WebFetch eerst (native, nul setup), browser alleen voor JS-zware pagina's/screenshots; read-only regels (geen logins/formulieren/downloads).
+- [x] Orchestrator + worker kennen de scout (SPAWN-REQUEST type); install.sh installeert Chromium eenmalig automatisch.
+- [x] NB: externe sites zijn in déze cloud-container geblokkeerd door netwerkpolicy — op de Mac geldt dat niet; WebSearch/WebFetch werken overal native.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

@@ -23,6 +23,10 @@ echo "▸ Building viewer…"
 echo "▸ Generating fixture + world map…"
 (cd "$REPO" && pnpm fixture >/dev/null && pnpm map >/dev/null)
 
+echo "▸ Installing headless Chromium for web-scout/QA (one-time, ~120MB)…"
+(cd "$REPO" && pnpm --filter @ara/viewer exec playwright install chromium >/dev/null 2>&1) \
+  || echo "⚠ Chromium install faalde — 'pnpm browse' werkt pas na: pnpm --filter @ara/viewer exec playwright install chromium"
+
 mkdir -p "$LOGS" "$AGENTS"
 
 install_agent() {
