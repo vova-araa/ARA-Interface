@@ -4,6 +4,7 @@ import { useAra, useViewSnapshot } from '../store.ts';
 import { loadSessionEvents } from '../api.ts';
 import { projectPlacement } from '../placements.ts';
 import { ageString, STATUS_COLORS, toolIcon } from '../util.ts';
+import { UsageTable } from './UsageTable.tsx';
 
 export function ThreadPanel(): JSX.Element | null {
   const snapshot = useViewSnapshot();
@@ -117,6 +118,7 @@ export function ThreadPanel(): JSX.Element | null {
           </div>
         ))}
       </div>
+      <UsageTable />
     </div>
   );
 }

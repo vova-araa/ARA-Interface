@@ -40,6 +40,27 @@ export interface BoardTask {
   result: string;
 }
 
+/** Token usage per session, upserted with absolute totals from the transcript. */
+export interface SessionUsage {
+  sessionId: string;
+  project: string;
+  updatedAt: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+  model: string;
+}
+
+export interface UsageSummaryRow {
+  project: string;
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+}
+
 export interface TaskStore {
   createTask(task: BoardTask): void;
   updateTask(
@@ -48,6 +69,9 @@ export interface TaskStore {
   ): BoardTask | null;
   getTask(id: string): BoardTask | null;
   listTasks(filter: { status?: string; assignee?: string; project?: string; limit?: number }): BoardTask[];
+  upsertUsage(usage: SessionUsage): void;
+  /** Per-project totals for sessions updated since `from`. */
+  usageSummary(from: number): UsageSummaryRow[];
 }
 
 export function openStore(dbPath = DB_PATH): EventStore {
@@ -81,6 +105,17 @@ export function openStore(dbPath = DB_PATH): EventStore {
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, updated_at);
     CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee, status);
+    CREATE TABLE IF NOT EXISTS usage (
+      session_id TEXT PRIMARY KEY,
+      project TEXT NOT NULL DEFAULT '',
+      updated_at INTEGER NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_create_tokens INTEGER NOT NULL DEFAULT 0,
+      model TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_updated ON usage(updated_at);
   `);
 
   const insertStmt = db.prepare(
@@ -193,6 +228,36 @@ export function openStore(dbPath = DB_PATH): EventStore {
       }
       const sql = `SELECT * FROM tasks ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC LIMIT @limit`;
       return (db.prepare(sql).all(params) as TaskRow[]).map(rowToTask);
+    },
+    upsertUsage(usage) {
+      db.prepare(`
+        INSERT INTO usage (session_id, project, updated_at, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, model)
+        VALUES (@sessionId, @project, @updatedAt, @inputTokens, @outputTokens, @cacheReadTokens, @cacheCreateTokens, @model)
+        ON CONFLICT(session_id) DO UPDATE SET
+          project = excluded.project,
+          updated_at = excluded.updated_at,
+          input_tokens = excluded.input_tokens,
+          output_tokens = excluded.output_tokens,
+          cache_read_tokens = excluded.cache_read_tokens,
+          cache_create_tokens = excluded.cache_create_tokens,
+          model = excluded.model
+      `).run(usage);
+    },
+    usageSummary(from) {
+      return db
+        .prepare(`
+          SELECT project,
+                 COUNT(*) AS sessions,
+                 SUM(input_tokens) AS inputTokens,
+                 SUM(output_tokens) AS outputTokens,
+                 SUM(cache_read_tokens) AS cacheReadTokens,
+                 SUM(cache_create_tokens) AS cacheCreateTokens
+          FROM usage
+          WHERE updated_at >= ?
+          GROUP BY project
+          ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
+        `)
+        .all(from) as UsageSummaryRow[];
     },
     prune() {
       pruneStmt.run(Date.now() - RETENTION_MS);

@@ -9,7 +9,12 @@
       }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SessionEnd" }] }
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SessionEnd" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/usage.sh\"" }
+        ]
+      }
     ],
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" UserPromptSubmit" }] }
@@ -27,7 +32,12 @@
       { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" SubagentStop" }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" Stop" }] }
+      {
+        "hooks": [
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" Stop" },
+          { "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/usage.sh\"" }
+        ]
+      }
     ],
     "Notification": [
       { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" Notification" }] }

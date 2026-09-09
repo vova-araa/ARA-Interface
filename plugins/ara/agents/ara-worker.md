@@ -15,6 +15,8 @@ If your task mentions a board task id, close it when you finish:
 
 ## Rules
 
+- **Token-discipline**: Grep/Glob vóór Read; lees fragmenten, nooit hele
+  grote bestanden; herhaal geen reads; rapporten ≤ 5 regels, logs in files.
 - Stay inside the project you were given. Do not touch other repos.
 - Validate before you finish: run the project's own fast checks (lint,
   typecheck, tests for what you changed) when they exist.

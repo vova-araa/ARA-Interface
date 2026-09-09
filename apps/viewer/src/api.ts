@@ -96,6 +96,24 @@ export interface ProjectHourStats {
   errors: number;
 }
 
+export interface UsageRow {
+  project: string;
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+}
+
+export async function loadUsage(): Promise<UsageRow[]> {
+  try {
+    const res = (await (await fetch(withToken('/usage'))).json()) as { usage: UsageRow[] };
+    return res.usage;
+  } catch {
+    return [];
+  }
+}
+
 export async function loadStats(): Promise<ProjectHourStats[]> {
   try {
     const res = (await (await fetch(withToken('/stats'))).json()) as {

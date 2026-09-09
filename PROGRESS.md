@@ -68,6 +68,13 @@
 - [x] Rapportage: **escalaties direct + dagrapport** (`/loop 24h /ara-report`).
 - [x] Prioriteit-1 ventures: Traject, Blex, Uprising, Trading (trading: live orderlogica read-only).
 
+## Token-tracking & -discipline
+- [x] `usage.sh`/`usage.mjs` hook op Stop+SessionEnd: parseert het transcript (dedupe per message-id), POST absolute totalen naar `/usage`. Kost 0 LLM-tokens, altijd gebackgroundd. End-to-end getest incl. dedupe.
+- [x] Collector: usage-tabel (upsert per sessie) + `GET /usage` (per project, vandaag). Auth-gated.
+- [x] Viewer: uitklapbare token-tabel onderin het panel (per project: in/uit/cache) + totaalteller; poll 60s.
+- [x] `/ara-report`: ⚡ TOKENS VANDAAG sectie (cache apart — ~10× goedkoper).
+- [x] Token-discipline verankerd in org.json (`models` + `tokenRules`) en alle agentrollen: haiku-first voor scouts/simpele workers, Grep/Glob vóór Read, fragmenten i.p.v. hele bestanden, bordresultaten ≤5 regels, kale spawn-prompts, poll via curl (0 tokens), batching van subtaken.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

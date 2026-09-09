@@ -171,6 +171,25 @@ html, body, #root {
 .stat-click { cursor: pointer; user-select: none; }
 .stat-click:hover { color: var(--text); }
 
+/* ── Token usage ─────────────────────────── */
+.usage { border-top: 1px solid var(--border); padding: 6px 10px; }
+.usage-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 0;
+  width: 100%;
+  text-align: left;
+}
+.usage-toggle:hover { color: var(--text); }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 4px; }
+.usage-table th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 2px 4px; }
+.usage-table td { padding: 2px 4px; color: var(--text); }
+.usage-table td:not(:first-child), .usage-table th:not(:first-child) { text-align: right; }
+.usage-table td:first-child { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── Minimap ─────────────────────────────── */
 .minimap {
   position: absolute;

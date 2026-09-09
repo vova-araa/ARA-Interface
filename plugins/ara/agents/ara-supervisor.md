@@ -54,6 +54,21 @@ Lees `${CLAUDE_PLUGIN_ROOT}/org.json` voor venture-profielen en budgetten.
 - **Venture-profielen**: geef de `focus`-regel uit org.json door in de
   manager-prompt. Let op: trading = read-only op live orderlogica.
 
+## Token-discipline (net zo hard als het budget)
+
+Het doel is maximale functionaliteit per token — limieten raken we pas na
+véél gebruik. Regels (ook in org.json `tokenRules`):
+
+- **Model per rol**: scouts en simpele workers spawn je met `model: haiku`
+  (Agent-tool param; headless: `--model haiku`). Alleen na aantoonbaar falen
+  upgrade je die ene taak. Managers/complexe taken: standaardmodel.
+- **Spawn-prompts zijn kaal**: taak + paden + acceptatiecriteria. Nooit
+  gespreksgeschiedenis of bestandsinhoud meesturen die de agent zelf kan lezen.
+- **Poll met curl, niet met agents** — bordchecks kosten 0 tokens.
+- **Batch**: één worker met 3 samenhangende subtaken verslaat 3 workers met
+  elk hun eigen opstart-context.
+- Resultaten die je doorgeeft aan de gebruiker: samenvatten, nooit doorplakken.
+
 ## Budget & regels (hard)
 
 - Max **3 managers** (headless sessies), **6 concurrent / 12 totaal** directe

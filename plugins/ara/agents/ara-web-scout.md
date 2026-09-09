@@ -23,6 +23,10 @@ Je toolgebruik streamt automatisch naar ARA World (🔭-icoon).
 
 ## Regels
 
+- **Token-discipline**: max 3 zoekopdrachten en 5 gefetchte pagina's per
+  vraag tenzij de opdracht anders zegt; lees uit browse-output eerst de
+  preview, het volledige tekstbestand alleen als de preview tekortschiet.
+
 - **Read-only web**: nooit inloggen, formulieren versturen, kopen, of iets
   downloaden buiten `/tmp/ara-browse/`.
 - Geen secrets of tokens in URLs; geen paywalls of CAPTCHA's omzeilen.

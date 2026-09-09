@@ -79,6 +79,15 @@ schrijfwerk alleen op **`ara/*`-branches** (mergen/deployen/geld = escalatie
 naar jou) · trading-venture is read-only op live orderlogica · prioriteit 1:
 Traject, Blex, Uprising, Trading.
 
+## Tokens
+
+Elke sessie telt zichzelf: een hook parseert het transcript op Stop/SessionEnd
+(0 LLM-tokens) en meldt totalen aan de collector. In de viewer: ⚡-teller
+onderin het thread-panel (uitklapbaar per project, cache apart). In het
+dagrapport: de ⚡ TOKENS VANDAAG-tabel. Zuinigheid is beleid
+(`plugins/ara/org.json` → `tokenRules`): haiku-first voor scouts/simpele
+workers, Grep vóór Read, kale spawn-prompts, curl-polling, batching.
+
 ## Ops
 
 - launchd agents `com.ara.collector` / `com.ara.viewer` (`~/Library/LaunchAgents`), `KeepAlive` — survive reboots, logs in `~/Library/Logs/ara-world/`.

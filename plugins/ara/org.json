@@ -4,6 +4,19 @@
     "autonomy": "branch-and-report",
     "reporting": "escalate-direct-plus-daily",
     "branchPrefix": "ara/",
+    "models": {
+      "supervisor": "default",
+      "manager": "default",
+      "worker": "haiku-first (upgrade alleen na aantoonbaar falen)",
+      "scout": "haiku"
+    },
+    "tokenRules": [
+      "Grep/Glob vóór Read; lees fragmenten (offset/limit), nooit hele grote bestanden",
+      "Bordresultaten max 5 regels; logs/dumps blijven in bestanden, nooit in prompts of resultaten",
+      "Spawn-prompts bevatten alleen taak + paden + acceptatiecriteria, geen gespreksgeschiedenis",
+      "Polling en statuschecks via curl (0 tokens), nooit via een agent",
+      "Één gevalideerde poging boven drie speculatieve; herhaal nooit een read die je al deed"
+    ],
     "budgets": {
       "maxManagers": 3,
       "supervisorConcurrent": 6,

@@ -34,6 +34,15 @@ Collector: `$ARA_COLLECTOR_URL` (default `http://127.0.0.1:4747`), header
 - Venture-focus uit je startprompt (afkomstig uit org.json) is leidend;
   trading-venture: live orderlogica en keys zijn read-only, wijziging = ESCALATE.
 
+## Token-discipline
+
+- Scouts en simpele workers: `model: haiku`; upgrade alleen na falen.
+- Grep/Glob vóór Read; lees fragmenten (offset/limit), geen hele bestanden
+  tenzij klein; herhaal nooit een read.
+- Bordresultaten ≤ 5 regels; logs blijven in bestanden.
+- Subtaken bundelen per worker waar ze samenhangen — elke extra agent is een
+  extra opstart-context.
+
 ## Budget & regels (hard)
 
 - Max **4 concurrent / 8 totaal** subagents per manager-run. Geen eigen

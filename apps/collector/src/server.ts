@@ -28,7 +28,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // /health stays open for probes; static viewer assets are served unauthenticated —
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|tasks)(\/|$)/;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|tasks|usage)(\/|$)/;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -264,6 +264,39 @@ export function createCollector(store: EventStore): CollectorApp {
       return;
     }
     res.json({ ok: true, task });
+  });
+
+  // ── Token usage (absolute totals per session, parsed from transcripts) ──
+  app.post('/usage', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const sessionId = String(body.sessionId ?? '');
+    if (!sessionId) {
+      res.status(400).json({ ok: false, error: 'sessionId required' });
+      return;
+    }
+    const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Math.max(0, Number(v)) : 0);
+    store.upsertUsage({
+      sessionId,
+      project:
+        body.project && String(body.project) !== 'unknown'
+          ? String(body.project)
+          : projectForCwd(String(body.cwd ?? '')),
+      updatedAt: Date.now(),
+      inputTokens: num(body.inputTokens),
+      outputTokens: num(body.outputTokens),
+      cacheReadTokens: num(body.cacheReadTokens),
+      cacheCreateTokens: num(body.cacheCreateTokens),
+      model: String(body.model ?? ''),
+    });
+    res.json({ ok: true });
+  });
+
+  app.get('/usage', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const from = Number(req.query.from ?? dayStart.getTime());
+    res.json({ usage: store.usageSummary(from) });
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
