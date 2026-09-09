@@ -171,6 +171,22 @@ html, body, #root {
 .stat-click { cursor: pointer; user-select: none; }
 .stat-click:hover { color: var(--text); }
 
+/* ── Minimap ─────────────────────────────── */
+.minimap {
+  position: absolute;
+  top: 60px;
+  left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(22, 25, 31, 0.85);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  z-index: 13;
+}
+@media (max-width: 800px) {
+  .minimap { display: none; }
+}
+
 /* ── Time scrubber ───────────────────────── */
 .scrubber {
   position: absolute;

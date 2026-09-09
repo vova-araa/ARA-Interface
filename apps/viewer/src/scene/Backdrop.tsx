@@ -1,14 +1,16 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { useDaylight } from './daylight.ts';
 
 /**
- * Ararat silhouette (Masis + Sis), dawn-gradient sky dome and drifting clouds.
+ * Ararat silhouette (Masis + Sis), day/night sky dome and drifting clouds.
  * All procedural, cartoon-flat materials so the orthographic camera can't
  * catch them unlit.
  */
 export function Backdrop(): JSX.Element {
   const cloudsRef = useRef<THREE.Group>(null);
+  const daylight = useDaylight();
 
   const skyMaterial = useMemo(() => {
     const canvas = document.createElement('canvas');
@@ -16,10 +18,10 @@ export function Backdrop(): JSX.Element {
     canvas.height = 256;
     const ctx = canvas.getContext('2d')!;
     const gradient = ctx.createLinearGradient(0, 0, 0, 256);
-    gradient.addColorStop(0, '#2b3a67'); // zenith night-blue
-    gradient.addColorStop(0.55, '#7a6a9e');
-    gradient.addColorStop(0.82, '#e8927c'); // dawn coral
-    gradient.addColorStop(1, '#f6c89f'); // horizon apricot
+    gradient.addColorStop(0, daylight.stops[0]);
+    gradient.addColorStop(0.55, daylight.stops[1]);
+    gradient.addColorStop(0.82, daylight.stops[2]);
+    gradient.addColorStop(1, daylight.stops[3]);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 4, 256);
     const texture = new THREE.CanvasTexture(canvas);
@@ -30,7 +32,7 @@ export function Backdrop(): JSX.Element {
       fog: false,
       depthWrite: false,
     });
-  }, []);
+  }, [daylight.stops]);
 
   const clouds = useMemo(
     () =>

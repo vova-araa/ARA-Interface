@@ -51,6 +51,17 @@
 - [x] Orchestrator + worker kennen de scout (SPAWN-REQUEST type); install.sh installeert Chromium eenmalig automatisch.
 - [x] NB: externe sites zijn in déze cloud-container geblokkeerd door netwerkpolicy — op de Mac geldt dat niet; WebSearch/WebFetch werken overal native.
 
+## Organisatie-laag (supervisor → managers → agents)
+- [x] **Takenbord** in de collector: POST/PATCH/GET /tasks (open→claimed→done/failed, parentId, assignee-conventie `supervisor` / `manager:<venture>` / `agent:<rol>`), auth-gated, SSE 'tasks'-event. 2 nieuwe testsuites (14 collector-tests).
+- [x] **ara-supervisor** (vervangt orchestrator): enige stem naar de gebruiker, zet taken op het bord, start managers als headless sessies, poll't het bord, escaleert i.p.v. gokken. Budget: 3 managers / 6 concurrent / 12 totaal.
+- [x] **ara-manager**: draait als eigen sessie (eigen pod!), claimt bord-taken, spawnt zélf workers/scouts (kan dat als top-level sessie), sluit af met bord-updates; `ESCALATE:` protocol. Budget: 4 concurrent / 8 totaal.
+- [x] /ara-run → supervisor; /ara-report dagrapport-command met `/loop 24h /ara-report` recept.
+
+## Features-batch 2
+- [x] **Day/night cycle**: lucht, fog en licht volgen de lokale tijd (nacht/dageraad/dag/schemer), check per minuut.
+- [x] **Minimap** (klikbaar): districten in venture-kleur, pods op status, needs-human ring; klik vliegt naar de sessie. Verborgen op mobiel.
+- [x] **Walkcycle**: benen + armen zwaaien tegengesteld tijdens het inlopen.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

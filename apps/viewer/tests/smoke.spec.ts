@@ -12,7 +12,7 @@ test.describe('desktop 1280×800', () => {
     page.on('pageerror', (e) => errors.push(String(e)));
 
     await page.goto('/?demo=1');
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(page.locator('canvas').first()).toBeVisible();
     await expect(page.locator('.topbar')).toContainText('Needs you');
     await expect(page.locator('.scrubber')).toHaveCount(0); // hidden in demo mode
 
@@ -34,7 +34,7 @@ test.describe('desktop 1280×800', () => {
 
   test('live mode shows reconnect banner state correctly', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(page.locator('canvas').first()).toBeVisible();
 
     // Time-scrubber exists in live mode; scrubbing enters replay, LIVE exits.
     await expect(page.locator('.scrubber')).toBeVisible();
@@ -57,7 +57,7 @@ test.describe('iPhone 390×844', () => {
 
   test('mobile layout: canvas full-screen, panel as bottom sheet', async ({ page }) => {
     await page.goto('/?demo=1');
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(page.locator('canvas').first()).toBeVisible();
 
     // Panel starts closed on small screens; hamburger opens the bottom sheet.
     await expect(page.locator('.panel')).toHaveCount(0);

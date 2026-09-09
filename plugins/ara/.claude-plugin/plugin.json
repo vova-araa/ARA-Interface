@@ -1,6 +1,6 @@
 {
   "name": "ara",
-  "description": "ARA World orchestration: streams every session/agent/tool event to the ARA collector and adds world commands (/ara-open, /ara-map), the ara-status skill and the ara-orchestrator agent.",
+  "description": "ARA World organisatie: streamt elk sessie/agent/tool-event naar de collector en levert de agent-hiërarchie (ara-supervisor, ara-manager, ara-worker, ara-web-scout), het takenbord-protocol, commands (/ara-run, /ara-open, /ara-map, /ara-report) en de ara-status skill.",
   "version": "0.1.0",
   "author": {
     "name": "vova-araa"

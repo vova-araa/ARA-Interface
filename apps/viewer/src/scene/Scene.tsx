@@ -9,10 +9,12 @@ import { Pods } from './Pods.tsx';
 import { Figures } from './Figures.tsx';
 import { EffectsLayer } from './EffectsLayer.tsx';
 import { Labels } from './Labels.tsx';
+import { useDaylight } from './daylight.ts';
 
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
   const select = useAra((s) => s.select);
+  const daylight = useDaylight();
 
   return (
     <Canvas
@@ -24,13 +26,13 @@ export function Scene(): JSX.Element {
       onPointerMissed={() => select(null)}
       style={{ touchAction: 'none' }}
     >
-      <color attach="background" args={['#2b3a67']} />
-      <fog attach="fog" args={['#e8b9a0', 55, 120]} />
-      <ambientLight intensity={0.5} color="#fff1e0" />
+      <color attach="background" args={[daylight.stops[0]]} />
+      <fog attach="fog" args={[daylight.fogColor, 55, 120]} />
+      <ambientLight intensity={daylight.ambient} color="#fff1e0" />
       <directionalLight
         position={[18, 26, 10]}
-        intensity={1.1}
-        color="#ffe8cf"
+        intensity={daylight.directional}
+        color={daylight.lightColor}
         castShadow
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-25}

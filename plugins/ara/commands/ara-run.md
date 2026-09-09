@@ -1,12 +1,12 @@
 ---
-description: Hand a goal to the ara-orchestrator, which spawns per-project workers (and headless sessions) as needed and reports back one table. Usage - /ara-run <goal>
+description: Geef een doel aan de ARA-organisatie (supervisor → managers → agents). De supervisor verdeelt het via het takenbord en rapporteert één samenvatting terug. Gebruik - /ara-run <doel>
 ---
 
-Invoke the `ara-orchestrator` agent with the user's goal: `$ARGUMENTS`
+Roep de `ara-supervisor` agent aan met het doel van de gebruiker: `$ARGUMENTS`
 
-Before invoking, remind the orchestrator of its budget (max 6 concurrent / 12
-total agents, 3 headless sessions) and that every SPAWN-REQUEST outside the
-goal's scope goes to follow-ups, not to a new agent.
+Herinner de supervisor vooraf aan zijn budget (max 3 managers, 6 concurrent /
+12 totaal directe subagents) en dat escalaties ("ESCALATE:" op het bord) bij
+de gebruiker terechtkomen, nooit stil worden opgelost.
 
-When it returns, relay its table verbatim, then add one line with the viewer
-URL so the user can watch the workforce live: `http://localhost:4747`.
+Als hij terugkomt: geef zijn tabel letterlijk door, gevolgd door één regel met
+de viewer-URL zodat de gebruiker de organisatie live kan zien: `http://localhost:4747`

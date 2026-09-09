@@ -4,7 +4,7 @@ import Database from 'better-sqlite3';
 import type { AraEvent } from '@ara/shared';
 import { DB_PATH, RETENTION_MS } from './config.ts';
 
-export interface EventStore {
+export interface EventStore extends TaskStore {
   insert(event: AraEvent): void;
   /** Events in [from, to], ascending by ts. */
   range(from: number, to: number, limit?: number): AraEvent[];
@@ -25,6 +25,31 @@ export interface ProjectStats {
   errors: number;
 }
 
+/** Task board: how supervisor, managers and agents hand work to each other. */
+export interface BoardTask {
+  id: string;
+  createdAt: number;
+  updatedAt: number;
+  title: string;
+  detail: string;
+  project: string;
+  assignee: string; // role or session name, e.g. "manager:traject", "supervisor"
+  createdBy: string;
+  parentId: string | null;
+  status: 'open' | 'claimed' | 'done' | 'failed';
+  result: string;
+}
+
+export interface TaskStore {
+  createTask(task: BoardTask): void;
+  updateTask(
+    id: string,
+    patch: Partial<Pick<BoardTask, 'status' | 'result' | 'assignee' | 'detail'>>,
+  ): BoardTask | null;
+  getTask(id: string): BoardTask | null;
+  listTasks(filter: { status?: string; assignee?: string; project?: string; limit?: number }): BoardTask[];
+}
+
 export function openStore(dbPath = DB_PATH): EventStore {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
@@ -41,6 +66,21 @@ export function openStore(dbPath = DB_PATH): EventStore {
     );
     CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
     CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, ts);
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      project TEXT NOT NULL DEFAULT '',
+      assignee TEXT NOT NULL DEFAULT '',
+      created_by TEXT NOT NULL DEFAULT '',
+      parent_id TEXT,
+      status TEXT NOT NULL DEFAULT 'open',
+      result TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee, status);
   `);
 
   const insertStmt = db.prepare(
@@ -70,6 +110,40 @@ export function openStore(dbPath = DB_PATH): EventStore {
   const parse = (rows: unknown[]): AraEvent[] =>
     (rows as { json: string }[]).map((r) => JSON.parse(r.json) as AraEvent);
 
+  const insertTaskStmt = db.prepare(`
+    INSERT INTO tasks (id, created_at, updated_at, title, detail, project, assignee, created_by, parent_id, status, result)
+    VALUES (@id, @createdAt, @updatedAt, @title, @detail, @project, @assignee, @createdBy, @parentId, @status, @result)
+  `);
+  const getTaskStmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
+
+  interface TaskRow {
+    id: string;
+    created_at: number;
+    updated_at: number;
+    title: string;
+    detail: string;
+    project: string;
+    assignee: string;
+    created_by: string;
+    parent_id: string | null;
+    status: BoardTask['status'];
+    result: string;
+  }
+
+  const rowToTask = (row: TaskRow): BoardTask => ({
+    id: row.id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    title: row.title,
+    detail: row.detail,
+    project: row.project,
+    assignee: row.assignee,
+    createdBy: row.created_by,
+    parentId: row.parent_id,
+    status: row.status,
+    result: row.result,
+  });
+
   return {
     insert(event) {
       insertStmt.run(event.id, event.ts, event.kind, event.sessionId, event.project, JSON.stringify(event));
@@ -85,6 +159,40 @@ export function openStore(dbPath = DB_PATH): EventStore {
     },
     stats(from) {
       return statsStmt.all(from) as ProjectStats[];
+    },
+    createTask(task) {
+      insertTaskStmt.run(task);
+    },
+    updateTask(id, patch) {
+      const existing = getTaskStmt.get(id) as TaskRow | undefined;
+      if (!existing) return null;
+      const merged = { ...rowToTask(existing), ...patch, updatedAt: Date.now() };
+      db.prepare(
+        'UPDATE tasks SET updated_at=@updatedAt, status=@status, result=@result, assignee=@assignee, detail=@detail WHERE id=@id',
+      ).run(merged);
+      return merged;
+    },
+    getTask(id) {
+      const row = getTaskStmt.get(id) as TaskRow | undefined;
+      return row ? rowToTask(row) : null;
+    },
+    listTasks({ status, assignee, project, limit = 100 }) {
+      const where: string[] = [];
+      const params: Record<string, unknown> = { limit };
+      if (status) {
+        where.push('status = @status');
+        params.status = status;
+      }
+      if (assignee) {
+        where.push('assignee = @assignee');
+        params.assignee = assignee;
+      }
+      if (project) {
+        where.push('project = @project');
+        params.project = project;
+      }
+      const sql = `SELECT * FROM tasks ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC LIMIT @limit`;
+      return (db.prepare(sql).all(params) as TaskRow[]).map(rowToTask);
     },
     prune() {
       pruneStmt.run(Date.now() - RETENTION_MS);

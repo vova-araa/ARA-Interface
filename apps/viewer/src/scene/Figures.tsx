@@ -34,6 +34,10 @@ function slotTarget(pod: PodInfo, slot: number): { x: number; z: number } {
 function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.Element {
   const { agent, pod, slot, linkTo, linkIsParent } = info;
   const groupRef = useRef<THREE.Group>(null);
+  const leftLeg = useRef<THREE.Group>(null);
+  const rightLeg = useRef<THREE.Group>(null);
+  const leftArm = useRef<THREE.Group>(null);
+  const rightArm = useRef<THREE.Group>(null);
 
   // Light thread: parent figure (gold) when spawned via SPAWN-REQUEST,
   // otherwise the session pod (blue).
@@ -68,6 +72,13 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
     // Bob while walking, small idle sway after.
     const bob = walk < 1 ? Math.abs(Math.sin(age / 90)) * 0.08 : Math.sin(clock.elapsedTime * 2 + slot) * 0.02;
     group.position.set(x, 0.32 + bob, z);
+
+    // Walkcycle: benen en armen zwaaien tegengesteld tijdens het lopen.
+    const stride = walk < 1 ? Math.sin(age / 90) * 0.7 : 0;
+    if (leftLeg.current) leftLeg.current.rotation.x = stride;
+    if (rightLeg.current) rightLeg.current.rotation.x = -stride;
+    if (leftArm.current) leftArm.current.rotation.x = -stride * 0.8;
+    if (rightArm.current) rightArm.current.rotation.x = stride * 0.8;
     if (walk < 1) group.rotation.y = Math.atan2(target.x - start.x, target.z - start.z);
     if (agent.stopped) {
       // Fade out by sinking.
@@ -97,10 +108,36 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
     <group ref={groupRef}>
       <primitive object={thread} />
       {/* body */}
-      <mesh position={[0, 0.12, 0]} castShadow>
-        <capsuleGeometry args={[0.09, 0.14, 4, 8]} />
+      <mesh position={[0, 0.14, 0]} castShadow>
+        <capsuleGeometry args={[0.09, 0.12, 4, 8]} />
         <meshStandardMaterial color={color} />
       </mesh>
+      {/* legs — scharnier-groep bij de heup, mesh hangt eronder */}
+      <group ref={leftLeg} position={[-0.04, 0.09, 0]}>
+        <mesh position={[0, -0.05, 0]}>
+          <cylinderGeometry args={[0.025, 0.03, 0.1, 6]} />
+          <meshStandardMaterial color="#3b3347" />
+        </mesh>
+      </group>
+      <group ref={rightLeg} position={[0.04, 0.09, 0]}>
+        <mesh position={[0, -0.05, 0]}>
+          <cylinderGeometry args={[0.025, 0.03, 0.1, 6]} />
+          <meshStandardMaterial color="#3b3347" />
+        </mesh>
+      </group>
+      {/* arms — scharnier bij de schouder */}
+      <group ref={leftArm} position={[-0.11, 0.22, 0]}>
+        <mesh position={[0, -0.06, 0]}>
+          <cylinderGeometry args={[0.02, 0.022, 0.12, 6]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      </group>
+      <group ref={rightArm} position={[0.11, 0.22, 0]}>
+        <mesh position={[0, -0.06, 0]}>
+          <cylinderGeometry args={[0.02, 0.022, 0.12, 6]} />
+          <meshStandardMaterial color={color} />
+        </mesh>
+      </group>
       {/* head */}
       <mesh position={[0, 0.34, 0]}>
         <sphereGeometry args={[0.08, 10, 8]} />

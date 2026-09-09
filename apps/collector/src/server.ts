@@ -28,7 +28,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // /health stays open for probes; static viewer assets are served unauthenticated —
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats)(\/|$)/;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|tasks)(\/|$)/;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -188,6 +188,82 @@ export function createCollector(store: EventStore): CollectorApp {
     } catch {
       res.json({ events: [] });
     }
+  });
+
+  // ── Task board: supervisor ↔ managers ↔ agents hand-offs ──────────────
+  const notifyTasks = (): void => {
+    const frame = 'event: tasks\ndata: {}\n\n';
+    for (const res of clients) res.write(frame);
+  };
+
+  app.post('/tasks', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const title = capText(String(body.title ?? ''), 200);
+    if (!title) {
+      res.status(400).json({ ok: false, error: 'title required' });
+      return;
+    }
+    const task = {
+      id: crypto.randomUUID().slice(0, 8),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      title,
+      detail: capText(String(body.detail ?? ''), 2000) ?? '',
+      project: String(body.project ?? ''),
+      assignee: String(body.assignee ?? ''),
+      createdBy: String(body.createdBy ?? ''),
+      parentId: body.parentId ? String(body.parentId) : null,
+      status: 'open' as const,
+      result: '',
+    };
+    store.createTask(task);
+    notifyTasks();
+    res.json({ ok: true, task });
+  });
+
+  app.patch('/tasks/:id', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const patch: Parameters<typeof store.updateTask>[1] = {};
+    if (body.status !== undefined) {
+      const status = String(body.status);
+      if (!['open', 'claimed', 'done', 'failed'].includes(status)) {
+        res.status(400).json({ ok: false, error: 'bad status' });
+        return;
+      }
+      patch.status = status as 'open' | 'claimed' | 'done' | 'failed';
+    }
+    if (body.result !== undefined) patch.result = capText(String(body.result), 4000) ?? '';
+    if (body.assignee !== undefined) patch.assignee = String(body.assignee);
+    if (body.detail !== undefined) patch.detail = capText(String(body.detail), 2000) ?? '';
+    const task = store.updateTask(req.params.id, patch);
+    if (!task) {
+      res.status(404).json({ ok: false, error: 'not found' });
+      return;
+    }
+    notifyTasks();
+    res.json({ ok: true, task });
+  });
+
+  app.get('/tasks', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.json({
+      tasks: store.listTasks({
+        status: req.query.status ? String(req.query.status) : undefined,
+        assignee: req.query.assignee ? String(req.query.assignee) : undefined,
+        project: req.query.project ? String(req.query.project) : undefined,
+        limit: req.query.limit ? Number(req.query.limit) : undefined,
+      }),
+    });
+  });
+
+  app.get('/tasks/:id', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const task = store.getTask(req.params.id);
+    if (!task) {
+      res.status(404).json({ ok: false, error: 'not found' });
+      return;
+    }
+    res.json({ ok: true, task });
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
