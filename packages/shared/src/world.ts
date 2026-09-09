@@ -99,6 +99,7 @@ export function buildWorldConfig(projects: ProjectEntry[], now = Date.now()): Wo
     const q = Math.round(Math.cos(angle) * DISTRICT_RING_RADIUS);
     const r = Math.round(Math.sin(angle) * DISTRICT_RING_RADIUS * 0.85);
     const center: Axial = { q, r };
+    taken.add(axialKey(center)); // district center hosts the landmark, not a pod
 
     const placements: ProjectPlacement[] = [];
     for (const project of byVenture.get(venture.id) ?? []) {
@@ -125,9 +126,11 @@ export function placementForProject(
   // Unknown project → Nor Kaghak: deterministic slot near the misc district.
   const misc = config.districts.find((d) => d.venture.id === 'misc') ?? config.districts[0]!;
   const taken = new Set<string>();
-  for (const district of config.districts)
+  for (const district of config.districts) {
+    taken.add(axialKey(district.center));
     for (const project of district.projects)
       for (const hex of project.hexes) taken.add(axialKey(hex));
+  }
   const center = placeOnFreeHex(projectName, misc.center, taken);
   return { name: projectName, venture: 'misc', center, hexes: hexDisc(center, 1) };
 }

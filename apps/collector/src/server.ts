@@ -6,10 +6,10 @@ import {
   IncomingEventSchema,
   capText,
   redactValue,
+  WorldState,
   type AraEvent,
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
-import { WorldState } from './state.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
 import { FIXTURE_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';

@@ -1,4 +1,4 @@
-import type { AraEvent, SessionState, WorldSnapshot } from '@ara/shared';
+import type { AraEvent, SessionState, WorldSnapshot } from './schema.ts';
 
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // hide sessions idle > 6h from "running"
 const START_OF_DAY = () => {
@@ -133,6 +133,15 @@ export class WorldState {
       this.doneToday = 0;
     }
     if (ts >= dayStart) this.doneToday += 1;
+  }
+
+  /** Seed from a /state snapshot (viewer reconnect path). */
+  hydrate(snapshot: WorldSnapshot): void {
+    this.sessions.clear();
+    for (const [id, session] of Object.entries(snapshot.sessions)) {
+      this.sessions.set(id, structuredClone(session));
+    }
+    this.doneToday = snapshot.counters.doneToday;
   }
 
   snapshot(): WorldSnapshot {
