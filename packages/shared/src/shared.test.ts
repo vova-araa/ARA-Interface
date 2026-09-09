@@ -79,6 +79,24 @@ test('buildWorldConfig places every project exactly once', () => {
   assert.equal(new Set(centers).size, centers.length);
 });
 
+test('doneToday counts each session once despite multiple completion events', async () => {
+  const { WorldState } = await import('./state.ts');
+  const state = new WorldState();
+  const base = Date.now();
+  const ev = (kind: 'session.start' | 'task.completed' | 'session.end', offset: number) => ({
+    id: `${kind}-${offset}`,
+    ts: base + offset,
+    kind,
+    sessionId: 'sx',
+    cwd: '/x',
+    project: 'p',
+  });
+  state.apply(ev('session.start', 0));
+  state.apply(ev('task.completed', 10));
+  state.apply(ev('session.end', 20));
+  assert.equal(state.snapshot().counters.doneToday, 1);
+});
+
 test('placementForProject invents a stable slot for unknown projects', () => {
   const config = buildWorldConfig([{ name: 'traject-tms' }], 123);
   const p1 = placementForProject(config, 'brand-new');

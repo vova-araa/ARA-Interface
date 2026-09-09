@@ -4,6 +4,7 @@ import { TopBar } from './ui/TopBar.tsx';
 import { ThreadPanel } from './ui/ThreadPanel.tsx';
 import { DetailDrawer } from './ui/DetailDrawer.tsx';
 import { NudgePulse, ReconnectBanner } from './ui/Banners.tsx';
+import { Scrubber } from './ui/Scrubber.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
 import { runDemo } from './demo.ts';
@@ -24,6 +25,7 @@ export function App(): JSX.Element {
       <TopBar />
       <ThreadPanel />
       <DetailDrawer />
+      <Scrubber />
       <ReconnectBanner />
       <NudgePulse />
     </div>

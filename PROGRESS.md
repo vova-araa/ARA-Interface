@@ -11,9 +11,19 @@
 - [x] **Step 8 — Ops**: launchd plists + scripts/install.sh (bootstrap/enable/kickstart, plugin install, tailnet URL print), README with phone instructions.
 - [x] **Step 9 — QA**: Playwright smoke — desktop render + demo story + drawer, live reconnect state, iPhone 390×844 bottom sheet + no horizontal overflow. 3/3 green.
 
-## Next
-- Verify on real Mac: `./scripts/install.sh`, then start a Claude Code session in any repo → pod should appear <1s.
-- Optional: 30-min soak with 3 parallel sessions (needs real sessions).
+## Uitbouw-batch (na eerste oplevering)
+- [x] **Time-scrubber**: laatste 24u replay vanuit SQLite, LIVE-knop, replay-chip in topbar (spec §6-gap gedicht).
+- [x] **Lichtdraad parent-pod → agent-figuur** (additive blend, verdwijnt bij agent-stop) — spec §8 DoD.
+- [x] **Soak-test** `pnpm soak`: 3 sessies × 30s × 10 ev/s → PASS (882/882 events op SSE, POST p95 3.7ms, /state 3.4ms).
+- [x] Bugfixes: `doneToday` telt per sessie éénmaal; venture-chips filteren nu ook de threadlijst; detail-drawer live + werkend in demo-mode (in-memory event buffer).
+- [x] Wereld auto-remap: fs.watch op projects.json → SSE `world`-event → viewers herladen de map zonder refresh.
+- [x] Topbar "Needs you" klikbaar → cyclet/vliegt naar sessies die je nodig hebben.
+- [x] Sound/follow-live persistent (localStorage).
+- [x] 8 hookmap unit tests + doneToday test (23 unit tests totaal).
+- [x] GitHub Actions CI: typecheck, unit tests, build, Playwright smoke (nu ook scrubber-flow), accelerated soak.
+
+## Next (vereist de Mac)
+- `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.
 
 ## Blockers

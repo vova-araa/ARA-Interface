@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { SessionState, WorldConfig } from '@ara/shared';
-import { useAra } from '../store.ts';
+import { useAra, useViewSnapshot } from '../store.ts';
 import { projectPlacement, sessionPosition } from '../placements.ts';
 import { toolColor } from '../util.ts';
 
@@ -141,7 +141,7 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
 }
 
 export function Pods({ world }: { world: WorldConfig }): JSX.Element {
-  const snapshot = useAra((s) => s.snapshot);
+  const snapshot = useViewSnapshot();
   const filterVenture = useAra((s) => s.filterVenture);
 
   const pods = useMemo(() => {

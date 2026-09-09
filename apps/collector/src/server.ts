@@ -11,7 +11,7 @@ import {
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
-import { FIXTURE_PATH } from './config.ts';
+import { FIXTURE_PATH, PROJECTS_JSON_PATH, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
 export interface CollectorApp {
@@ -60,6 +60,32 @@ export function createCollector(store: EventStore): CollectorApp {
     state.apply(event);
     broadcast(event);
     return event;
+  }
+
+  function rebuildWorld(): void {
+    refreshProjects();
+    try {
+      fs.rmSync(WORLD_CONFIG_PATH, { force: true });
+    } catch {
+      /* ignore */
+    }
+    loadOrBuildWorldConfig();
+    const frame = 'event: world\ndata: {}\n\n';
+    for (const res of clients) res.write(frame);
+  }
+
+  // Live-remap the world when the project list changes (edits via
+  // dev-project-manager, /ara-map writes, etc.). Debounced; best-effort.
+  try {
+    if (fs.existsSync(PROJECTS_JSON_PATH)) {
+      let timer: NodeJS.Timeout | null = null;
+      fs.watch(PROJECTS_JSON_PATH, () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(rebuildWorld, 500);
+      });
+    }
+  } catch {
+    /* watching is optional */
   }
 
   // Raw Claude Code hook payloads from plugins/ara/hooks/emit.sh.
@@ -113,12 +139,7 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.post('/world/refresh', (_req, res) => {
-    refreshProjects();
-    try {
-      fs.rmSync('world.config.json', { force: true });
-    } catch {
-      /* ignore */
-    }
+    rebuildWorld();
     res.json(loadOrBuildWorldConfig());
   });
 

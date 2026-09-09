@@ -73,7 +73,14 @@ generated so the viewer is never empty.
 ```bash
 pnpm --filter @ara/viewer exec playwright test   # desktop + iPhone viewport smoke
 pnpm -r test                                     # shared + collector unit tests
+pnpm soak                                        # load test: 3 sessions × 60s × 10 ev/s
 ```
+
+CI (GitHub Actions) runs typecheck, unit tests, viewer build, Playwright smoke
+and an accelerated soak on every push.
+
+**Time-scrubber**: the pill at the bottom of the live view replays the last 24h
+from SQLite — drag to any moment, hit LIVE to return.
 
 ## Phase 2 backlog (not built — hooks left in place)
 

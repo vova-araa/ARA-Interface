@@ -26,6 +26,13 @@ export function connectLive(): void {
       useAra.getState().setConnected(true);
       void resync(); // replay from /state on (re)connect
     });
+    source.addEventListener('world', () => {
+      // Project list changed → collector rebuilt the map; refetch it.
+      void fetch('/world')
+        .then((r) => r.json())
+        .then((world: WorldConfig) => useAra.getState().setWorld(world))
+        .catch(() => undefined);
+    });
     source.addEventListener('ara', (msg) => {
       try {
         useAra.getState().applyEvent(JSON.parse((msg as MessageEvent).data) as AraEvent);

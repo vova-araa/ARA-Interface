@@ -10,10 +10,19 @@ export default defineConfig({
       ? { executablePath: process.env.PW_CHROMIUM_PATH }
       : {},
   },
-  webServer: {
-    command: 'pnpm start',
-    port: 4748,
-    reuseExistingServer: true,
-    timeout: 30_000,
-  },
+  webServer: [
+    {
+      command: 'pnpm --filter @ara/collector start',
+      cwd: '../..',
+      port: 4747,
+      reuseExistingServer: true,
+      timeout: 30_000,
+    },
+    {
+      command: 'pnpm start',
+      port: 4748,
+      reuseExistingServer: true,
+      timeout: 30_000,
+    },
+  ],
 });

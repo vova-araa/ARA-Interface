@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { AgentState, WorldConfig } from '@ara/shared';
-import { useAra } from '../store.ts';
+import { useAra, useViewSnapshot } from '../store.ts';
 import { districtEdge } from '../placements.ts';
 import { visiblePods, type PodInfo } from './Pods.tsx';
 import { emojiTexture } from './icons.ts';
@@ -23,6 +23,20 @@ interface FigureInfo {
 function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.Element {
   const { agent, pod, slot } = info;
   const groupRef = useRef<THREE.Group>(null);
+
+  // Light thread linking the parent pod to this figure (spec: subagent spawn).
+  const thread = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const material = new THREE.LineBasicMaterial({
+      color: '#9ecbff',
+      transparent: true,
+      opacity: 0.45,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    return new THREE.Line(geometry, material);
+  }, []);
   const bubble = useAra((s) =>
     s.bubbles.find((b) => b.sessionId === agent.sessionId && b.agentId === agent.agentId),
   );
@@ -57,12 +71,20 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
     } else {
       group.scale.setScalar(FIGURE_SCALE);
     }
+
+    // Thread endpoints in figure-local space: head → pod dome.
+    const positions = thread.geometry.getAttribute('position') as THREE.BufferAttribute;
+    positions.setXYZ(0, 0, 0.42, 0);
+    positions.setXYZ(1, (pod.position.x - x) / FIGURE_SCALE, 0.5, (pod.position.z - z) / FIGURE_SCALE);
+    positions.needsUpdate = true;
+    thread.visible = !agent.stopped;
   });
 
   const icon = toolIcon(agent.activeTool);
 
   return (
     <group ref={groupRef}>
+      <primitive object={thread} />
       {/* body */}
       <mesh position={[0, 0.12, 0]} castShadow>
         <capsuleGeometry args={[0.09, 0.14, 4, 8]} />
@@ -95,7 +117,7 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
 }
 
 export function Figures({ world }: { world: WorldConfig }): JSX.Element {
-  const snapshot = useAra((s) => s.snapshot);
+  const snapshot = useViewSnapshot();
 
   const figures = useMemo(() => {
     const pods = visiblePods(world, Object.values(snapshot.sessions));

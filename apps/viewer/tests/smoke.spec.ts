@@ -14,6 +14,7 @@ test.describe('desktop 1280×800', () => {
     await page.goto('/?demo=1');
     await expect(page.locator('canvas')).toBeVisible();
     await expect(page.locator('.topbar')).toContainText('Needs you');
+    await expect(page.locator('.scrubber')).toHaveCount(0); // hidden in demo mode
 
     // Fixture story starts within seconds: threads appear grouped by project.
     await expect(page.locator('.thread').first()).toBeVisible({ timeout: 20_000 });
@@ -34,6 +35,13 @@ test.describe('desktop 1280×800', () => {
   test('live mode shows reconnect banner state correctly', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('canvas')).toBeVisible();
+
+    // Time-scrubber exists in live mode; scrubbing enters replay, LIVE exits.
+    await expect(page.locator('.scrubber')).toBeVisible();
+    await page.locator('.scrubber input').fill('500');
+    await expect(page.locator('.topbar-title')).toContainText('replay');
+    await page.locator('.scrubber .btn').click();
+    await expect(page.locator('.topbar-title')).not.toContainText('replay');
     // With the collector proxied and running, no banner; if down, banner shows.
     const health = await page.request.get('/health').then((r) => r.ok()).catch(() => false);
     if (health) {

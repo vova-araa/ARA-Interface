@@ -1,11 +1,12 @@
 import { useMemo } from 'react';
 import { VENTURES } from '@ara/shared';
-import { useAra } from '../store.ts';
+import { useAra, useViewSnapshot } from '../store.ts';
 import { loadSessionEvents } from '../api.ts';
+import { projectPlacement } from '../placements.ts';
 import { ageString, STATUS_COLORS, toolIcon } from '../util.ts';
 
 export function ThreadPanel(): JSX.Element | null {
-  const snapshot = useAra((s) => s.snapshot);
+  const snapshot = useViewSnapshot();
   const world = useAra((s) => s.world);
   const panelOpen = useAra((s) => s.panelOpen);
   const filterVenture = useAra((s) => s.filterVenture);
@@ -20,6 +21,11 @@ export function ThreadPanel(): JSX.Element | null {
 
   const groups = useMemo(() => {
     let sessions = Object.values(snapshot.sessions);
+    if (filterVenture && world) {
+      sessions = sessions.filter(
+        (s) => projectPlacement(world, s.project).venture === filterVenture,
+      );
+    }
     if (search) {
       const q = search.toLowerCase();
       sessions = sessions.filter(
@@ -42,7 +48,7 @@ export function ThreadPanel(): JSX.Element | null {
         latest: Math.max(...list.map((s) => s.lastSeenAt)),
       }))
       .sort((a, b) => b.latest - a.latest);
-  }, [snapshot, search]);
+  }, [snapshot, search, filterVenture, world]);
 
   const activeVentures = useMemo(() => {
     if (!world) return [];
@@ -52,11 +58,10 @@ export function ThreadPanel(): JSX.Element | null {
   if (!panelOpen) return null;
 
   const onSelect = (sessionId: string): void => {
-    select(sessionId);
+    select(sessionId); // seeds the drawer from the in-memory event buffer
     flyTo(sessionId);
-    if (demo) {
-      setSelectedEvents([]); // fixture events aren't in SQLite
-    } else {
+    if (!demo) {
+      // Backfill older events from SQLite; merged with the live buffer.
       void loadSessionEvents(sessionId).then(setSelectedEvents);
     }
   };

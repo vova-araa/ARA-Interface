@@ -15,6 +15,7 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "fixture": "pnpm --filter @ara/collector fixture",
+    "soak": "pnpm --filter @ara/collector soak",
     "map": "pnpm --filter @ara/collector map"
   }
 }

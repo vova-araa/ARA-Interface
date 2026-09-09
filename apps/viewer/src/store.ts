@@ -39,6 +39,9 @@ interface AraStore {
   soundOn: boolean;
   panelOpen: boolean;
   flyTarget: { sessionId: string; ts: number } | null;
+  /** Non-null while scrubbing history: snapshot reconstructed at replayTs. */
+  replaySnapshot: WorldSnapshot | null;
+  replayTs: number | null;
 
   setConnected(connected: boolean): void;
   setWorld(world: WorldConfig): void;
@@ -54,6 +57,7 @@ interface AraStore {
   setPanelOpen(open: boolean): void;
   flyTo(sessionId: string): void;
   pruneEphemera(): void;
+  setReplay(ts: number | null, snapshot: WorldSnapshot | null): void;
 }
 
 const worldState = new WorldState();
@@ -63,6 +67,43 @@ const EMPTY: WorldSnapshot = {
   projects: [],
   counters: { needsHuman: 0, running: 0, doneToday: 0 },
 };
+
+// Rolling per-session event buffer so the detail drawer updates live and
+// works in demo mode (fixture events never reach SQLite).
+const recentEvents = new Map<string, AraEvent[]>();
+const RECENT_LIMIT = 50;
+
+function remember(event: AraEvent): void {
+  const list = recentEvents.get(event.sessionId) ?? [];
+  list.push(event);
+  if (list.length > RECENT_LIMIT) list.shift();
+  recentEvents.set(event.sessionId, list);
+}
+
+/** Merge fetched history with the live buffer, dedup by id, ascending ts. */
+export function eventsForSession(sessionId: string, fetched: AraEvent[] = []): AraEvent[] {
+  const map = new Map<string, AraEvent>();
+  for (const e of fetched) map.set(e.id, e);
+  for (const e of recentEvents.get(sessionId) ?? []) map.set(e.id, e);
+  return [...map.values()].sort((a, b) => a.ts - b.ts).slice(-RECENT_LIMIT);
+}
+
+function loadPref(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw === '1';
+  } catch {
+    return fallback;
+  }
+}
+
+function savePref(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    /* private mode */
+  }
+}
 
 function effectsFor(event: AraEvent): Effect[] {
   const make = (type: EffectType): Effect => ({
@@ -98,10 +139,12 @@ export const useAra = create<AraStore>((set, get) => ({
   selectedEvents: [],
   filterVenture: null,
   search: '',
-  followLive: false,
-  soundOn: false,
+  followLive: loadPref('ara.followLive', false),
+  soundOn: loadPref('ara.soundOn', false),
   panelOpen: window.innerWidth > 800,
   flyTarget: null,
+  replaySnapshot: null,
+  replayTs: null,
 
   setConnected: (connected) => set({ connected }),
   setWorld: (world) => set({ world }),
@@ -113,6 +156,7 @@ export const useAra = create<AraStore>((set, get) => ({
 
   applyEvent: (event) => {
     worldState.apply(event);
+    remember(event);
     const now = Date.now();
     const effects = [...get().effects, ...effectsFor(event)].slice(-60);
     let bubbles = get().bubbles;
@@ -132,23 +176,43 @@ export const useAra = create<AraStore>((set, get) => ({
       effects,
       bubbles,
       lastEventSessionId: event.sessionId,
+      // Keep the open drawer live.
+      selectedEvents:
+        get().selectedSessionId === event.sessionId
+          ? eventsForSession(event.sessionId, get().selectedEvents)
+          : get().selectedEvents,
     });
-    const { followLive, flyTo } = get();
-    if (followLive && event.kind !== 'tool.post') flyTo(event.sessionId);
+    const { followLive, flyTo, replayTs } = get();
+    if (followLive && !replayTs && event.kind !== 'tool.post') flyTo(event.sessionId);
   },
 
   resetState: () => {
     worldState.hydrate(EMPTY);
-    set({ snapshot: worldState.snapshot(), effects: [], bubbles: [] });
+    recentEvents.clear();
+    set({ snapshot: worldState.snapshot(), effects: [], bubbles: [], selectedEvents: [] });
   },
 
   select: (sessionId) =>
-    set({ selectedSessionId: sessionId, selectedEvents: sessionId ? get().selectedEvents : [] }),
-  setSelectedEvents: (events) => set({ selectedEvents: events }),
+    set({
+      selectedSessionId: sessionId,
+      selectedEvents: sessionId ? eventsForSession(sessionId) : [],
+    }),
+  setSelectedEvents: (events) =>
+    set((s) => ({
+      selectedEvents: s.selectedSessionId ? eventsForSession(s.selectedSessionId, events) : events,
+    })),
   setFilterVenture: (venture) => set({ filterVenture: venture }),
   setSearch: (search) => set({ search }),
-  toggleFollowLive: () => set((s) => ({ followLive: !s.followLive })),
-  toggleSound: () => set((s) => ({ soundOn: !s.soundOn })),
+  toggleFollowLive: () =>
+    set((s) => {
+      savePref('ara.followLive', !s.followLive);
+      return { followLive: !s.followLive };
+    }),
+  toggleSound: () =>
+    set((s) => {
+      savePref('ara.soundOn', !s.soundOn);
+      return { soundOn: !s.soundOn };
+    }),
   setPanelOpen: (open) => set({ panelOpen: open }),
 
   flyTo: (sessionId) => set({ flyTarget: { sessionId, ts: Date.now() } }),
@@ -161,4 +225,11 @@ export const useAra = create<AraStore>((set, get) => ({
       set({ effects, bubbles });
     }
   },
+
+  setReplay: (ts, snapshot) => set({ replayTs: ts, replaySnapshot: snapshot }),
 }));
+
+/** The snapshot the scene should render: history scrub wins over live. */
+export function useViewSnapshot(): WorldSnapshot {
+  return useAra((s) => s.replaySnapshot ?? s.snapshot);
+}

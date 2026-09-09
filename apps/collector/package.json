@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "fixture": "tsx src/fixture-gen.ts",
     "map": "tsx src/map.ts",
+    "soak": "tsx src/soak.ts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test src/*.test.ts"
   },

@@ -15,6 +15,7 @@ export class WorldState {
   private sessions = new Map<string, SessionState>();
   private doneToday = 0;
   private doneDayStart = START_OF_DAY();
+  private doneCounted = new Set<string>();
 
   apply(event: AraEvent): void {
     const session = this.getOrCreate(event);
@@ -28,7 +29,7 @@ export class WorldState {
       case 'session.end':
         session.endedAt = event.ts;
         if (session.status !== 'error') session.status = 'done';
-        this.bumpDone(event.ts);
+        this.bumpDone(event.ts, session.sessionId);
         break;
       case 'prompt':
         session.status = 'working';
@@ -96,7 +97,7 @@ export class WorldState {
       case 'task.completed':
         session.status = 'done';
         session.needsHuman = false;
-        this.bumpDone(event.ts);
+        this.bumpDone(event.ts, session.sessionId);
         break;
       case 'teammate.idle':
         if (session.status === 'working') session.status = 'idle';
@@ -126,20 +127,27 @@ export class WorldState {
     return session;
   }
 
-  private bumpDone(ts: number): void {
+  /** One "done" per session per day, however many completion events arrive. */
+  private bumpDone(ts: number, sessionId: string): void {
     const dayStart = START_OF_DAY();
     if (dayStart !== this.doneDayStart) {
       this.doneDayStart = dayStart;
       this.doneToday = 0;
+      this.doneCounted.clear();
     }
-    if (ts >= dayStart) this.doneToday += 1;
+    if (ts >= dayStart && !this.doneCounted.has(sessionId)) {
+      this.doneCounted.add(sessionId);
+      this.doneToday += 1;
+    }
   }
 
   /** Seed from a /state snapshot (viewer reconnect path). */
   hydrate(snapshot: WorldSnapshot): void {
     this.sessions.clear();
+    this.doneCounted.clear();
     for (const [id, session] of Object.entries(snapshot.sessions)) {
       this.sessions.set(id, structuredClone(session));
+      if (session.status === 'done') this.doneCounted.add(id);
     }
     this.doneToday = snapshot.counters.doneToday;
   }

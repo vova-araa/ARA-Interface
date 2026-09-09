@@ -159,6 +159,35 @@ html, body, #root {
 .timeline-icon { flex-shrink: 0; }
 .timeline-text { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.stat-click { cursor: pointer; user-select: none; }
+.stat-click:hover { color: var(--text); }
+
+/* ── Time scrubber ───────────────────────── */
+.scrubber {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(22, 25, 31, 0.92);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  z-index: 14;
+}
+.scrubber input[type='range'] {
+  width: 240px;
+  accent-color: var(--accent);
+}
+.scrubber-label { color: var(--text-dim); font-size: 12px; min-width: 42px; text-align: right; }
+@media (max-width: 800px) {
+  .scrubber { bottom: calc(64px + env(safe-area-inset-bottom)); }
+  .scrubber input[type='range'] { width: 130px; }
+}
+
 /* ── Banners / pulse / bubbles ───────────── */
 .banner {
   position: absolute;

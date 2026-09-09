@@ -119,9 +119,10 @@ function Flag({ position, ts }: { position: THREE.Vector3; ts: number }): JSX.El
   );
 }
 
-export function EffectsLayer({ world }: { world: WorldConfig }): JSX.Element {
+export function EffectsLayer({ world }: { world: WorldConfig }): JSX.Element | null {
   const effects = useAra((s) => s.effects);
   const snapshot = useAra((s) => s.snapshot);
+  const replaying = useAra((s) => s.replayTs !== null);
 
   const located = useMemo(() => {
     const pods = visiblePods(world, Object.values(snapshot.sessions));
@@ -137,6 +138,8 @@ export function EffectsLayer({ world }: { world: WorldConfig }): JSX.Element {
       })
       .filter((x): x is { effect: Effect; position: THREE.Vector3 } => x !== null);
   }, [effects, snapshot, world]);
+
+  if (replaying) return null; // scrubbing history: no live feedback bursts
 
   return (
     <group>
