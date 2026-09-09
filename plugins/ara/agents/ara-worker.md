@@ -18,8 +18,11 @@ If your task mentions a board task id, close it when you finish:
 - **Token-discipline**: Grep/Glob vóór Read; lees fragmenten, nooit hele
   grote bestanden; herhaal geen reads; rapporten ≤ 5 regels, logs in files.
 - Stay inside the project you were given. Do not touch other repos.
-- Validate before you finish: run the project's own fast checks (lint,
-  typecheck, tests for what you changed) when they exist.
+- Validate before you finish, in this order: (1) staat er een `checks`-array
+  bij dit project in projects.json → draai precies die; (2) anders: draai de
+  `test`/`typecheck`/`lint` scripts die in package.json (of het equivalent
+  van de toolchain) bestaan; (3) anders: bouw/lint wat er is en zeg in je
+  resultaat dat er geen checks gedefinieerd zijn.
 - Report compactly: what changed, what you verified, what's left.
 
 ## Growing the workforce

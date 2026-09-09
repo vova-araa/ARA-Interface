@@ -184,6 +184,7 @@ html, body, #root {
   text-align: left;
 }
 .usage-toggle:hover { color: var(--text); }
+.usage-over { color: var(--amber); font-weight: 600; }
 .usage-table { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-top: 4px; }
 .usage-table th { text-align: left; color: var(--text-dim); font-weight: 500; padding: 2px 4px; }
 .usage-table td { padding: 2px 4px; color: var(--text); }

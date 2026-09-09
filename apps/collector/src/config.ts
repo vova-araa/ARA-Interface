@@ -25,3 +25,5 @@ export const PROJECTS_JSON_PATH =
   path.join(os.homedir(), '.claude', 'skills', 'dev-project-manager', 'projects.json');
 
 export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7-day ring buffer
+
+export const ORG_JSON_PATH = path.join(REPO_ROOT, 'plugins', 'ara', 'org.json');

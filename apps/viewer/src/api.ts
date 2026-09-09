@@ -105,12 +105,14 @@ export interface UsageRow {
   cacheCreateTokens: number;
 }
 
-export async function loadUsage(): Promise<UsageRow[]> {
+export async function loadUsage(): Promise<{ usage: UsageRow[]; budget: number }> {
   try {
-    const res = (await (await fetch(withToken('/usage'))).json()) as { usage: UsageRow[] };
-    return res.usage;
+    return (await (await fetch(withToken('/usage'))).json()) as {
+      usage: UsageRow[];
+      budget: number;
+    };
   } catch {
-    return [];
+    return { usage: [], budget: 2_000_000 };
   }
 }
 

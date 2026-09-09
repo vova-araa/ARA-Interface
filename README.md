@@ -61,8 +61,12 @@ plugins/ara             hooks + ara-status skill + /ara-open + /ara-map + ara-or
 | `ara-status` skill | One-screen "what needs me" summary |
 
 The project list comes from `~/.claude/skills/dev-project-manager/projects.json`
-(entries may set `name`, `path`, `repo`, `venture`). No file → a demo world is
-generated so the viewer is never empty.
+(entries may set `name`, `path`, `repo`, `venture`, `checks`). Conventies:
+repos staan onder **`~/dev/<projectnaam>`** (dan is `path` optioneel), en
+`checks` is een array met validatie-commando's die workers vóór "done"
+draaien (ontbreekt het veld, dan autodetecteren ze `test`/`typecheck`/`lint`
+uit package.json). No file → a demo world is generated so the viewer is
+never empty.
 
 ## De organisatie
 

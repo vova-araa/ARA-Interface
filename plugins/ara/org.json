@@ -4,6 +4,8 @@
     "autonomy": "branch-and-report",
     "reporting": "escalate-direct-plus-daily",
     "branchPrefix": "ara/",
+    "tokenBudgetDaily": 2000000,
+    "repoRoot": "~/dev",
     "models": {
       "supervisor": "default",
       "manager": "default",

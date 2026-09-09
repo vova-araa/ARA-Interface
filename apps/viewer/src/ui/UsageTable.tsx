@@ -15,11 +15,16 @@ function fmt(n: number): string {
 export function UsageTable(): JSX.Element | null {
   const demo = useAra((s) => s.demo);
   const [rows, setRows] = useState<UsageRow[]>([]);
+  const [budget, setBudget] = useState(2_000_000);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (demo) return;
-    const refresh = (): void => void loadUsage().then(setRows);
+    const refresh = (): void =>
+      void loadUsage().then((res) => {
+        setRows(res.usage);
+        setBudget(res.budget);
+      });
     refresh();
     const timer = setInterval(refresh, 60_000);
     return () => clearInterval(timer);
@@ -28,11 +33,12 @@ export function UsageTable(): JSX.Element | null {
   if (demo || rows.length === 0) return null;
 
   const total = rows.reduce((n, r) => n + r.inputTokens + r.outputTokens, 0);
+  const overBudget = total > budget;
 
   return (
     <div className="usage">
-      <button className="usage-toggle" onClick={() => setOpen(!open)}>
-        ⚡ {fmt(total)} tokens vandaag {open ? '▾' : '▸'}
+      <button className={`usage-toggle ${overBudget ? 'usage-over' : ''}`} onClick={() => setOpen(!open)}>
+        ⚡ {fmt(total)} / {fmt(budget)} tokens vandaag {overBudget ? '⚠' : ''} {open ? '▾' : '▸'}
       </button>
       {open && (
         <table className="usage-table">

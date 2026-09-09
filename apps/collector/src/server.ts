@@ -11,7 +11,7 @@ import {
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
-import { ARA_TOKEN, FIXTURE_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
+import { ARA_TOKEN, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
 export interface CollectorApp {
@@ -296,7 +296,16 @@ export function createCollector(store: EventStore): CollectorApp {
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
     const from = Number(req.query.from ?? dayStart.getTime());
-    res.json({ usage: store.usageSummary(from) });
+    let budget = 2_000_000;
+    try {
+      const org = JSON.parse(fs.readFileSync(ORG_JSON_PATH, 'utf8')) as {
+        policy?: { tokenBudgetDaily?: number };
+      };
+      if (org.policy?.tokenBudgetDaily) budget = org.policy.tokenBudgetDaily;
+    } catch {
+      /* default budget */
+    }
+    res.json({ usage: store.usageSummary(from), budget });
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));

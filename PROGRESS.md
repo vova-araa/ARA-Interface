@@ -75,6 +75,12 @@
 - [x] `/ara-report`: ⚡ TOKENS VANDAAG sectie (cache apart — ~10× goedkoper).
 - [x] Token-discipline verankerd in org.json (`models` + `tokenRules`) en alle agentrollen: haiku-first voor scouts/simpele workers, Grep/Glob vóór Read, fragmenten i.p.v. hele bestanden, bordresultaten ≤5 regels, kale spawn-prompts, poll via curl (0 tokens), batching van subtaken.
 
+## Inrichtingsbesluiten (vragenronde 2)
+- [x] Repo-conventie: `~/dev/<projectnaam>` (delegatie: "overzichtelijkst"); in README + org.json (`repoRoot`).
+- [x] Validatie: `checks`-veld per project in projects.json, anders autodetect package.json-scripts (delegatie: "wat het beste is"); in ara-worker.
+- [x] Tokenbudget: **2M/dag** in org.json; ⚡-teller toont totaal/budget en kleurt amber + ⚠ boven budget; dagrapport opent met waarschuwing bij overschrijding.
+- [x] Eerste run na deploy: kleine taak in Traject (audit + top-5 TODO's) — bewijst supervisor→manager→worker→bord.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

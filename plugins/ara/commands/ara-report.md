@@ -24,5 +24,7 @@ Maak het dagrapport van ARA World. Collector: `$ARA_COLLECTOR_URL` (default
   totaal: <in+uit> (excl. cache)
 ```
 
-3. Sluit af met de viewer-URL. Niets te melden in een sectie → één regel "—".
+3. Budget: `/usage` geeft ook `budget` (dagbudget). Is in+uit > budget →
+   open het rapport met "⚠ TOKENBUDGET OVERSCHREDEN: <totaal>/<budget>".
+4. Sluit af met de viewer-URL. Niets te melden in een sectie → één regel "—".
 4. Escalaties zijn het belangrijkst: staan die er, open dan met "⚠ Actie nodig:".
