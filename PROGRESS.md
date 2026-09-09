@@ -30,6 +30,13 @@
 - [x] 3D-labels: venture-naam boven elk district, projectnaam boven elk cluster (canvas-sprites, geen font-fetch).
 - [x] `/stats` endpoint (events/errors per project per uur) + 24u activiteits-sparkline in de detail-drawer.
 
+## Recursieve workforce
+- [x] Besluit: geen Render — alles via Claude Code zelf; render.yaml weg, README aangepast (auth + single-port blijven voor tailnet).
+- [x] ara-orchestrator Phase 2: dispatch-loop met SPAWN-REQUEST protocol (workers vragen agents aan, orchestrator spawnt), headless `claude -p` sessie-recursie per project, budget-guardrails.
+- [x] ara-worker agent + /ara-run command.
+- [x] Viewer: parent→child figuurdraden (goud) via parentAgentId; fixture toont geneste agent (c2 → c3).
+- [x] Empirisch bevestigd: subagents hebben geen Agent-tool (nesting geblokkeerd) → daarom breedte + sessie-recursie als ontwerp.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

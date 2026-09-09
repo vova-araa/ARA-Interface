@@ -82,16 +82,15 @@ and an accelerated soak on every push.
 **Time-scrubber**: the pill at the bottom of the live view replays the last 24h
 from SQLite — drag to any moment, hit LIVE to return.
 
-## Online gooien (Render)
+## Serving beyond the Mac
 
-The collector serves the built viewer, so one web service is the whole stack:
-
-1. Push this repo → in Render: **New → Blueprint** → pick the repo (`render.yaml` does the rest).
-2. Set **ARA_TOKEN** in the service's environment (any long random string). Without it the deploy refuses to be useful — the instance is public.
-3. Point your Mac's hooks at it: `export ARA_COLLECTOR_URL=https://<service>.onrender.com` and `export ARA_TOKEN=<same token>` (e.g. in `~/.zshenv`), or keep hooks local and let only viewers go online.
-4. Open `https://<service>.onrender.com/?token=<ARA_TOKEN>` — the token persists in the browser after the first visit. Add to Home Screen on iPhone for the full-screen PWA.
-
-Locally the same single-port mode works too: after `pnpm --filter @ara/viewer build`, the collector serves the world at `http://localhost:4747`.
+Everything runs through Claude Code itself — no external hosting. The collector
+serves the built viewer, so one port is the whole stack: after
+`pnpm --filter @ara/viewer build` the world lives at `http://localhost:4747`
+(and over Tailscale on the same port). If that port is ever exposed beyond the
+tailnet, start the collector with `ARA_TOKEN=<random>` — every API call then
+requires the token (hooks send `X-ARA-Token`; open the viewer once with
+`?token=…`, it persists). The PWA manifest lets the iPhone pin it full-screen.
 
 ## Phase 2 backlog (not built — hooks left in place)
 

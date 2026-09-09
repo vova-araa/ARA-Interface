@@ -18,38 +18,44 @@ interface FigureInfo {
   agent: AgentState;
   pod: PodInfo;
   slot: number;
+  /** Where the light thread anchors: parent figure's spot, or the pod. */
+  linkTo: { x: number; z: number };
+  linkIsParent: boolean;
+}
+
+function slotTarget(pod: PodInfo, slot: number): { x: number; z: number } {
+  const angle = (slot / 6) * Math.PI * 2;
+  return {
+    x: pod.position.x + Math.cos(angle) * 0.75,
+    z: pod.position.z + Math.sin(angle) * 0.75,
+  };
 }
 
 function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.Element {
-  const { agent, pod, slot } = info;
+  const { agent, pod, slot, linkTo, linkIsParent } = info;
   const groupRef = useRef<THREE.Group>(null);
 
-  // Light thread linking the parent pod to this figure (spec: subagent spawn).
+  // Light thread: parent figure (gold) when spawned via SPAWN-REQUEST,
+  // otherwise the session pod (blue).
   const thread = useMemo(() => {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
     const material = new THREE.LineBasicMaterial({
-      color: '#9ecbff',
+      color: linkIsParent ? '#ffd75e' : '#9ecbff',
       transparent: true,
-      opacity: 0.45,
+      opacity: linkIsParent ? 0.7 : 0.45,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
     return new THREE.Line(geometry, material);
-  }, []);
+  }, [linkIsParent]);
   const bubble = useAra((s) =>
     s.bubbles.find((b) => b.sessionId === agent.sessionId && b.agentId === agent.agentId),
   );
 
   const color = AGENT_COLORS[slot % AGENT_COLORS.length]!;
   const start = useMemo(() => districtEdge(world, pod.session.project), [world, pod.session.project]);
-  const target = useMemo(() => {
-    const angle = (slot / 6) * Math.PI * 2;
-    return {
-      x: pod.position.x + Math.cos(angle) * 0.75,
-      z: pod.position.z + Math.sin(angle) * 0.75,
-    };
-  }, [pod.position.x, pod.position.z, slot]);
+  const target = useMemo(() => slotTarget(pod, slot), [pod, slot]);
 
   useFrame(({ clock }) => {
     const group = groupRef.current;
@@ -72,10 +78,15 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
       group.scale.setScalar(FIGURE_SCALE);
     }
 
-    // Thread endpoints in figure-local space: head → pod dome.
+    // Thread endpoints in figure-local space: head → anchor (parent or pod).
     const positions = thread.geometry.getAttribute('position') as THREE.BufferAttribute;
     positions.setXYZ(0, 0, 0.42, 0);
-    positions.setXYZ(1, (pod.position.x - x) / FIGURE_SCALE, 0.5, (pod.position.z - z) / FIGURE_SCALE);
+    positions.setXYZ(
+      1,
+      (linkTo.x - x) / FIGURE_SCALE,
+      linkIsParent ? 0.3 : 0.5,
+      (linkTo.z - z) / FIGURE_SCALE,
+    );
     positions.needsUpdate = true;
     thread.visible = !agent.stopped;
   });
@@ -124,12 +135,22 @@ export function Figures({ world }: { world: WorldConfig }): JSX.Element {
     const out: FigureInfo[] = [];
     const now = Date.now();
     for (const pod of pods) {
-      let slot = 0;
-      for (const agent of Object.values(pod.session.agents)) {
-        if (agent.stopped && now - agent.lastSeenAt > 2000) continue;
-        out.push({ agent, pod, slot });
-        slot += 1;
-      }
+      const agents = Object.values(pod.session.agents).filter(
+        (agent) => !(agent.stopped && now - agent.lastSeenAt > 2000),
+      );
+      // First pass: everyone gets a slot, so children can anchor to parents.
+      const targets = new Map<string, { x: number; z: number }>();
+      agents.forEach((agent, slot) => targets.set(agent.agentId, slotTarget(pod, slot)));
+      agents.forEach((agent, slot) => {
+        const parent = agent.parentAgentId ? targets.get(agent.parentAgentId) : undefined;
+        out.push({
+          agent,
+          pod,
+          slot,
+          linkTo: parent ?? { x: pod.position.x, z: pod.position.z },
+          linkIsParent: parent !== undefined,
+        });
+      });
     }
     return out.slice(0, MAX_FIGURES);
   }, [snapshot, world]);

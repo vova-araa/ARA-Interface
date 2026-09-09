@@ -74,6 +74,11 @@ emit(15, 'session.start', C, 'vovara-site');
 emit(17, 'prompt', C, 'vovara-site', { message: 'Redesign the releases page' });
 emit(20, 'agent.start', C, 'vovara-site', { agentId: 'c1', agentType: 'Explore', toolSummary: 'Audit components' });
 emit(21, 'agent.start', C, 'vovara-site', { agentId: 'c2', agentType: 'Plan', toolSummary: 'Draft layout plan' });
+// c2 requested a helper → orchestrator spawned c3 under c2 (parent link).
+emit(26, 'agent.start', C, 'vovara-site', { agentId: 'c3', agentType: 'ara-worker', parentAgentId: 'c2', toolSummary: 'Check image pipeline' });
+emit(29, 'tool.pre', C, 'vovara-site', { agentId: 'c3', tool: 'Grep', toolSummary: 'grep imageLoader' });
+emit(33, 'tool.post', C, 'vovara-site', { agentId: 'c3', tool: 'Grep', status: 'ok', durationMs: 3200 });
+emit(42, 'agent.stop', C, 'vovara-site', { agentId: 'c3' });
 emit(24, 'tool.pre', C, 'vovara-site', { agentId: 'c1', tool: 'Read', toolSummary: 'Read Releases.tsx' });
 emit(28, 'tool.post', C, 'vovara-site', { agentId: 'c1', tool: 'Read', status: 'ok', durationMs: 3600 });
 emit(32, 'tool.pre', C, 'vovara-site', { agentId: 'c2', tool: 'WebSearch', toolSummary: 'Music site inspiration' });
