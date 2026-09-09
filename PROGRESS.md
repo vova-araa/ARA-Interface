@@ -81,6 +81,13 @@
 - [x] Tokenbudget: **2M/dag** in org.json; ⚡-teller toont totaal/budget en kleurt amber + ⚠ boven budget; dagrapport opent met waarschuwing bij overschrijding.
 - [x] Eerste run na deploy: kleine taak in Traject (audit + top-5 TODO's) — bewijst supervisor→manager→worker→bord.
 
+## 24/7 ops-laag (draait zonder gebruiker)
+- [x] **Watchdog** (`scripts/watchdog.mjs`, launchd elke 5 min, 0 tokens): zelfherstel collector/viewer via launchctl, monitors.json-checks, incident-taken met dedupe, auto-sluiten bij herstel, spawnt manager:ops alleen bij open incidenten (lock, TTL 30 min), spawnt supervisor bij escalaties.
+- [x] **ara-ops-manager** (manager:ops, vast): claim→diagnose→herstel (operationeel direct, code op `ara/incident-*`)→verificatie tegen dezelfde check→bord-resultaat; na 2 mislukte pogingen escalatie naar supervisor.
+- [x] **Supervisor incident-feedbackprotocol**: eerste escalatie = concrete feedback + herkansing voor manager:ops; tweede keer (of onveilig) = needsHuman-notificatie naar de mens + dossier op het bord.
+- [x] `monitors.json` met ara-zelfbewaking + placeholders voor eigen sites; org.json `ops`-sectie; watchdog-plist in install.sh.
+- [x] Keten end-to-end getest: incident aanmaken → dedupe → auto-herstel-sluiting → escalatie-detectie → juiste spawn-triggers (4 runs, alles klopte).
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

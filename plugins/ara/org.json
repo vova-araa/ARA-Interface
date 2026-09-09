@@ -27,6 +27,13 @@
       "managerTotal": 8
     }
   },
+  "ops": {
+    "manager": "manager:ops",
+    "standing": true,
+    "spawnedBy": "watchdog (scripts/watchdog.mjs, launchd elke 5 min, 0 tokens)",
+    "focus": "Incidenten: sites offline, glitches, kapotte services. Operationele fixes direct; codefixes op ara/incident-* branches; escalatieketen manager:ops → supervisor (feedback + 1 herkansing) → mens.",
+    "monitors": "plugins/ara/monitors.json"
+  },
   "ventures": [
     {
       "id": "traject",

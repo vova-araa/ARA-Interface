@@ -47,6 +47,7 @@ install_agent() {
 
 install_agent com.ara.collector
 install_agent com.ara.viewer
+install_agent com.ara.watchdog
 
 # ── Plugin ──────────────────────────────────────────────────────────────
 if command -v claude >/dev/null 2>&1; then

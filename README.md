@@ -92,6 +92,22 @@ dagrapport: de ⚡ TOKENS VANDAAG-tabel. Zuinigheid is beleid
 (`plugins/ara/org.json` → `tokenRules`): haiku-first voor scouts/simpele
 workers, Grep vóór Read, kale spawn-prompts, curl-polling, batching.
 
+## 24/7 zonder jou
+
+```
+watchdog (launchd, elke 5 min, 0 tokens)
+  ├─ collector/viewer down? → zelf herstarten (launchctl)
+  ├─ monitors.json checken (jouw sites) → stuk? → INCIDENT-taak op het bord
+  ├─ hersteld vóór iemand keek? → taak zelf sluiten
+  ├─ open incidenten → spawn manager:ops (vaste storingsdienst, eigen pod)
+  └─ escalaties → spawn supervisor (feedback + 1 herkansing) → pas dan needsHuman naar jou
+```
+
+- **manager:ops** is de vaste manager: diagnose (logs, processen, `pnpm browse`-screenshots), operationele fixes direct (restart/cleanup), codefixes op `ara/incident-*`-branches, altijd verificatie tegen dezelfde check als de watchdog.
+- LLM-tokens worden **alleen** verbrand als er echt iets stuk is; het bewaken zelf is gratis. Locks voorkomen dubbele spawns (max 1 ops-manager tegelijk, TTL 30 min).
+- Jouw sites toevoegen: `plugins/ara/monitors.json` → `enabled: true` (optioneel `bodyContains` en `launchdService` voor zelf-herstart).
+- Jij ziet alleen: de amber needsHuman-melding bij een echte impasse + alles in het dagrapport.
+
 ## Ops
 
 - launchd agents `com.ara.collector` / `com.ara.viewer` (`~/Library/LaunchAgents`), `KeepAlive` — survive reboots, logs in `~/Library/Logs/ara-world/`.

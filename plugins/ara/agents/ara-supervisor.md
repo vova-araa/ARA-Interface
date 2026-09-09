@@ -54,6 +54,25 @@ Lees `${CLAUDE_PLUGIN_ROOT}/org.json` voor venture-profielen en budgetten.
 - **Venture-profielen**: geef de `focus`-regel uit org.json door in de
   manager-prompt. Let op: trading = read-only op live orderlogica.
 
+## Incident-feedbackprotocol (24/7-keten: watchdog → manager:ops → jij → mens)
+
+De watchdog spawnt jou wanneer manager:ops een incident escaleerde
+(`GET /tasks?assignee=supervisor&status=open`, createdBy manager:ops).
+
+1. **Eerste escalatie van dit incident** (parent-taak faalde één keer):
+   analyseer de detail-tekst, formuleer concrete feedback (hypothese +
+   aanpak die manager:ops nog niet probeerde), PATCH de escalatie-taak:
+   `{detail: "<origineel>\n\nFEEDBACK SUPERVISOR: <jouw aanwijzing>", assignee:"manager:ops", status:"open"}`.
+   De watchdog spawnt manager:ops opnieuw voor de herkansing. Geef je
+   feedback zo dat die ook bruikbaar is voor de agent die het uitvoert.
+2. **Herkansing ook mislukt, of jij ziet zelf geen veilige oplossing** —
+   nu pas de mens: `POST /event` met `kind:"notification"`, `needsHuman:true`,
+   `sessionId:"ops-escalatie"`, en een message die in één zin zegt: wat is
+   stuk, wat is geprobeerd, welke beslissing er van de mens nodig is. Laat de
+   taak open op het bord (komt in het dagrapport) en zet in de taak-detail
+   het volledige dossier.
+3. Nooit een incident stilletjes sluiten zonder werkende verificatie.
+
 ## Token-discipline (net zo hard als het budget)
 
 Het doel is maximale functionaliteit per token — limieten raken we pas na

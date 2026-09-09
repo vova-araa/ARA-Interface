@@ -1,0 +1,35 @@
+{
+  "_uitleg": "Bewaakte services. De watchdog (scripts/watchdog.sh, launchd elke 5 min, 0 tokens) checkt elke enabled URL. Faalt er één → incident-taak op het bord voor manager:ops → die wordt automatisch gespawnd. 'critical': bij falen probeert de watchdog zelf eerst een launchctl-restart. Voeg hier je eigen sites toe (enabled: true).",
+  "checks": [
+    {
+      "name": "ara-collector",
+      "url": "http://127.0.0.1:4747/health",
+      "enabled": true,
+      "critical": true,
+      "launchdService": "com.ara.collector"
+    },
+    {
+      "name": "ara-viewer",
+      "url": "http://127.0.0.1:4748/",
+      "enabled": true,
+      "critical": true,
+      "launchdService": "com.ara.viewer"
+    },
+    {
+      "name": "traject-site",
+      "url": "https://VUL-IN.example",
+      "enabled": false,
+      "bodyContains": ""
+    },
+    {
+      "name": "blex-site",
+      "url": "https://VUL-IN.example",
+      "enabled": false
+    },
+    {
+      "name": "uprising-site",
+      "url": "https://VUL-IN.example",
+      "enabled": false
+    }
+  ]
+}
