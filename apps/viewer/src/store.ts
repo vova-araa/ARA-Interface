@@ -15,6 +15,14 @@ export interface Effect {
   ts: number;
 }
 
+export interface TickerItem {
+  id: string;
+  ts: number;
+  text: string;
+  kind: AraEvent['kind'];
+  error: boolean;
+}
+
 export interface SpeechBubble {
   sessionId: string;
   agentId?: string;
@@ -29,6 +37,8 @@ interface AraStore {
   snapshot: WorldSnapshot;
   effects: Effect[];
   bubbles: SpeechBubble[];
+  ticker: TickerItem[];
+  overviewOpen: boolean;
   lastEventSessionId: string | null;
 
   selectedSessionId: string | null;
@@ -62,6 +72,7 @@ interface AraStore {
   setPanelOpen(open: boolean): void;
   setBoardOpen(open: boolean): void;
   setLodFar(far: boolean): void;
+  setOverviewOpen(open: boolean): void;
   bumpTasks(): void;
   flyTo(sessionId: string): void;
   pruneEphemera(): void;
@@ -141,6 +152,8 @@ export const useAra = create<AraStore>((set, get) => ({
   snapshot: EMPTY,
   effects: [],
   bubbles: [],
+  ticker: [],
+  overviewOpen: false,
   lastEventSessionId: null,
 
   selectedSessionId: null,
@@ -170,6 +183,30 @@ export const useAra = create<AraStore>((set, get) => ({
     remember(event);
     const now = Date.now();
     const effects = [...get().effects, ...effectsFor(event)].slice(-60);
+
+    // Live-ticker: alleen betekenisvolle regels.
+    let ticker = get().ticker;
+    const TICKER_TEXT: Partial<Record<AraEvent['kind'], () => string>> = {
+      'session.start': () => `▶ ${event.project}: sessie gestart`,
+      'session.end': () => `■ ${event.project}: sessie klaar`,
+      'tool.pre': () => `${event.project}: ${event.toolSummary ?? event.tool ?? ''}`,
+      'agent.start': () => `${event.project}: agent ${event.agentType ?? ''} erbij`,
+      notification: () => `⚠ ${event.project}: ${event.message?.slice(0, 60) ?? 'heeft je nodig'}`,
+      'task.completed': () => `✔ ${event.project}: ${event.message?.slice(0, 60) ?? 'taak afgerond'}`,
+    };
+    const line = TICKER_TEXT[event.kind]?.();
+    if (line) {
+      ticker = [
+        ...ticker,
+        {
+          id: event.id,
+          ts: now,
+          text: line.slice(0, 90),
+          kind: event.kind,
+          error: event.status === 'error' || event.kind === 'notification',
+        },
+      ].slice(-6);
+    }
     let bubbles = get().bubbles;
     if (event.toolSummary && event.kind === 'tool.pre') {
       bubbles = [
@@ -186,6 +223,7 @@ export const useAra = create<AraStore>((set, get) => ({
       snapshot: worldState.snapshot(),
       effects,
       bubbles,
+      ticker,
       lastEventSessionId: event.sessionId,
       // Keep the open drawer live.
       selectedEvents:
@@ -227,6 +265,7 @@ export const useAra = create<AraStore>((set, get) => ({
   setPanelOpen: (open) => set({ panelOpen: open }),
   setBoardOpen: (open) => set({ boardOpen: open }),
   setLodFar: (far) => set({ lodFar: far }),
+  setOverviewOpen: (open) => set({ overviewOpen: open }),
   bumpTasks: () => set((s) => ({ tasksVersion: s.tasksVersion + 1 })),
 
   flyTo: (sessionId) => set({ flyTarget: { sessionId, ts: Date.now() } }),
@@ -235,8 +274,13 @@ export const useAra = create<AraStore>((set, get) => ({
     const now = Date.now();
     const effects = get().effects.filter((e) => now - e.ts < 4000);
     const bubbles = get().bubbles.filter((b) => now - b.ts < 4000);
-    if (effects.length !== get().effects.length || bubbles.length !== get().bubbles.length) {
-      set({ effects, bubbles });
+    const ticker = get().ticker.filter((t) => now - t.ts < 12_000);
+    if (
+      effects.length !== get().effects.length ||
+      bubbles.length !== get().bubbles.length ||
+      ticker.length !== get().ticker.length
+    ) {
+      set({ effects, bubbles, ticker });
     }
   },
 

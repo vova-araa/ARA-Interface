@@ -14,6 +14,7 @@ export function CameraRig(): JSX.Element {
   const flyTarget = useAra((s) => s.flyTarget);
   const goal = useRef<THREE.Vector3 | null>(null);
   const shake = useRef(0);
+  const intro = useRef(0); // 0..1 fly-in bij laden
 
   useEffect(() => {
     const { world, snapshot } = useAra.getState();
@@ -37,6 +38,16 @@ export function CameraRig(): JSX.Element {
   useFrame((_, delta) => {
     const controls = controlsRef.current;
     if (!controls) return;
+
+    // Intro: van ver uitgezoomd zachtjes de wereld in (~2s).
+    if (intro.current < 1) {
+      intro.current = Math.min(1, intro.current + delta / 2);
+      const ease = 1 - Math.pow(1 - intro.current, 3);
+      const cam = camera as THREE.OrthographicCamera;
+      cam.zoom = 14 + (38 - 14) * ease;
+      cam.updateProjectionMatrix();
+    }
+
     // LOD-schakelaar: ver uitgezoomd → icons/bubbles uit (goedkope frames).
     const far = (camera as THREE.OrthographicCamera).zoom < 26;
     if (far !== useAra.getState().lodFar) useAra.getState().setLodFar(far);

@@ -107,6 +107,14 @@
 - [x] **Planning**: taken met assignee `gepland` + `due: <datum>` in detail; watchdog promoveert ze naar de supervisor zodra de datum verstreken is. End-to-end getest (verlopen → gepromoveerd + spawn-trigger; toekomstig → blijft staan).
 - [x] Watchdog spawnt supervisor nu ook voor chief-taken; supervisor-instructies en org-chart (README, org.json) bijgewerkt: chief ↔ gebruiker, supervisor operationeel.
 
+## Animatie + overzicht batch
+- [x] **Overzicht-dashboard** (⊞ / toets `o`): venture-cards met 24u-sparkline, sessies/bezig/⚠/fouten, tokens, open taken; klik = vlieg naar recentste sessie; Esc sluit. Playwright-gedekt.
+- [x] **Live event-ticker** linksonder: laatste 6 betekenisvolle events (start/klaar/tools/agents/⚠), 12s fade, verborgen op mobiel en bij open drawer.
+- [x] **Sneltoetsen**: `/` zoeken · `f` follow · `b` bord · `o` overzicht · `Esc` sluit alles.
+- [x] **Ambient life**: 2 cirkelende adelaars (klappende vleugels), dobberend zeilbootje op het Sevan-meer, eeuwige vlam bij de hub (flikkerend puntlicht, feller in schemer/nacht).
+- [x] **Pod-animaties**: veerkrachtig uit de grond bij spawn (~0.6s), beëindigde sessies dommelen in (kleiner, licht gedimd), koepels gloeien 's nachts.
+- [x] **Camera-intro**: 2s fly-in van ver naar de standaard-zoom bij laden.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

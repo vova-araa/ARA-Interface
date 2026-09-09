@@ -11,6 +11,7 @@ import { EffectsLayer } from './EffectsLayer.tsx';
 import { Labels } from './Labels.tsx';
 import { useDaylight } from './daylight.ts';
 import { TokenPillars } from './TokenPillars.tsx';
+import { AmbientLife } from './AmbientLife.tsx';
 
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
@@ -47,6 +48,7 @@ export function Scene(): JSX.Element {
         <Backdrop />
         <HexGround world={world} />
         <Landmarks world={world} />
+        <AmbientLife />
         {world && (
           <>
             <Labels world={world} />

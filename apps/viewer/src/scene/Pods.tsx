@@ -5,6 +5,7 @@ import type { SessionState, WorldConfig } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
 import { projectPlacement, sessionPosition } from '../placements.ts';
 import { toolColor } from '../util.ts';
+import { useDaylight } from './daylight.ts';
 
 const SHOW_WINDOW_MS = 24 * 60 * 60 * 1000; // pods linger for a day
 
@@ -35,6 +36,8 @@ export function visiblePods(world: WorldConfig, sessions: SessionState[]): PodIn
 function Pod({ info }: { info: PodInfo }): JSX.Element {
   const { session, position } = info;
   const groupRef = useRef<THREE.Group>(null);
+  const spawnedAt = useRef(Date.now());
+  const daylight = useDaylight();
   const bodyMaterial = useRef<THREE.MeshStandardMaterial>(null);
   const innerLight = useRef<THREE.MeshStandardMaterial>(null);
   const ringRef = useRef<THREE.Group>(null);
@@ -52,9 +55,18 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
     const group = groupRef.current;
     if (!group) return;
 
-    // Idle breathing (base scale 1.5 so pods read from far out)
-    const breathe = session.status === 'idle' ? 1 + Math.sin(t * 1.6) * 0.02 : 1;
-    group.scale.setScalar(1.5 * breathe);
+    // Spawn: veerkrachtig opduiken uit de grond (~0.6s).
+    const born = Math.min(1, (Date.now() - spawnedAt.current) / 600);
+    const pop = born < 1 ? 1 - Math.pow(1 - born, 3) * Math.cos(born * Math.PI * 2) * 0.3 - Math.pow(1 - born, 3) : 1;
+
+    // Beëindigde sessies dommelen in: kleiner, geen ademhaling.
+    const ended = session.endedAt !== undefined;
+    const breathe = !ended && session.status === 'idle' ? 1 + Math.sin(t * 1.6) * 0.02 : 1;
+    group.scale.setScalar(1.5 * breathe * pop * (ended ? 0.78 : 1));
+    group.position.y = -(1 - born) * 0.5; // relatief: stijgt uit de grond op
+
+    // 's Nachts gloeien de koepels — de stad leeft door.
+    const nightGlow = daylight.period === 'night' ? 0.3 : daylight.period === 'dusk' ? 0.18 : 0;
 
     if (innerLight.current) {
       if (session.status === 'working') {
@@ -62,9 +74,9 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
         innerLight.current.emissiveIntensity = 0.8 + Math.sin(t * 6) * 0.5;
       } else if (session.status === 'done') {
         innerLight.current.emissive.set('#3ecf6f');
-        innerLight.current.emissiveIntensity = 0.7;
+        innerLight.current.emissiveIntensity = ended ? 0.35 + nightGlow : 0.7;
       } else {
-        innerLight.current.emissiveIntensity = 0.12;
+        innerLight.current.emissiveIntensity = 0.12 + nightGlow;
       }
     }
     if (bodyMaterial.current) {

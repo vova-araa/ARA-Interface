@@ -25,6 +25,8 @@ export function TopBar(): JSX.Element {
   const setPanelOpen = useAra((s) => s.setPanelOpen);
   const boardOpen = useAra((s) => s.boardOpen);
   const setBoardOpen = useAra((s) => s.setBoardOpen);
+  const overviewOpen = useAra((s) => s.overviewOpen);
+  const setOverviewOpen = useAra((s) => s.setOverviewOpen);
   const demo = useAra((s) => s.demo);
 
   return (
@@ -56,9 +58,16 @@ export function TopBar(): JSX.Element {
           {soundOn ? '🔔' : '🔕'}
         </button>
         <button
+          className={`btn ${overviewOpen ? 'btn-active' : ''}`}
+          onClick={() => setOverviewOpen(!overviewOpen)}
+          title="Overzicht (o)"
+        >
+          ⊞
+        </button>
+        <button
           className={`btn ${boardOpen ? 'btn-active' : ''}`}
           onClick={() => setBoardOpen(!boardOpen)}
-          title="Takenbord"
+          title="Takenbord (b)"
         >
           ☷
         </button>

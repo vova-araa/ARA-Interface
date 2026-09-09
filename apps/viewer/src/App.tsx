@@ -7,6 +7,8 @@ import { NudgePulse, ReconnectBanner } from './ui/Banners.tsx';
 import { Scrubber } from './ui/Scrubber.tsx';
 import { Minimap } from './ui/Minimap.tsx';
 import { BoardPanel } from './ui/BoardPanel.tsx';
+import { OverviewPanel } from './ui/OverviewPanel.tsx';
+import { Ticker } from './ui/Ticker.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
 import { runDemo } from './demo.ts';
@@ -23,6 +25,31 @@ export function App(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sneltoetsen (desktop): / zoeken · f follow · b bord · o overzicht · Esc sluiten
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const typing = (e.target as HTMLElement)?.tagName === 'INPUT';
+      const s = useAra.getState();
+      if (e.key === 'Escape') {
+        if (s.overviewOpen) s.setOverviewOpen(false);
+        else if (s.boardOpen) s.setBoardOpen(false);
+        else if (s.selectedSessionId) s.select(null);
+        (e.target as HTMLElement)?.blur?.();
+        return;
+      }
+      if (typing) return;
+      if (e.key === '/') {
+        e.preventDefault();
+        s.setPanelOpen(true);
+        setTimeout(() => document.querySelector<HTMLInputElement>('.panel .search')?.focus(), 50);
+      } else if (e.key === 'f') s.toggleFollowLive();
+      else if (e.key === 'b') s.setBoardOpen(!s.boardOpen);
+      else if (e.key === 'o') s.setOverviewOpen(!s.overviewOpen);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="app">
       <Scene />
@@ -31,6 +58,8 @@ export function App(): JSX.Element {
       <DetailDrawer />
       <Minimap />
       <BoardPanel />
+      <OverviewPanel />
+      <Ticker />
       <Scrubber />
       <ReconnectBanner />
       <NudgePulse />
