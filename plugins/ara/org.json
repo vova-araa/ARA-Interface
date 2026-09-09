@@ -1,0 +1,53 @@
+{
+  "policy": {
+    "managers": "on-demand",
+    "autonomy": "branch-and-report",
+    "reporting": "escalate-direct-plus-daily",
+    "branchPrefix": "ara/",
+    "budgets": {
+      "maxManagers": 3,
+      "supervisorConcurrent": 6,
+      "supervisorTotal": 12,
+      "managerConcurrent": 4,
+      "managerTotal": 8
+    }
+  },
+  "ventures": [
+    {
+      "id": "traject",
+      "manager": "manager:traject",
+      "priority": 1,
+      "focus": "TMS: planning, facturatie, transport-integraties. Productie-gevoelig: migraties en externe API's altijd escaleren."
+    },
+    {
+      "id": "blex",
+      "manager": "manager:blex",
+      "priority": 1,
+      "focus": "Logistiek: voorraad/trailers, Supabase-sync. Data-integriteit boven snelheid."
+    },
+    {
+      "id": "uprising",
+      "manager": "manager:uprising",
+      "priority": 1,
+      "focus": "Studio: site, boekingen, audio-tooling. Visueel werk graag met screenshot in het taakresultaat."
+    },
+    {
+      "id": "trading",
+      "manager": "manager:trading",
+      "priority": 1,
+      "focus": "XAU/USD bots: STRIKT read-only op live trading; elke wijziging aan order-logica of keys is een automatische ESCALATE."
+    },
+    {
+      "id": "elevate",
+      "manager": "manager:elevate",
+      "priority": 2,
+      "focus": "Design: campagnes, assets, sites."
+    },
+    {
+      "id": "vovara",
+      "manager": "manager:vovara",
+      "priority": 2,
+      "focus": "Muziek: releases, site, promotie."
+    }
+  ]
+}

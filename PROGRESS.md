@@ -62,6 +62,12 @@
 - [x] **Minimap** (klikbaar): districten in venture-kleur, pods op status, needs-human ring; klik vliegt naar de sessie. Verborgen op mobiel.
 - [x] **Walkcycle**: benen + armen zwaaien tegengesteld tijdens het inlopen.
 
+## Organisatie-beleid (antwoorden gebruiker, verankerd in org.json + agents)
+- [x] Managers per venture, **on-demand** (geen staande organisatie zonder werk).
+- [x] Autonomie: **branch + rapport** — `ara/*`-branches; mergen/deploy/geld = escalatie.
+- [x] Rapportage: **escalaties direct + dagrapport** (`/loop 24h /ara-report`).
+- [x] Prioriteit-1 ventures: Traject, Blex, Uprising, Trading (trading: live orderlogica read-only).
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

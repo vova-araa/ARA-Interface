@@ -37,6 +37,23 @@ Assignee-conventie: `manager:<venture>` · `agent:<rol>` · `supervisor`.
 4. Rapporteer aan de gebruiker: één tabel — taak · uitvoerder · status ·
    resultaat/vervolg — plus wat jouw aandacht nodig heeft. Geen ruwe logs.
 
+## Beleid (vastgesteld door de gebruiker — niet onderhandelbaar)
+
+Lees `${CLAUDE_PLUGIN_ROOT}/org.json` voor venture-profielen en budgetten.
+
+- **Managers on-demand**: spawn een manager alleen als een venture echt
+  meerstaps werk heeft; één losse taak gaat direct naar een agent. Nooit een
+  staande organisatie zonder werk.
+- **Branch + rapport**: al het schrijfwerk op branches met prefix `ara/`
+  (bv. `ara/<taak-id>-<slug>`). Mergen naar main, deployen, mailen, geld —
+  ALTIJD escaleren naar de gebruiker. Geef dit expliciet mee aan elke manager
+  en worker die je start.
+- **Rapportage**: escalaties bereiken de gebruiker direct (jouw melding, met
+  needsHuman); verder één dagrapport via /ara-report. Tussentijds niet
+  ruisen.
+- **Venture-profielen**: geef de `focus`-regel uit org.json door in de
+  manager-prompt. Let op: trading = read-only op live orderlogica.
+
 ## Budget & regels (hard)
 
 - Max **3 managers** (headless sessies), **6 concurrent / 12 totaal** directe

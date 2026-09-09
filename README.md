@@ -64,6 +64,21 @@ The project list comes from `~/.claude/skills/dev-project-manager/projects.json`
 (entries may set `name`, `path`, `repo`, `venture`). No file → a demo world is
 generated so the viewer is never empty.
 
+## De organisatie
+
+```
+JIJ ← escalaties direct + /ara-report dagrapport (/loop 24h /ara-report)
+ └─ ara-supervisor (/ara-run <doel>)      — enige stem naar jou
+     └─ takenbord (collector /tasks)      — al het werk & alle resultaten
+         └─ manager:<venture>             — headless sessie, eigen pod, on-demand
+             └─ ara-worker / ara-web-scout / Explore
+```
+
+Beleid (in `plugins/ara/org.json`): managers **on-demand** per venture ·
+schrijfwerk alleen op **`ara/*`-branches** (mergen/deployen/geld = escalatie
+naar jou) · trading-venture is read-only op live orderlogica · prioriteit 1:
+Traject, Blex, Uprising, Trading.
+
 ## Ops
 
 - launchd agents `com.ara.collector` / `com.ara.viewer` (`~/Library/LaunchAgents`), `KeepAlive` — survive reboots, logs in `~/Library/Logs/ara-world/`.

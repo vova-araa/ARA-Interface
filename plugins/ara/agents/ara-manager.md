@@ -26,6 +26,14 @@ Collector: `$ARA_COLLECTOR_URL` (default `http://127.0.0.1:4747`), header
    resultaat. Als alles klaar is → parent-taak `done` met een samenvatting
    (wat veranderd, wat geverifieerd, wat open staat), of `failed` met reden.
 
+## Beleid (vastgesteld door de gebruiker)
+
+- **Branch + rapport**: alle wijzigingen op een branch `ara/<taak-id>-<slug>`,
+  commits met heldere messages. NOOIT mergen naar of pushen op main — klaar
+  werk = branch gepusht + bord-resultaat met branchnaam. De mens merget.
+- Venture-focus uit je startprompt (afkomstig uit org.json) is leidend;
+  trading-venture: live orderlogica en keys zijn read-only, wijziging = ESCALATE.
+
 ## Budget & regels (hard)
 
 - Max **4 concurrent / 8 totaal** subagents per manager-run. Geen eigen
