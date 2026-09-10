@@ -97,12 +97,20 @@ const EMPTY: WorldSnapshot = {
 // works in demo mode (fixture events never reach SQLite).
 const recentEvents = new Map<string, AraEvent[]>();
 const RECENT_LIMIT = 50;
+const RECENT_SESSIONS_LIMIT = 300;
 
 function remember(event: AraEvent): void {
   const list = recentEvents.get(event.sessionId) ?? [];
   list.push(event);
   if (list.length > RECENT_LIMIT) list.shift();
+  // Delete+set ververst de insertion-order → oudst-aangeraakte sessie staat
+  // vooraan en wordt weggegooid zodra de buffer te veel sessies bevat.
+  recentEvents.delete(event.sessionId);
   recentEvents.set(event.sessionId, list);
+  if (recentEvents.size > RECENT_SESSIONS_LIMIT) {
+    const oldest = recentEvents.keys().next().value;
+    if (oldest !== undefined) recentEvents.delete(oldest);
+  }
 }
 
 /** Merge fetched history with the live buffer, dedup by id, ascending ts. */

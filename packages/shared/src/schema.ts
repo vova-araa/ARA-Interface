@@ -80,6 +80,6 @@ export interface WorldSnapshot {
   sessions: Record<string, SessionState>;
   /** Projects seen in the event stream (may include ones not in world.config.json). */
   projects: string[];
-  /** Rolling counters for the top bar. */
-  counters: { needsHuman: number; running: number; doneToday: number };
+  /** Rolling counters for the top bar. doneSessions maakt hydrate verliesvrij. */
+  counters: { needsHuman: number; running: number; doneToday: number; doneSessions?: string[] };
 }

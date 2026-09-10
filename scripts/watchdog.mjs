@@ -53,15 +53,48 @@ function kickstart(service) {
   }
 }
 
-function lockFresh(name) {
-  const file = path.join(LOCK_DIR, `${name}.lock`);
+function pidAlive(pid) {
+  if (!Number.isFinite(pid) || pid <= 0) return false;
   try {
-    if (Date.now() - fs.statSync(file).mtimeMs < LOCK_TTL_MS) return false;
+    process.kill(pid, 0);
+    return true;
   } catch {
-    /* geen lock */
+    return false;
   }
-  fs.writeFileSync(file, String(Date.now()));
-  return true;
+}
+
+/**
+ * Atomair spawn-lock ('wx' — geen check-then-write race). Het lockbestand
+ * bevat de pid van de gespawnde agent: leeft die nog, dan blijft de lock
+ * geldig (ook > TTL, geen tweede instantie naast een lange run); is de pid
+ * dood of de TTL verstreken, dan is de lock vrij (een korte run blokkeert
+ * dus geen nieuwe incidenten meer).
+ */
+function acquireSpawnLock(name) {
+  const file = path.join(LOCK_DIR, `${name}.lock`);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const fd = fs.openSync(file, 'wx');
+      fs.closeSync(fd);
+      return file;
+    } catch {
+      let stale = true;
+      try {
+        const pid = Number(fs.readFileSync(file, 'utf8').trim());
+        const age = Date.now() - fs.statSync(file).mtimeMs;
+        stale = pidAlive(pid) ? false : age >= LOCK_TTL_MS || pid > 0;
+      } catch {
+        /* onleesbaar → als verlopen behandelen */
+      }
+      if (!stale) return null;
+      try {
+        fs.unlinkSync(file);
+      } catch {
+        /* iemand anders was ons voor */
+      }
+    }
+  }
+  return null;
 }
 
 function spawnClaude(name, prompt) {
@@ -75,7 +108,8 @@ function spawnClaude(name, prompt) {
     log(`claude CLI niet gevonden — kan ${name} niet spawnen`);
     return;
   }
-  if (!lockFresh(`ara-${name}`)) {
+  const lockFile = acquireSpawnLock(`ara-${name}`);
+  if (!lockFile) {
     log(`${name} draait al (lock) — geen nieuwe spawn`);
     return;
   }
@@ -85,7 +119,22 @@ function spawnClaude(name, prompt) {
     detached: true,
     stdio: ['ignore', logFile, logFile],
   });
+  // Spawn-fouten (EACCES, verdwenen binary) komen asynchroon: zonder listener
+  // crasht de watchdog en blijft de lock hangen.
+  child.on('error', (error) => {
+    log(`spawn ${name} mislukt: ${String(error).slice(0, 120)}`);
+    try {
+      fs.unlinkSync(lockFile);
+    } catch {
+      /* leeg */
+    }
+  });
   child.unref();
+  try {
+    fs.writeFileSync(lockFile, String(child.pid ?? 0));
+  } catch {
+    /* leeg */
+  }
   log(`gespawnd: ${name} (pid ${child.pid})`);
 }
 
@@ -136,12 +185,20 @@ try {
   log('monitors.json onleesbaar — alleen zelfbewaking actief');
 }
 
-const board = await api('/tasks?assignee=manager:ops&limit=200');
-const openIncidents = new Map(
-  board.tasks
-    .filter((t) => (t.status === 'open' || t.status === 'claimed') && t.title.startsWith('INCIDENT: '))
-    .map((t) => [t.title, t]),
-);
+// Per status opvragen: één gemengde limit-200 lijst liet oude open incidenten
+// uit het venster vallen zodra afgeronde taken zich opstapelden (dubbele
+// incidenten elke tick).
+const openIncidents = new Map();
+try {
+  for (const status of ['open', 'claimed']) {
+    const board = await api(`/tasks?assignee=manager:ops&status=${status}&limit=200`);
+    for (const t of board.tasks) {
+      if (t.title.startsWith('INCIDENT: ')) openIncidents.set(t.title, t);
+    }
+  }
+} catch (error) {
+  log(`bord onbereikbaar (${String(error).slice(0, 80)}) — incident-dedupe deze tick beperkt`);
+}
 
 let failures = 0;
 for (const monitor of monitors.checks ?? []) {
@@ -155,36 +212,46 @@ for (const monitor of monitors.checks ?? []) {
   }
   const title = `INCIDENT: ${monitor.name}`;
   const existing = openIncidents.get(title);
-  if (error) {
-    failures += 1;
-    if (existing) {
-      log(`${monitor.name} nog steeds stuk (${error}) — incident bestaat al (${existing.id})`);
-    } else {
-      const created = await api('/tasks', {
-        method: 'POST',
-        body: JSON.stringify({
-          title,
-          detail: `URL: ${monitor.url}\nFout: ${error}\nGedetecteerd: ${new Date().toISOString()}\nEerste actie watchdog: ${monitor.critical ? 'restart geprobeerd, hielp niet' : 'geen (niet-critical)'}`,
-          project: monitor.name,
-          assignee: 'manager:ops',
-          createdBy: 'watchdog',
-        }),
+  try {
+    if (error) {
+      failures += 1;
+      if (existing) {
+        log(`${monitor.name} nog steeds stuk (${error}) — incident bestaat al (${existing.id})`);
+      } else {
+        const created = await api('/tasks', {
+          method: 'POST',
+          body: JSON.stringify({
+            title,
+            detail: `URL: ${monitor.url}\nFout: ${error}\nGedetecteerd: ${new Date().toISOString()}\nEerste actie watchdog: ${monitor.critical ? 'restart geprobeerd, hielp niet' : 'geen (niet-critical)'}`,
+            project: monitor.name,
+            assignee: 'manager:ops',
+            createdBy: 'watchdog',
+          }),
+        });
+        log(`${monitor.name} STUK (${error}) → incident ${created.task.id}`);
+      }
+    } else if (existing && existing.status === 'open') {
+      // Hersteld voordat iemand het claimde → zelf sluiten (0 tokens).
+      await api(`/tasks/${existing.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'done', result: 'Vanzelf hersteld — watchdog-check weer groen.' }),
       });
-      log(`${monitor.name} STUK (${error}) → incident ${created.task.id}`);
+      log(`${monitor.name} hersteld — incident ${existing.id} gesloten`);
     }
-  } else if (existing && existing.status === 'open') {
-    // Hersteld voordat iemand het claimde → zelf sluiten (0 tokens).
-    await api(`/tasks/${existing.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'done', result: 'Vanzelf hersteld — watchdog-check weer groen.' }),
-    });
-    log(`${monitor.name} hersteld — incident ${existing.id} gesloten`);
+  } catch (apiError) {
+    // Bord-API stuk mag de overige monitors + secties niet blokkeren.
+    log(`bord-actie voor ${monitor.name} mislukt: ${String(apiError).slice(0, 80)}`);
   }
 }
 
 // ── 4. Ops-manager spawnen bij open incidenten ────────────────────────────
-const stillOpen = await api('/tasks?assignee=manager:ops&status=open&limit=50');
-const incidentsToHandle = stillOpen.tasks.filter((t) => t.title.startsWith('INCIDENT: '));
+let incidentsToHandle = [];
+try {
+  const stillOpen = await api('/tasks?assignee=manager:ops&status=open&limit=50');
+  incidentsToHandle = stillOpen.tasks.filter((t) => t.title.startsWith('INCIDENT: '));
+} catch (error) {
+  log(`ops-stap overgeslagen: ${String(error).slice(0, 80)}`);
+}
 if (incidentsToHandle.length > 0) {
   spawnClaude(
     'ops-manager',
@@ -212,9 +279,15 @@ try {
 }
 
 // ── 5. Escalaties + gebruikers-/chief-taken → supervisor ──────────────────
-const escalated = await api('/tasks?assignee=supervisor&status=open&limit=50');
-const opsEscalations = escalated.tasks.filter((t) => t.createdBy === 'manager:ops');
-const userTasks = escalated.tasks.filter((t) => t.createdBy === 'user' || t.createdBy === 'chief');
+let opsEscalations = [];
+let userTasks = [];
+try {
+  const escalated = await api('/tasks?assignee=supervisor&status=open&limit=50');
+  opsEscalations = escalated.tasks.filter((t) => t.createdBy === 'manager:ops');
+  userTasks = escalated.tasks.filter((t) => t.createdBy === 'user' || t.createdBy === 'chief');
+} catch (error) {
+  log(`supervisor-stap overgeslagen: ${String(error).slice(0, 80)}`);
+}
 if (opsEscalations.length > 0 || userTasks.length > 0) {
   const parts = [];
   if (opsEscalations.length > 0)
@@ -237,12 +310,35 @@ try {
   const state = await api('/state');
   const needy = Object.values(state.sessions).filter((s) => s.needsHuman && !s.endedAt);
   for (const session of needy) {
-    const lockName = `ara-tg-${session.sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-    if (!lockFresh(lockName)) continue; // al gemeld
+    // Eenmalig per sessie: markeer pas NA een geslaagde verzending, anders
+    // onderdrukt een mislukte poging (netwerk down) de melding voorgoed.
+    const markFile = path.join(
+      LOCK_DIR,
+      `ara-tg-${session.sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.lock`,
+    );
+    if (fs.existsSync(markFile)) continue; // al gemeld
     const result = await sendTelegram(
       `🔴 ARA World — actie nodig\n${session.project}: ${session.message ?? 'sessie wacht op jou'}\nViewer: http://localhost:4747`,
     );
     log(`telegram needsHuman ${session.sessionId}: sent=${result.sent} (${result.reason})`);
+    if (result.sent) {
+      try {
+        fs.writeFileSync(markFile, String(Date.now()));
+      } catch {
+        /* leeg */
+      }
+    }
+  }
+  // Oude meld-markers en agent-logs opruimen (anders groeit LOCK_DIR eindeloos).
+  try {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    for (const f of fs.readdirSync(LOCK_DIR)) {
+      if (!/^ara-(tg-.*\.lock|.*\.log)$/.test(f)) continue;
+      const full = path.join(LOCK_DIR, f);
+      if (fs.statSync(full).mtimeMs < cutoff) fs.unlinkSync(full);
+    }
+  } catch {
+    /* opruimen is best-effort */
   }
 } catch (error) {
   log(`telegram-stap overgeslagen: ${String(error).slice(0, 80)}`);

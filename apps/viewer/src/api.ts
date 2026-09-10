@@ -34,12 +34,26 @@ export function connectLive(): void {
 
   let source: EventSource | null = null;
 
+  // Events die binnenkomen terwijl /state onderweg is worden gebufferd en ná
+  // de hydrate alsnog toegepast — anders wist een verouderde snapshot het
+  // effect van een net ontvangen event (pod flitst terug naar 'idle').
+  let resyncing = false;
+  let buffered: AraEvent[] = [];
+
   const resync = async (): Promise<void> => {
+    resyncing = true;
+    buffered = [];
     try {
       const snapshot = (await (await fetch(withToken('/state'))).json()) as WorldSnapshot;
       useAra.getState().hydrate(snapshot);
+      for (const event of buffered) {
+        if (event.ts > snapshot.now) useAra.getState().applyEvent(event);
+      }
     } catch {
       /* collector down; SSE reconnect will retry */
+    } finally {
+      resyncing = false;
+      buffered = [];
     }
   };
 
@@ -60,7 +74,9 @@ export function connectLive(): void {
     source.addEventListener('tasks', () => useAra.getState().bumpTasks());
     source.addEventListener('ara', (msg) => {
       try {
-        useAra.getState().applyEvent(JSON.parse((msg as MessageEvent).data) as AraEvent);
+        const event = JSON.parse((msg as MessageEvent).data) as AraEvent;
+        if (resyncing) buffered.push(event);
+        else useAra.getState().applyEvent(event);
       } catch {
         /* skip malformed frame */
       }

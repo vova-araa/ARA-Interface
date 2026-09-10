@@ -35,10 +35,19 @@ export const VENTURES: VentureStyle[] = [
 
 export function ventureForProject(projectName: string): VentureStyle {
   const name = projectName.toLowerCase();
+  // Langste match wint, niet declaratievolgorde: "truck-trailers-tms" hoort
+  // bij 'trailer' (Truck & Trailers), niet bij het kortere 'tms' (Sharzi).
+  let best: VentureStyle | null = null;
+  let bestLen = 0;
   for (const venture of VENTURES) {
-    if (venture.match.some((m) => name.includes(m))) return venture;
+    for (const m of venture.match) {
+      if (m.length > bestLen && name.includes(m)) {
+        best = venture;
+        bestLen = m.length;
+      }
+    }
   }
-  return VENTURES[VENTURES.length - 1]!;
+  return best ?? VENTURES[VENTURES.length - 1]!;
 }
 
 export interface ProjectPlacement {
@@ -89,10 +98,12 @@ export function buildWorldConfig(
   for (const hex of hexDisc({ q: 0, r: 0 }, 2)) taken.add(axialKey(hex)); // reserve hub
 
   const byVenture = new Map<string, ProjectEntry[]>();
+  const explicitVentures = new Set<string>();
   for (const project of projects) {
     const venture = project.venture
       ? (VENTURES.find((v) => v.id === project.venture) ?? ventureForProject(project.name))
       : ventureForProject(project.name);
+    if (project.venture && venture.id === project.venture) explicitVentures.add(venture.id);
     const list = byVenture.get(venture.id) ?? [];
     list.push(project);
     byVenture.set(venture.id, list);
@@ -100,11 +111,15 @@ export function buildWorldConfig(
 
   const districts: DistrictPlacement[] = [];
   // Stable order: declaration order of VENTURES, so angles never shuffle.
-  // Een venture met expliciete projecten blijft altijd bestaan (data wint);
-  // een leeg 'misc'-district vervalt wanneer het verborgen is.
-  const active = VENTURES.filter(
-    (v) => byVenture.has(v.id) || (v.id === 'misc' && !hidden.has('misc')),
-  );
+  // hiddenVentures geldt voor élke venture-id: een verborgen venture bouwt
+  // geen district — tenzij projects.json hem expliciet toewijst (data wint).
+  const active = VENTURES.filter((v) => {
+    if (!hidden.has(v.id)) return byVenture.has(v.id) || v.id === 'misc';
+    // Verborgen venture: data wint. Voor misc telt élk gecureerd project
+    // (in projects.json staan ís de expliciete keuze); voor andere ventures
+    // alleen een expliciet `venture:`-veld.
+    return v.id === 'misc' ? byVenture.has('misc') : explicitVentures.has(v.id);
+  });
   active.forEach((venture, index) => {
     const angle = (index / active.length) * Math.PI * 2 + (stableHash(venture.id) % 100) / 500;
     const q = Math.round(Math.cos(angle) * DISTRICT_RING_RADIUS);
@@ -131,13 +146,22 @@ export function visibleInWorld(config: WorldConfig, projectName: string): boolea
     if (district.projects.some((p) => p.name === projectName)) return true;
   }
   const ventureId = ventureForProject(projectName).id;
+  // Sessies van een verborgen venture blijven onzichtbaar, ook al zouden ze
+  // via de misc-fallback een plek kunnen krijgen.
+  if (config.hiddenVentures?.includes(ventureId)) return false;
   return config.districts.some((d) => d.venture.id === ventureId);
 }
 
-/** Find (or deterministically invent) a placement for a project name. */
+/**
+ * Find (or deterministically invent) a placement for a project name.
+ * `extraTaken` laat een aanroeper eerder uitgevonden placements meegeven zodat
+ * twee onbekende projecten nooit dezelfde hex delen; nieuw bezette hexes
+ * worden er in teruggeschreven.
+ */
 export function placementForProject(
   config: WorldConfig,
   projectName: string,
+  extraTaken?: Set<string>,
 ): ProjectPlacement {
   for (const district of config.districts) {
     const found = district.projects.find((p) => p.name === projectName);
@@ -150,12 +174,14 @@ export function placementForProject(
     const center: Axial = { q: 24, r: 24 };
     return { name: projectName, venture: 'misc', center, hexes: hexDisc(center, 1) };
   }
-  const taken = new Set<string>();
+  const taken = new Set<string>(extraTaken);
   for (const district of config.districts) {
     taken.add(axialKey(district.center));
     for (const project of district.projects)
       for (const hex of project.hexes) taken.add(axialKey(hex));
   }
   const center = placeOnFreeHex(projectName, misc.center, taken);
-  return { name: projectName, venture: 'misc', center, hexes: hexDisc(center, 1) };
+  const hexes = hexDisc(center, 1);
+  if (extraTaken) for (const hex of hexes) extraTaken.add(axialKey(hex));
+  return { name: projectName, venture: 'misc', center, hexes };
 }

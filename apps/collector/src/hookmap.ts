@@ -3,6 +3,7 @@
  * AraEvents. Keeping this in the collector keeps emit.sh dumb (<20ms path).
  */
 import path from 'node:path';
+import { redactString } from '@ara/shared';
 import type { AraEventKind, IncomingEvent } from '@ara/shared';
 
 export interface HookPayload {
@@ -40,7 +41,10 @@ const HOOK_TO_KIND: Record<string, AraEventKind> = {
 
 export function toolSummary(tool: string | undefined, input: Record<string, unknown> | undefined): string | undefined {
   if (!tool || !input) return undefined;
-  const clip = (s: unknown, n = 60): string => String(s ?? '').replace(/\s+/g, ' ').slice(0, n);
+  // Redactie vóór het knippen: een op 60 tekens afgeknipte Bearer-token zou
+  // anders te kort zijn voor de redactiepatronen en alsnog doorlekken.
+  const clip = (s: unknown, n = 60): string =>
+    redactString(String(s ?? '').replace(/\s+/g, ' ')).slice(0, n);
   const base = (p: unknown): string => (typeof p === 'string' ? path.basename(p) : '');
   switch (tool) {
     case 'Bash':
@@ -89,7 +93,9 @@ export function mapHookPayload(hookName: string, payload: HookPayload): Incoming
     parentAgentId: payload.parent_agent_id,
   };
 
-  if (kind === 'prompt') event.message = payload.prompt;
+  // Cap vóór schema-validatie: een prompt >500 tekens mag het hele event niet
+  // laten afkeuren (de pod bleef dan op 'idle' hangen).
+  if (kind === 'prompt') event.message = payload.prompt?.slice(0, 500);
   if (kind === 'notification') {
     event.message = payload.message ?? payload.notification;
     event.needsHuman = true;

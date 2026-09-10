@@ -52,7 +52,9 @@ export function Scrubber(): JSX.Element | null {
           if (event.ts > ts) break;
           state.apply(event);
         }
-        setReplay(ts, state.snapshot());
+        // Snapshot op de scrub-tijd, niet de wandklok: anders vallen alle
+        // gereplayde sessies buiten de TTL en tonen de tellers 0.
+        setReplay(ts, state.snapshot(ts));
       }
     } catch {
       setReplay(null, null);

@@ -36,8 +36,10 @@ export async function sendTelegram(text) {
   }
 }
 
-// CLI-gebruik
-if (import.meta.url === `file://${process.argv[1]}`) {
+// CLI-gebruik — pathToFileURL i.p.v. stringconcat: een repopad met spatie of
+// niet-ASCII wordt in import.meta.url percent-encoded en matchte anders nooit.
+import { pathToFileURL } from 'node:url';
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const text = process.argv.slice(2).join(' ');
   if (text) {
     const result = await sendTelegram(text);

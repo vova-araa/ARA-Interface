@@ -74,6 +74,14 @@ export interface TaskStore {
   usageSummary(from: number): UsageSummaryRow[];
 }
 
+/** Lokale kalenderdag (collector-tijdzone) als sorteerbare YYYY-MM-DD. */
+function localDay(ts: number): string {
+  const d = new Date(ts);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 export function openStore(dbPath = DB_PATH): EventStore {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
@@ -116,6 +124,19 @@ export function openStore(dbPath = DB_PATH): EventStore {
       model TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX IF NOT EXISTS idx_usage_updated ON usage(updated_at);
+    -- Dag-delta's: het dagbudget telt wat een sessie VANDAAG verbruikte, niet
+    -- haar levenslange totaal (een dagenlang levende sessie post cumulatief).
+    CREATE TABLE IF NOT EXISTS usage_days (
+      day TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      project TEXT NOT NULL DEFAULT '',
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_create_tokens INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (day, session_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_days_day ON usage_days(day);
   `);
 
   const insertStmt = db.prepare(
@@ -230,37 +251,72 @@ export function openStore(dbPath = DB_PATH): EventStore {
       return (db.prepare(sql).all(params) as TaskRow[]).map(rowToTask);
     },
     upsertUsage(usage) {
-      db.prepare(`
-        INSERT INTO usage (session_id, project, updated_at, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, model)
-        VALUES (@sessionId, @project, @updatedAt, @inputTokens, @outputTokens, @cacheReadTokens, @cacheCreateTokens, @model)
-        ON CONFLICT(session_id) DO UPDATE SET
-          project = excluded.project,
-          updated_at = excluded.updated_at,
-          input_tokens = excluded.input_tokens,
-          output_tokens = excluded.output_tokens,
-          cache_read_tokens = excluded.cache_read_tokens,
-          cache_create_tokens = excluded.cache_create_tokens,
-          model = excluded.model
-      `).run(usage);
+      // Delta t.o.v. de vorige absolute stand → bijschrijven op vandaag.
+      // Collector-lokale tijdzone is de enige autoriteit voor "vandaag".
+      const day = localDay(usage.updatedAt);
+      const prev = db
+        .prepare('SELECT input_tokens, output_tokens, cache_read_tokens, cache_create_tokens FROM usage WHERE session_id = ?')
+        .get(usage.sessionId) as
+        | { input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_create_tokens: number }
+        | undefined;
+      const delta = {
+        day,
+        sessionId: usage.sessionId,
+        project: usage.project,
+        input: Math.max(0, usage.inputTokens - (prev?.input_tokens ?? 0)),
+        output: Math.max(0, usage.outputTokens - (prev?.output_tokens ?? 0)),
+        cacheRead: Math.max(0, usage.cacheReadTokens - (prev?.cache_read_tokens ?? 0)),
+        cacheCreate: Math.max(0, usage.cacheCreateTokens - (prev?.cache_create_tokens ?? 0)),
+      };
+      db.transaction(() => {
+        db.prepare(`
+          INSERT INTO usage (session_id, project, updated_at, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, model)
+          VALUES (@sessionId, @project, @updatedAt, @inputTokens, @outputTokens, @cacheReadTokens, @cacheCreateTokens, @model)
+          ON CONFLICT(session_id) DO UPDATE SET
+            project = excluded.project,
+            updated_at = excluded.updated_at,
+            input_tokens = excluded.input_tokens,
+            output_tokens = excluded.output_tokens,
+            cache_read_tokens = excluded.cache_read_tokens,
+            cache_create_tokens = excluded.cache_create_tokens,
+            model = excluded.model
+        `).run(usage);
+        db.prepare(`
+          INSERT INTO usage_days (day, session_id, project, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens)
+          VALUES (@day, @sessionId, @project, @input, @output, @cacheRead, @cacheCreate)
+          ON CONFLICT(day, session_id) DO UPDATE SET
+            project = excluded.project,
+            input_tokens = input_tokens + excluded.input_tokens,
+            output_tokens = output_tokens + excluded.output_tokens,
+            cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+            cache_create_tokens = cache_create_tokens + excluded.cache_create_tokens
+        `).run(delta);
+      })();
     },
     usageSummary(from) {
       return db
         .prepare(`
           SELECT project,
-                 COUNT(*) AS sessions,
+                 COUNT(DISTINCT session_id) AS sessions,
                  SUM(input_tokens) AS inputTokens,
                  SUM(output_tokens) AS outputTokens,
                  SUM(cache_read_tokens) AS cacheReadTokens,
                  SUM(cache_create_tokens) AS cacheCreateTokens
-          FROM usage
-          WHERE updated_at >= ?
+          FROM usage_days
+          WHERE day >= ?
           GROUP BY project
           ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
         `)
-        .all(from) as UsageSummaryRow[];
+        .all(localDay(from)) as UsageSummaryRow[];
     },
     prune() {
-      pruneStmt.run(Date.now() - RETENTION_MS);
+      const cutoff = Date.now() - RETENTION_MS;
+      pruneStmt.run(cutoff);
+      // Afgeronde taken en oude usage-rijen mogen ook weg (anders groeit de
+      // db onbegrensd, en die groei is via de API van buitenaf aan te sturen).
+      db.prepare("DELETE FROM tasks WHERE status IN ('done','failed') AND updated_at < ?").run(cutoff);
+      db.prepare('DELETE FROM usage WHERE updated_at < ?').run(cutoff);
+      db.prepare('DELETE FROM usage_days WHERE day < ?').run(localDay(cutoff));
     },
     close() {
       db.close();

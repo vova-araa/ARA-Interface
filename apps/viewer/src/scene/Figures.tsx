@@ -1,10 +1,10 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { AgentState, WorldConfig } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
-import { districtEdge } from '../placements.ts';
+import { districtEdge, projectPlacement } from '../placements.ts';
 import { visiblePods, type PodInfo } from './Pods.tsx';
 import { emojiTexture } from './icons.ts';
 import { toolIcon } from '../util.ts';
@@ -72,6 +72,15 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
     });
     return new THREE.Line(geometry, material);
   }, [linkIsParent]);
+  // <primitive>-objecten ruimt R3F niet zelf op — zonder dispose lekt elke
+  // gespawnde/gestopte agent een geometry+material op de GPU.
+  useEffect(
+    () => () => {
+      thread.geometry.dispose();
+      (thread.material as THREE.Material).dispose();
+    },
+    [thread],
+  );
   const bubble = useAra((s) =>
     s.bubbles.find((b) => b.sessionId === agent.sessionId && b.agentId === agent.agentId),
   );
@@ -226,9 +235,17 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
 
 export function Figures({ world }: { world: WorldConfig }): JSX.Element {
   const snapshot = useViewSnapshot();
+  const filterVenture = useAra((s) => s.filterVenture);
 
   const figures = useMemo(() => {
-    const pods = visiblePods(world, Object.values(snapshot.sessions));
+    // Zelfde filter als Pods: geen wees-figuren rond een weggefilterde pod.
+    let sessions = Object.values(snapshot.sessions);
+    if (filterVenture) {
+      sessions = sessions.filter(
+        (s) => projectPlacement(world, s.project).venture === filterVenture,
+      );
+    }
+    const pods = visiblePods(world, sessions, snapshot.now);
     const out: FigureInfo[] = [];
     const now = Date.now();
     for (const pod of pods) {
@@ -250,7 +267,7 @@ export function Figures({ world }: { world: WorldConfig }): JSX.Element {
       });
     }
     return out.slice(0, MAX_FIGURES);
-  }, [snapshot, world]);
+  }, [snapshot, world, filterVenture]);
 
   return (
     <group>

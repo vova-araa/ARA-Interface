@@ -14,12 +14,14 @@ case "$COLLECTOR" in
   *) MAX_TIME=3 ;;
 esac
 
-# Cap payload at 100KB, fire-and-forget in the background, swallow all errors.
+# Cap payload at 240KB (onder de 256KB json-limit van de collector). Let op:
+# afknippen levert kapotte JSON op → zo'n zeldzaam reuze-event (Write met
+# >240KB bestandsinhoud) gaat bewust verloren i.p.v. de sessie te vertragen.
 # ARA_TOKEN is only needed when the collector runs with auth enabled (online).
 AUTH_ARGS=()
 [ -n "${ARA_TOKEN:-}" ] && AUTH_ARGS=(-H "X-ARA-Token: ${ARA_TOKEN}")
 
-head -c 100000 | curl -s -o /dev/null \
+head -c 240000 | curl -s -o /dev/null \
   --max-time "$MAX_TIME" \
   -X POST \
   -H 'Content-Type: application/json' \

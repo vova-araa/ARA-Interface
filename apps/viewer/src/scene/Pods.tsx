@@ -14,8 +14,12 @@ export interface PodInfo {
   position: { x: number; z: number };
 }
 
-export function visiblePods(world: WorldConfig, sessions: SessionState[]): PodInfo[] {
-  const now = Date.now();
+export function visiblePods(
+  world: WorldConfig,
+  sessions: SessionState[],
+  // Snapshot-tijd meegeven: bij een history-scrub is "nu" de replay-tijd.
+  now = Date.now(),
+): PodInfo[] {
   const byProject = new Map<string, SessionState[]>();
   for (const session of sessions) {
     if (now - session.lastSeenAt > SHOW_WINDOW_MS) continue;
@@ -192,7 +196,7 @@ export function Pods({ world }: { world: WorldConfig }): JSX.Element {
         (s) => projectPlacement(world, s.project).venture === filterVenture,
       );
     }
-    return visiblePods(world, sessions);
+    return visiblePods(world, sessions, snapshot.now);
   }, [snapshot, world, filterVenture]);
 
   return (

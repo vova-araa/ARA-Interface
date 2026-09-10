@@ -12,16 +12,20 @@ import {
 export const HEX_SPACING = 1.06; // gap between tiles
 
 const projectCache = new Map<string, ProjectPlacement>();
+// Hexes van eerder uitgevonden (niet-geconfigureerde) placements, zodat twee
+// onbekende projecten nooit dezelfde plek delen.
+const inventedTaken = new Set<string>();
 let cachedConfig: WorldConfig | null = null;
 
 export function projectPlacement(config: WorldConfig, project: string): ProjectPlacement {
   if (cachedConfig !== config) {
     projectCache.clear();
+    inventedTaken.clear();
     cachedConfig = config;
   }
   let placement = projectCache.get(project);
   if (!placement) {
-    placement = placementForProject(config, project);
+    placement = placementForProject(config, project, inventedTaken);
     projectCache.set(project, placement);
   }
   return placement;

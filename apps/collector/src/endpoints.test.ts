@@ -70,8 +70,9 @@ test('/usage: validatie, clamping, upsert en dagfilter', async () => {
     res = (await (await fetch(`${base}/usage?from=0`)).json()) as typeof res;
     assert.equal(res.usage[0]!.inputTokens, 2000);
 
-    // from in de toekomst → leeg
-    res = (await (await fetch(`${base}/usage?from=${Date.now() + 60_000}`)).json()) as typeof res;
+    // from op een toekomstige dag → leeg (budget telt per kalenderdag,
+    // dus de granulariteit van het filter is een dag, geen milliseconde)
+    res = (await (await fetch(`${base}/usage?from=${Date.now() + 25 * 60 * 60 * 1000}`)).json()) as typeof res;
     assert.equal(res.usage.length, 0);
   } finally {
     server.close();

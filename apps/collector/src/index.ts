@@ -27,9 +27,13 @@ function tailnetIp(): string | null {
   return null;
 }
 
-app.listen(COLLECTOR_PORT, '0.0.0.0', () => {
+// Zonder token alleen loopback: Tailscale serve/funnel proxyt via localhost,
+// dus telefoon/laptop-toegang blijft werken — maar een open LAN-poort zonder
+// auth bestaat niet meer. ARA_BIND of een gezet ARA_TOKEN opent 0.0.0.0.
+const BIND = process.env.ARA_BIND ?? (process.env.ARA_TOKEN ? '0.0.0.0' : '127.0.0.1');
+app.listen(COLLECTOR_PORT, BIND, () => {
   const ip = tailnetIp();
-  console.log(`[ara-collector] listening on http://0.0.0.0:${COLLECTOR_PORT}`);
+  console.log(`[ara-collector] listening on http://${BIND}:${COLLECTOR_PORT}`);
   console.log(`[ara-collector] local viewer:   http://localhost:${VIEWER_PORT}`);
   if (ip) {
     console.log(`[ara-collector] tailnet viewer: http://${ip}:${VIEWER_PORT}`);

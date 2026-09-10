@@ -22,13 +22,17 @@ export interface CollectorApp {
 
 export function createCollector(store: EventStore): CollectorApp {
   const app = express();
+  // Express matcht routes standaard case-INsensitief; met een case-sensitive
+  // allowlist-regex was /State een auth-bypass. Routing hard op case-sensitive.
+  app.set('case sensitive routing', true);
   app.use(express.json({ limit: '256kb' }));
 
   // Optional shared-secret auth (set ARA_TOKEN when exposing beyond the tailnet).
   // /health stays open for probes; static viewer assets are served unauthenticated —
   // all data flows through the guarded API. EventSource can't set headers, so a
-  // ?token= query param is accepted too.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|tasks|usage)(\/|$)/;
+  // ?token= query param is accepted too. De regex is case-insensitief als
+  // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|tasks|usage)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -42,6 +46,20 @@ export function createCollector(store: EventStore): CollectorApp {
     if (presented === ARA_TOKEN) next();
     else res.status(401).json({ ok: false, error: 'unauthorized' });
   });
+
+  // CORS: met token is '*' veilig (auth beschermt); zonder token alleen de
+  // lokale dev-viewer, zodat een willekeurige website in de browser van de
+  // gebruiker niet http://localhost:4747 kan uitlezen.
+  const allowOrigin = (req: express.Request, res: Response): void => {
+    if (ARA_TOKEN) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return;
+    }
+    const origin = req.get('origin') ?? '';
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+  };
 
   const state = new WorldState();
   const clients = new Set<Response>();
@@ -66,11 +84,24 @@ export function createCollector(store: EventStore): CollectorApp {
     return event;
   }
 
-  function broadcast(event: AraEvent): void {
-    const frame = `event: ara\ndata: ${JSON.stringify(event)}\n\n`;
-    for (const res of clients) {
-      res.write(frame);
+  // Backpressure: een SSE-client die niets meer leest (dichtgeklapte laptop,
+  // half-open TCP) mag geen geheugen opstapelen — bij >512KB buffer: verbreken.
+  const MAX_SSE_BUFFER = 512 * 1024;
+  function sseWrite(res: Response, frame: string): void {
+    if (res.writableLength > MAX_SSE_BUFFER || res.destroyed) {
+      clients.delete(res);
+      res.destroy();
+      return;
     }
+    res.write(frame);
+  }
+
+  function broadcastFrame(frame: string): void {
+    for (const res of clients) sseWrite(res, frame);
+  }
+
+  function broadcast(event: AraEvent): void {
+    broadcastFrame(`event: ara\ndata: ${JSON.stringify(event)}\n\n`);
   }
 
   function ingest(raw: unknown): AraEvent {
@@ -89,8 +120,7 @@ export function createCollector(store: EventStore): CollectorApp {
       /* ignore */
     }
     loadOrBuildWorldConfig();
-    const frame = 'event: world\ndata: {}\n\n';
-    for (const res of clients) res.write(frame);
+    broadcastFrame('event: world\ndata: {}\n\n');
   }
 
   // Live-remap the world when the project list changes (edits via
@@ -132,28 +162,28 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.get('/events', (req, res) => {
+    allowOrigin(req, res);
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
     });
     res.write('retry: 2000\n\n');
     clients.add(res);
-    const heartbeat = setInterval(() => res.write(': ping\n\n'), 15_000);
+    const heartbeat = setInterval(() => sseWrite(res, ': ping\n\n'), 15_000);
     req.on('close', () => {
       clearInterval(heartbeat);
       clients.delete(res);
     });
   });
 
-  app.get('/state', (_req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  app.get('/state', (req, res) => {
+    allowOrigin(req, res);
     res.json(state.snapshot());
   });
 
-  app.get('/world', (_req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  app.get('/world', (req, res) => {
+    allowOrigin(req, res);
     res.json(loadOrBuildWorldConfig());
   });
 
@@ -163,25 +193,25 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.get('/session/:id', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    allowOrigin(req, res);
     res.json({ events: store.forSession(req.params.id, 50) });
   });
 
   app.get('/history', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    allowOrigin(req, res);
     const to = Number(req.query.to ?? Date.now());
     const from = Number(req.query.from ?? to - 24 * 60 * 60 * 1000);
     res.json({ events: store.range(from, to) });
   });
 
   app.get('/stats', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    allowOrigin(req, res);
     const from = Number(req.query.from ?? Date.now() - 24 * 60 * 60 * 1000);
     res.json({ stats: store.stats(from) });
   });
 
-  app.get('/fixture', (_req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+  app.get('/fixture', (req, res) => {
+    allowOrigin(req, res);
     try {
       const lines = fs.readFileSync(FIXTURE_PATH, 'utf8').trim().split('\n');
       res.json({ events: lines.map((line) => JSON.parse(line) as AraEvent) });
@@ -192,8 +222,7 @@ export function createCollector(store: EventStore): CollectorApp {
 
   // ── Task board: supervisor ↔ managers ↔ agents hand-offs ──────────────
   const notifyTasks = (): void => {
-    const frame = 'event: tasks\ndata: {}\n\n';
-    for (const res of clients) res.write(frame);
+    broadcastFrame('event: tasks\ndata: {}\n\n');
   };
 
   app.post('/tasks', (req, res) => {
@@ -204,7 +233,7 @@ export function createCollector(store: EventStore): CollectorApp {
       return;
     }
     const task = {
-      id: crypto.randomUUID().slice(0, 8),
+      id: crypto.randomUUID(),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       title,
@@ -245,19 +274,22 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.get('/tasks', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    allowOrigin(req, res);
     res.json({
       tasks: store.listTasks({
         status: req.query.status ? String(req.query.status) : undefined,
         assignee: req.query.assignee ? String(req.query.assignee) : undefined,
         project: req.query.project ? String(req.query.project) : undefined,
-        limit: req.query.limit ? Number(req.query.limit) : undefined,
+        // NaN of onzinnige waarden → veilige default (NaN laat sqlite gooien).
+        limit: Number.isFinite(Number(req.query.limit))
+          ? Math.min(500, Math.max(1, Math.floor(Number(req.query.limit))))
+          : undefined,
       }),
     });
   });
 
   app.get('/tasks/:id', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    allowOrigin(req, res);
     const task = store.getTask(req.params.id);
     if (!task) {
       res.status(404).json({ ok: false, error: 'not found' });
@@ -292,7 +324,7 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.get('/usage', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    allowOrigin(req, res);
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
     const from = Number(req.query.from ?? dayStart.getTime());

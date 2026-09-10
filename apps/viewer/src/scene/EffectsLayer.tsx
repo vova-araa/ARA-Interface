@@ -197,7 +197,7 @@ export function EffectsLayer({ world }: { world: WorldConfig }): JSX.Element | n
   const fireworksOn = daylight.period === 'night' || daylight.period === 'dusk';
 
   const located = useMemo(() => {
-    const pods = visiblePods(world, Object.values(snapshot.sessions));
+    const pods = visiblePods(world, Object.values(snapshot.sessions), snapshot.now);
     const byId = new Map(pods.map((p) => [p.session.sessionId, p]));
     return effects
       .map((effect: Effect) => {

@@ -1,8 +1,11 @@
 import type { AraEvent, SessionState, WorldSnapshot } from './schema.ts';
 
 const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // hide sessions idle > 6h from "running"
-const START_OF_DAY = () => {
-  const d = new Date();
+// Sessies die zó lang niets deden verdwijnen ook uit het geheugen en /state.
+const SESSION_RETENTION_MS = 48 * 60 * 60 * 1000;
+const PRUNE_THRESHOLD = 400;
+const startOfDay = (ts: number): number => {
+  const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
 };
@@ -14,10 +17,20 @@ const START_OF_DAY = () => {
 export class WorldState {
   private sessions = new Map<string, SessionState>();
   private doneToday = 0;
-  private doneDayStart = START_OF_DAY();
+  // 0 = nog geen dag gezien; het eerste event bepaalt de dag. Zo telt een
+  // replay van gisteren gewoon gisteren's completions.
+  private doneDayStart = 0;
   private doneCounted = new Set<string>();
 
   apply(event: AraEvent): void {
+    // Geheugengrens: heel oude sessies opruimen zodra de map groot wordt
+    // (weken uptime met veel korte sessies mag /state niet laten groeien).
+    if (this.sessions.size > PRUNE_THRESHOLD) {
+      const cutoff = event.ts - SESSION_RETENTION_MS;
+      for (const [id, s] of this.sessions) {
+        if (s.lastSeenAt < cutoff) this.sessions.delete(id);
+      }
+    }
     const session = this.getOrCreate(event);
     session.lastSeenAt = event.ts;
 
@@ -127,15 +140,21 @@ export class WorldState {
     return session;
   }
 
-  /** One "done" per session per day, however many completion events arrive. */
+  /**
+   * One "done" per session per day, however many completion events arrive.
+   * De dag komt uit het event-timestamp (niet de wandklok), zodat een
+   * history-replay dezelfde tellingen geeft als de live stream destijds.
+   */
   private bumpDone(ts: number, sessionId: string): void {
-    const dayStart = START_OF_DAY();
-    if (dayStart !== this.doneDayStart) {
+    const dayStart = startOfDay(ts);
+    if (dayStart > this.doneDayStart) {
       this.doneDayStart = dayStart;
       this.doneToday = 0;
       this.doneCounted.clear();
+    } else if (dayStart < this.doneDayStart) {
+      return; // nagekomen event van gisteren: telt niet mee voor vandaag
     }
-    if (ts >= dayStart && !this.doneCounted.has(sessionId)) {
+    if (!this.doneCounted.has(sessionId)) {
       this.doneCounted.add(sessionId);
       this.doneToday += 1;
     }
@@ -147,13 +166,23 @@ export class WorldState {
     this.doneCounted.clear();
     for (const [id, session] of Object.entries(snapshot.sessions)) {
       this.sessions.set(id, structuredClone(session));
-      if (session.status === 'done') this.doneCounted.add(id);
+    }
+    // doneSessions uit de snapshot is verliesvrij; oudere collectors zonder
+    // dat veld vallen terug op de status-heuristiek.
+    const counted = snapshot.counters.doneSessions;
+    if (counted) {
+      for (const id of counted) this.doneCounted.add(id);
+    } else {
+      for (const [id, session] of Object.entries(snapshot.sessions)) {
+        if (session.status === 'done') this.doneCounted.add(id);
+      }
     }
     this.doneToday = snapshot.counters.doneToday;
+    this.doneDayStart = startOfDay(snapshot.now);
   }
 
-  snapshot(): WorldSnapshot {
-    const now = Date.now();
+  /** `now` overschrijfbaar zodat een history-scrub met de replay-tijd telt. */
+  snapshot(now = Date.now()): WorldSnapshot {
     const sessions: Record<string, SessionState> = {};
     const projects = new Set<string>();
     let needsHuman = 0;
@@ -165,11 +194,19 @@ export class WorldState {
       if (active && session.needsHuman) needsHuman += 1;
       if (active && session.status === 'working') running += 1;
     }
+    // Na middernacht zonder nieuw completion-event toont de teller 0,
+    // niet gisteren's stand.
+    const sameDay = startOfDay(now) === this.doneDayStart;
     return {
       now,
       sessions,
       projects: [...projects].sort(),
-      counters: { needsHuman, running, doneToday: this.doneToday },
+      counters: {
+        needsHuman,
+        running,
+        doneToday: sameDay ? this.doneToday : 0,
+        doneSessions: sameDay ? [...this.doneCounted] : [],
+      },
     };
   }
 }
