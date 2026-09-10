@@ -72,7 +72,7 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
     // Beëindigde sessies dommelen in: kleiner, geen ademhaling.
     const ended = session.endedAt !== undefined;
     const breathe = !ended && session.status === 'idle' ? 1 + Math.sin(t * 1.6) * 0.02 : 1;
-    const base = 1.5 * breathe * (ended ? 0.78 : 1);
+    const base = 1.7 * breathe * (ended ? 0.78 : 1);
     group.scale.set(base * sxz, base * sy, base * sxz);
     group.position.y = -(1 - born) * 0.5; // relatief: stijgt uit de grond op
 

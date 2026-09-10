@@ -96,13 +96,15 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
   // Hexagonal prism: cylinder with 6 radial segments; rotate 30° so flat side faces camera nicely.
   return (
     <group>
+      {/* Dikkere look: hogere prisma's, naar beneden verdikt zodat de
+          bovenkanten (waar pods/figuren op staan) op dezelfde hoogte blijven. */}
       <instancedMesh
         key={`base-${tiles.base.length}`}
         args={[undefined, undefined, Math.max(1, tiles.base.length)]}
-        ref={useInstances(tiles.base, 0)}
+        ref={useInstances(tiles.base, -0.08)}
         receiveShadow
       >
-        <cylinderGeometry args={[0.98, 0.98, 0.3, 6]} />
+        <cylinderGeometry args={[0.98, 0.98, 0.46, 6]} />
         <meshStandardMaterial color="#ffffff" roughness={0.95} />
       </instancedMesh>
 
@@ -110,10 +112,10 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
       <instancedMesh
         key={`district-${tiles.district.length}`}
         args={[undefined, undefined, Math.max(1, tiles.district.length)]}
-        ref={useInstances(tiles.district, 0.03)}
+        ref={useInstances(tiles.district, -0.11)}
         receiveShadow
       >
-        <cylinderGeometry args={[0.98, 0.92, 0.56, 6]} />
+        <cylinderGeometry args={[0.99, 0.9, 0.84, 6]} />
         <meshStandardMaterial color="#ffffff" roughness={0.8} />
       </instancedMesh>
 
@@ -141,11 +143,11 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
           mesh.computeBoundingSphere();
         }}
       >
-        <torusGeometry args={[0.92, 0.05, 6, 6]} />
+        <torusGeometry args={[0.92, 0.085, 6, 6]} />
         <meshStandardMaterial
           color="#ffffff"
           emissive="#ffffff"
-          emissiveIntensity={0.95}
+          emissiveIntensity={0.72}
           toneMapped={false}
         />
       </instancedMesh>

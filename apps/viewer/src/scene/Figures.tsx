@@ -10,7 +10,7 @@ import { emojiTexture } from './icons.ts';
 import { toolIcon } from '../util.ts';
 
 const MAX_FIGURES = 200;
-const FIGURE_SCALE = 1.6;
+const FIGURE_SCALE = 1.85;
 const WALK_DURATION_MS = 2500;
 const AGENT_COLORS = ['#ff8a3d', '#4da3ff', '#3ecf6f', '#c07cff', '#ffd75e', '#ff6b9e'];
 
@@ -43,9 +43,10 @@ interface FigureInfo {
 
 function slotTarget(pod: PodInfo, slot: number): { x: number; z: number } {
   const angle = (slot / 6) * Math.PI * 2;
+  // Iets ruimere ring: pods én figuren zijn groter geworden.
   return {
-    x: pod.position.x + Math.cos(angle) * 0.75,
-    z: pod.position.z + Math.sin(angle) * 0.75,
+    x: pod.position.x + Math.cos(angle) * 0.88,
+    z: pod.position.z + Math.sin(angle) * 0.88,
   };
 }
 

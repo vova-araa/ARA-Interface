@@ -14,12 +14,18 @@ import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
 import { runDemo } from './demo.ts';
 
+// React 18 StrictMode mount z'n effects dubbel in dev; zonder guard draaien er
+// dan twee demo-loops / SSE-verbindingen naast elkaar (dubbele ticker-regels).
+let wired = false;
+
 export function App(): JSX.Element {
   const demo = useAra((s) => s.demo);
   const panelOpen = useAra((s) => s.panelOpen);
   const setPanelOpen = useAra((s) => s.setPanelOpen);
 
   useEffect(() => {
+    if (wired) return;
+    wired = true;
     if (demo) void runDemo();
     else connectLive();
     // Wiring is app-lifetime; never torn down.

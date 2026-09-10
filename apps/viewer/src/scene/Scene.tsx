@@ -173,7 +173,7 @@ export function Scene(): JSX.Element {
       {postFxOn && !perfLow && (
         <EffectComposer multisampling={0}>
           <SMAA />
-          <Bloom intensity={0.55} luminanceThreshold={0.72} mipmapBlur radius={0.65} />
+          <Bloom intensity={0.7} luminanceThreshold={0.72} mipmapBlur radius={0.75} />
           <TiltShift2 blur={0.12} />
           <Vignette eskil={false} offset={0.22} darkness={0.5} />
         </EffectComposer>

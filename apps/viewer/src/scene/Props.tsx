@@ -140,7 +140,7 @@ export function Props({ world }: { world: WorldConfig }): JSX.Element {
       {placements.map((prop) => {
         const Prop = PROP_SET[prop.kind]!;
         return (
-          <group key={prop.key} position={prop.position}>
+          <group key={prop.key} position={prop.position} scale={1.25}>
             <Prop seed={prop.seed % 97} />
           </group>
         );
