@@ -33,6 +33,7 @@ export class WorldState {
     }
     const session = this.getOrCreate(event);
     session.lastSeenAt = event.ts;
+    if (event.model) session.model = event.model;
 
     switch (event.kind) {
       case 'session.start':
@@ -69,9 +70,10 @@ export class WorldState {
         if (event.status === 'error') {
           session.errorCount += 1;
           session.status = 'error';
-        } else if (session.status === 'error') {
-          // A successful tool clears a transient error.
-          session.status = 'working';
+        } else {
+          // Een geslaagde tool = de permissie is verleend en het werk loopt.
+          if (session.status === 'error' || session.status === 'needsHuman') session.status = 'working';
+          session.needsHuman = false;
         }
         if (event.agentId && session.agents[event.agentId]) {
           session.agents[event.agentId]!.activeTool = undefined;
@@ -115,6 +117,34 @@ export class WorldState {
       case 'teammate.idle':
         if (session.status === 'working') session.status = 'idle';
         break;
+      case 'permission.ask':
+        // Wacht op menselijke goedkeuring van een tool-call.
+        session.status = 'needsHuman';
+        session.needsHuman = true;
+        session.message = event.message;
+        break;
+      case 'permission.deny':
+        // Geweigerd (automatisch of door mens) — de sessie werkt door.
+        session.needsHuman = false;
+        if (session.status === 'needsHuman') session.status = 'working';
+        break;
+      case 'compact.start':
+        session.compacting = true;
+        break;
+      case 'compact.end':
+        session.compacting = false;
+        break;
+      case 'model.switch':
+        break; // model is hierboven al gezet
+      case 'worktree.start':
+        session.worktrees = (session.worktrees ?? 0) + 1;
+        break;
+      case 'worktree.stop':
+        session.worktrees = Math.max(0, (session.worktrees ?? 0) - 1);
+        break;
+      case 'tool.batch':
+      case 'task.created':
+        break; // alleen effect/ticker in de viewer
     }
   }
 

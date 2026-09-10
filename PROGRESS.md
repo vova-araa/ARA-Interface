@@ -155,3 +155,11 @@
 - ✅ **CLAUDE.md**: repo-gids voor elke toekomstige Claude-sessie op de Mac.
 - ✅ **Demo-video**: `apps/viewer/scripts/record.mjs` (Playwright screencast); 30s opname naar gebruiker gestuurd.
 - Hiermee is het remote bouwwerk afgerond; rest staat onder "Mac-installatie" hierboven.
+
+## Upgrade-batch 1+2 (2026-09-10, nacht)
+- ✅ 11 extra hooks in de plugin + 9 nieuwe event-kinds end-to-end (schema → reducer → hookmap → viewer).
+- ✅ Nieuwe animaties: poortwachter (permissie), rode slagboom (denial), 🔧-reparatie na error, context-storm (compaction), model-morph + pod-gedaante per model, parallel-waaier (tool-batch), worktree-eiland met bruggetje, 📋-papiertje van hub naar pod (taak aangemaakt).
+- ✅ Statusline-feed: /status endpoint + SSE + live context-buis naast elke pod; script `plugins/ara/hooks/statusline.mjs`.
+- **Extra Mac-stap**: statusline activeren in `~/.claude/settings.json`:
+  `"statusLine": { "type": "command", "command": "node <repo>/plugins/ara/hooks/statusline.mjs", "refreshInterval": 5 }`
+  (met `ARA_TOKEN` in de omgeving als de collector met auth draait).

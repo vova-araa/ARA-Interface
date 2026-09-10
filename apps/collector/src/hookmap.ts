@@ -31,12 +31,22 @@ const HOOK_TO_KIND: Record<string, AraEventKind> = {
   UserPromptSubmit: 'prompt',
   PreToolUse: 'tool.pre',
   PostToolUse: 'tool.post',
+  PostToolUseFailure: 'tool.post', // status wordt 'error' + tool_error in de summary
   SubagentStart: 'agent.start',
   SubagentStop: 'agent.stop',
   Stop: 'stop',
   Notification: 'notification',
   TaskCompleted: 'task.completed',
   TeammateIdle: 'teammate.idle',
+  PermissionRequest: 'permission.ask',
+  PermissionDenied: 'permission.deny',
+  PreCompact: 'compact.start',
+  PostCompact: 'compact.end',
+  PostModelSwitch: 'model.switch',
+  PostToolBatch: 'tool.batch',
+  WorktreeCreate: 'worktree.start',
+  WorktreeRemove: 'worktree.stop',
+  TaskCreated: 'task.created',
 };
 
 export function toolSummary(tool: string | undefined, input: Record<string, unknown> | undefined): string | undefined {
@@ -100,7 +110,37 @@ export function mapHookPayload(hookName: string, payload: HookPayload): Incoming
     event.message = payload.message ?? payload.notification;
     event.needsHuman = true;
   }
-  if (kind === 'tool.post') event.status = responseIsError ? 'error' : 'ok';
+  if (kind === 'tool.post') {
+    if (hookName === 'PostToolUseFailure') {
+      event.status = 'error';
+      const err = typeof payload.tool_error === 'string' ? payload.tool_error : '';
+      if (err) event.toolSummary = redactString(err.replace(/\s+/g, ' ')).slice(0, 200);
+    } else {
+      event.status = responseIsError ? 'error' : 'ok';
+    }
+  }
   if (kind === 'session.end') event.message = payload.reason;
+  if (kind === 'session.start' && typeof payload.model === 'string') event.model = payload.model;
+  if (kind === 'permission.ask' || kind === 'permission.deny') {
+    event.message = `permissie: ${payload.tool_name ?? 'tool'}`;
+  }
+  if (kind === 'model.switch') {
+    const from = typeof payload.from_model === 'string' ? payload.from_model : '?';
+    const to = typeof payload.to_model === 'string' ? payload.to_model : '?';
+    event.model = to === '?' ? undefined : to;
+    event.message = `${from} → ${to}`;
+  }
+  if (kind === 'tool.batch') {
+    const n = Array.isArray(payload.batch_results) ? payload.batch_results.length : 0;
+    event.message = `${n || '?'} tools parallel`;
+  }
+  if (kind === 'worktree.start' || kind === 'worktree.stop') {
+    const p = typeof payload.worktree_path === 'string' ? payload.worktree_path : '';
+    if (p) event.message = `worktree ${path.basename(p)}`;
+  }
+  if (kind === 'task.created') {
+    const desc = typeof payload.task_description === 'string' ? payload.task_description : '';
+    event.message = desc.slice(0, 500) || 'nieuwe taak';
+  }
   return event;
 }

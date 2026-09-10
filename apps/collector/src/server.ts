@@ -32,7 +32,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|tasks|usage)(\/|$)/i;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -338,6 +338,57 @@ export function createCollector(store: EventStore): CollectorApp {
       /* default budget */
     }
     res.json({ usage: store.usageSummary(from), budget });
+  });
+
+  // ── Live statusline-feed (token-buizen, kosten, cache) ──────────────────
+  // In-memory: vluchtige telemetrie, hoeft geen restart te overleven.
+  interface LiveStatus {
+    sessionId: string;
+    ts: number;
+    model: string;
+    contextPct: number;
+    inputTokens: number;
+    outputTokens: number;
+    costUsd: number;
+    linesAdded: number;
+    linesRemoved: number;
+    cacheHitRatio: number | null;
+    cacheWarm: boolean | null;
+  }
+  const liveStatus = new Map<string, LiveStatus>();
+
+  app.post('/status', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const sessionId = String(body.sessionId ?? '');
+    if (!sessionId) {
+      res.status(400).json({ ok: false, error: 'sessionId required' });
+      return;
+    }
+    const num = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const status: LiveStatus = {
+      sessionId,
+      ts: Date.now(),
+      model: String(body.model ?? ''),
+      contextPct: Math.min(100, Math.max(0, num(body.contextPct))),
+      inputTokens: Math.max(0, num(body.inputTokens)),
+      outputTokens: Math.max(0, num(body.outputTokens)),
+      costUsd: Math.max(0, num(body.costUsd)),
+      linesAdded: Math.max(0, num(body.linesAdded)),
+      linesRemoved: Math.max(0, num(body.linesRemoved)),
+      cacheHitRatio: body.cacheHitRatio === null || body.cacheHitRatio === undefined ? null : num(body.cacheHitRatio),
+      cacheWarm: typeof body.cacheWarm === 'boolean' ? body.cacheWarm : null,
+    };
+    liveStatus.set(sessionId, status);
+    // Verlopen sessies (>24u stil) opruimen, lazy bij elke post.
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    for (const [id, st] of liveStatus) if (st.ts < cutoff) liveStatus.delete(id);
+    broadcastFrame(`event: status\ndata: ${JSON.stringify(status)}\n\n`);
+    res.json({ ok: true });
+  });
+
+  app.get('/status', (req, res) => {
+    allowOrigin(req, res);
+    res.json({ status: [...liveStatus.values()] });
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));

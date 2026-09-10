@@ -116,3 +116,42 @@ test('placementForProject invents a stable slot for unknown projects', () => {
   assert.deepEqual(p1.center, p2.center);
   assert.equal(p1.venture, 'misc');
 });
+
+test('nieuwe hook-kinds: model, permissie, compaction, worktree in de reducer', async () => {
+  const { WorldState } = await import('./state.ts');
+  const state = new WorldState();
+  const base = Date.now();
+  const ev = (kind: string, offset: number, extra: Record<string, unknown> = {}) =>
+    ({ id: `${kind}-${offset}`, ts: base + offset, kind, sessionId: 'sm', cwd: '/x', project: 'p', ...extra }) as never;
+
+  state.apply(ev('session.start', 0, { model: 'claude-haiku-4-5' }));
+  assert.equal(state.snapshot().sessions['sm']!.model, 'claude-haiku-4-5');
+
+  state.apply(ev('model.switch', 10, { model: 'claude-fable-5' }));
+  assert.equal(state.snapshot().sessions['sm']!.model, 'claude-fable-5');
+
+  state.apply(ev('permission.ask', 20, { message: 'permissie: Bash' }));
+  let s = state.snapshot().sessions['sm']!;
+  assert.equal(s.status, 'needsHuman');
+  assert.equal(s.needsHuman, true);
+
+  // Geslaagde tool na goedkeuring heft needsHuman op.
+  state.apply(ev('tool.post', 30, { tool: 'Bash', status: 'ok' }));
+  s = state.snapshot().sessions['sm']!;
+  assert.equal(s.needsHuman, false);
+  assert.equal(s.status, 'working');
+
+  state.apply(ev('compact.start', 40));
+  assert.equal(state.snapshot().sessions['sm']!.compacting, true);
+  state.apply(ev('compact.end', 45));
+  assert.equal(state.snapshot().sessions['sm']!.compacting, false);
+
+  state.apply(ev('worktree.start', 50));
+  state.apply(ev('worktree.start', 51));
+  assert.equal(state.snapshot().sessions['sm']!.worktrees, 2);
+  state.apply(ev('worktree.stop', 60));
+  assert.equal(state.snapshot().sessions['sm']!.worktrees, 1);
+
+  state.apply(ev('permission.deny', 70));
+  assert.equal(state.snapshot().sessions['sm']!.needsHuman, false);
+});

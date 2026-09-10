@@ -43,3 +43,10 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - **Geheugengrenzen**: sessies >48u inactief worden uit WorldState gesnoeid; viewer recentEvents max 300 sessies; done/failed-taken en oude usage-rijen vallen onder prune().
 - **Venture-match**: langste match wint ("truck-trailers-tms" → Truck & Trailers, niet Sharzi via 'tms'). `hiddenVentures` geldt nu voor elke venture-id in `visibleInWorld`; data wint blijft: gecureerde projecten houden hun district.
 - **Figures**: thread-Line dispose bij unmount (GPU-lek), venture-filter geldt ook voor figuren, resync-race gebufferd (events tijdens /state-fetch).
+
+## Upgrade-batch: volledige hook-dekking + statusline-feed (2026-09-10)
+- **9 nieuwe event-kinds** (permission.ask/deny, compact.start/end, model.switch, tool.batch, worktree.start/stop, task.created) uit 11 extra Claude Code hooks; reducer blijft symmetrisch (collector = viewer). Oudere Claude Code-versies die een hook-naam niet kennen negeren die entry — geen breuk.
+- **PostToolUseFailure** mapt naar tool.post/error met de échte tool_error (redacted) als summary — fail-and-recover is nu een verhaal: rook → 🔧-reparatie bij de eerstvolgende geslaagde tool (detectie in de viewer via status-overgang error→ok).
+- **Model = gedaante**: session.model (uit SessionStart/PostModelSwitch) bepaalt pod-schaal en koepelkleur (haiku klein/ijsblauw, opus/fable groot/goud, boost op de kern). Morph-ring + lichtzuil bij een switch.
+- **Statusline-tap**: plugins/ara/hooks/statusline.mjs print een compacte regel voor de terminal én POST een subset (contextPct, kosten, cache) naar collector /status → SSE 'status' → live context-buis naast elke pod (groen→amber→rood). In-memory, vluchtig by design; /status valt onder dezelfde auth als de rest.
+- permission.ask zet needsHuman (klopt semantisch: er wordt op een mens gewacht); een geslaagde tool.post heft needsHuman op (goedkeuring is dan verleend).

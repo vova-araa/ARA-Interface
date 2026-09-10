@@ -47,6 +47,36 @@
     ],
     "TeammateIdle": [
       { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" TeammateIdle" }] }
+    ],
+    "PostToolUseFailure": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PostToolUseFailure" }] }
+    ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PermissionRequest" }] }
+    ],
+    "PermissionDenied": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PermissionDenied" }] }
+    ],
+    "PreCompact": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PreCompact" }] }
+    ],
+    "PostCompact": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PostCompact" }] }
+    ],
+    "PostModelSwitch": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PostModelSwitch" }] }
+    ],
+    "PostToolBatch": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" PostToolBatch" }] }
+    ],
+    "WorktreeCreate": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" WorktreeCreate" }] }
+    ],
+    "WorktreeRemove": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" WorktreeRemove" }] }
+    ],
+    "TaskCreated": [
+      { "hooks": [{ "type": "command", "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/emit.sh\" TaskCreated" }] }
     ]
   }
 }

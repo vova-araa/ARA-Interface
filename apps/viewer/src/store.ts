@@ -6,7 +6,34 @@ import {
   type WorldSnapshot,
 } from '@ara/shared';
 
-export type EffectType = 'sparkle' | 'smoke' | 'confetti' | 'flag' | 'nudge';
+export type EffectType =
+  | 'sparkle'
+  | 'smoke'
+  | 'confetti'
+  | 'flag'
+  | 'nudge'
+  | 'gate' // permissie gevraagd: poortwachter
+  | 'deny' // permissie geweigerd: rode slagboom
+  | 'repair' // eerste geslaagde tool na een error: reparatie
+  | 'storm' // context-compaction: herinneringen-wervelwind
+  | 'morph' // model-switch: transformatie-ring
+  | 'bolt' // parallelle tool-batch: waaier van stralen
+  | 'paper'; // taak aangemaakt: papiertje vliegt vanaf de hub
+
+/** Live statusline-telemetrie per sessie (token-buis, kosten, cache). */
+export interface LiveStatus {
+  sessionId: string;
+  ts: number;
+  model: string;
+  contextPct: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  linesAdded: number;
+  linesRemoved: number;
+  cacheHitRatio: number | null;
+  cacheWarm: boolean | null;
+}
 
 export interface Effect {
   id: string;
@@ -61,6 +88,8 @@ interface AraStore {
   /** Non-null while scrubbing history: snapshot reconstructed at replayTs. */
   replaySnapshot: WorldSnapshot | null;
   replayTs: number | null;
+  /** Statusline-feed: sessionId → live context/kosten/cache. */
+  liveStatus: Record<string, LiveStatus>;
 
   setConnected(connected: boolean): void;
   setWorld(world: WorldConfig): void;
@@ -83,6 +112,8 @@ interface AraStore {
   flyTo(sessionId: string): void;
   pruneEphemera(): void;
   setReplay(ts: number | null, snapshot: WorldSnapshot | null): void;
+  setLiveStatus(status: LiveStatus): void;
+  setAllLiveStatus(list: LiveStatus[]): void;
 }
 
 const worldState = new WorldState();
@@ -154,6 +185,18 @@ function effectsFor(event: AraEvent): Effect[] {
       return [make('confetti')];
     case 'notification':
       return [make('nudge')];
+    case 'permission.ask':
+      return [make('gate')];
+    case 'permission.deny':
+      return [make('deny')];
+    case 'compact.start':
+      return [make('storm')];
+    case 'model.switch':
+      return [make('morph')];
+    case 'tool.batch':
+      return [make('bolt')];
+    case 'task.created':
+      return [make('paper')];
     default:
       return [];
   }
@@ -185,6 +228,7 @@ export const useAra = create<AraStore>((set, get) => ({
   flyTarget: null,
   replaySnapshot: null,
   replayTs: null,
+  liveStatus: {},
 
   setConnected: (connected) => set({ connected }),
   setWorld: (world) => set({ world }),
@@ -195,10 +239,17 @@ export const useAra = create<AraStore>((set, get) => ({
   },
 
   applyEvent: (event) => {
+    // Vóór apply: was deze sessie in error? Dan is een geslaagde tool een
+    // "reparatie" — dat verhaal vertellen we met een eigen effect.
+    const prevStatus = get().snapshot.sessions[event.sessionId]?.status;
     worldState.apply(event);
     remember(event);
     const now = Date.now();
-    const effects = [...get().effects, ...effectsFor(event)].slice(-60);
+    const newEffects = effectsFor(event);
+    if (prevStatus === 'error' && event.kind === 'tool.post' && event.status === 'ok') {
+      newEffects.push({ id: `${event.id}-repair`, type: 'repair', sessionId: event.sessionId, ts: now });
+    }
+    const effects = [...get().effects, ...newEffects].slice(-60);
 
     // Live-ticker: alleen betekenisvolle regels.
     let ticker = get().ticker;
@@ -209,6 +260,12 @@ export const useAra = create<AraStore>((set, get) => ({
       'agent.start': () => `${event.project}: agent ${event.agentType ?? ''} erbij`,
       notification: () => `⚠ ${event.project}: ${event.message?.slice(0, 60) ?? 'heeft je nodig'}`,
       'task.completed': () => `✔ ${event.project}: ${event.message?.slice(0, 60) ?? 'taak afgerond'}`,
+      'task.created': () => `📋 ${event.project}: ${event.message?.slice(0, 60) ?? 'nieuwe taak'}`,
+      'model.switch': () => `⚡ ${event.project}: ${event.message ?? 'model-switch'}`,
+      'permission.ask': () => `✋ ${event.project}: wacht op toestemming`,
+      'compact.start': () => `🌀 ${event.project}: context comprimeren`,
+      'worktree.start': () => `🏝 ${event.project}: ${event.message ?? 'worktree'}`,
+      'tool.batch': () => `⛓ ${event.project}: ${event.message ?? 'parallelle tools'}`,
     };
     const line = TICKER_TEXT[event.kind]?.();
     if (line) {
@@ -303,6 +360,11 @@ export const useAra = create<AraStore>((set, get) => ({
   },
 
   setReplay: (ts, snapshot) => set({ replayTs: ts, replaySnapshot: snapshot }),
+
+  setLiveStatus: (status) =>
+    set((s) => ({ liveStatus: { ...s.liveStatus, [status.sessionId]: status } })),
+  setAllLiveStatus: (list) =>
+    set({ liveStatus: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),
 }));
 
 /** The snapshot the scene should render: history scrub wins over live. */

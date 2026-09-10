@@ -12,6 +12,17 @@ export const EVENT_KINDS = [
   'notification',
   'task.completed',
   'teammate.idle',
+  // Uitgebreide hook-dekking (upgrade-batch): permissies, compaction,
+  // model-switches, parallelle tool-batches, worktrees en taak-creatie.
+  'permission.ask',
+  'permission.deny',
+  'compact.start',
+  'compact.end',
+  'model.switch',
+  'tool.batch',
+  'worktree.start',
+  'worktree.stop',
+  'task.created',
 ] as const;
 
 export type AraEventKind = (typeof EVENT_KINDS)[number];
@@ -33,6 +44,8 @@ export const AraEventSchema = z.object({
   durationMs: z.number().nonnegative().optional(),
   needsHuman: z.boolean().optional(),
   message: z.string().max(500).optional(),
+  /** Actief model (SessionStart / model.switch): drijft de pod-gedaante. */
+  model: z.string().max(100).optional(),
 });
 
 export type AraEvent = z.infer<typeof AraEventSchema>;
@@ -73,6 +86,12 @@ export interface SessionState {
   toolCount: number;
   errorCount: number;
   agents: Record<string, AgentState>;
+  /** Laatst bekende model — bepaalt de pod-gedaante (haiku klein, opus/fable groot). */
+  model?: string;
+  /** True tussen compact.start en compact.end (context-storm animatie). */
+  compacting?: boolean;
+  /** Aantal actieve worktrees (drijvend eilandje naast de pod). */
+  worktrees?: number;
 }
 
 export interface WorldSnapshot {
