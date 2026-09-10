@@ -162,6 +162,17 @@ function Warehouse(): JSX.Element {
         <boxGeometry args={[1.2, 0.7, 0.9]} />
         <meshStandardMaterial color="#e7ded2" />
       </mesh>
+      {/* roldeur + raampjes */}
+      <mesh position={[0, 0.28, 0.46]}>
+        <boxGeometry args={[0.42, 0.5, 0.02]} />
+        <meshStandardMaterial color="#9aa5b1" />
+      </mesh>
+      {[-0.4, 0.4].map((x) => (
+        <mesh key={x} position={[x, 0.52, 0.46]}>
+          <boxGeometry args={[0.16, 0.14, 0.02]} />
+          <meshStandardMaterial color="#ffd98a" emissive="#ffd98a" emissiveIntensity={0.35} />
+        </mesh>
+      ))}
       <mesh position={[0, 0.82, 0]} rotation={[0, 0, Math.PI / 4]}>
         <boxGeometry args={[0.68, 0.68, 0.95]} />
         <meshStandardMaterial color="#c9a86a" />
@@ -185,6 +196,13 @@ function Billboard(): JSX.Element {
         <boxGeometry args={[1.2, 0.66, 0.08]} />
         <meshStandardMaterial color="#ff3fa4" emissive="#ff3fa4" emissiveIntensity={0.35} />
       </mesh>
+      {/* spotjes boven het billboard */}
+      {[-0.45, 0, 0.45].map((x) => (
+        <mesh key={x} position={[x, 1.55, 0.08]} rotation={[0.6, 0, 0]}>
+          <coneGeometry args={[0.05, 0.1, 6]} />
+          <meshStandardMaterial color="#2a2f3a" emissive="#fff3d6" emissiveIntensity={0.6} />
+        </mesh>
+      ))}
       <mesh position={[0.4, 0.24, 0.3]} rotation={[0.4, 0.6, 0]}>
         <boxGeometry args={[0.16, 0.16, 0.3]} />
         <meshStandardMaterial color="#333" />
@@ -208,6 +226,19 @@ function Stage(): JSX.Element {
         <boxGeometry args={[0.28, 0.3, 0.28]} />
         <meshStandardMaterial color="#7c4dff" />
       </mesh>
+      {/* speakers naast het podium */}
+      {[-0.62, 0.62].map((x) => (
+        <group key={x} position={[x, 0.3, 0.25]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.16, 0.3, 0.14]} />
+            <meshStandardMaterial color="#1e1a26" />
+          </mesh>
+          <mesh position={[0, 0.04, 0.075]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.01, 10]} />
+            <meshStandardMaterial color="#4a4453" />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }

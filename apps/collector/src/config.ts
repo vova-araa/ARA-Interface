@@ -16,7 +16,8 @@ export const ARA_TOKEN = process.env.ARA_TOKEN ?? '';
 export const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 export const DATA_DIR = process.env.ARA_DATA_DIR ?? path.join(REPO_ROOT, 'data');
 export const DB_PATH = path.join(DATA_DIR, 'ara-events.db');
-export const WORLD_CONFIG_PATH = path.join(REPO_ROOT, 'world.config.json');
+export const WORLD_CONFIG_PATH =
+  process.env.ARA_WORLD_CONFIG ?? path.join(REPO_ROOT, 'world.config.json');
 export const FIXTURE_PATH = path.join(REPO_ROOT, 'apps', 'collector', 'fixtures', 'demo.jsonl');
 export const VIEWER_DIST = path.join(REPO_ROOT, 'apps', 'viewer', 'dist');
 

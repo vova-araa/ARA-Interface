@@ -14,6 +14,24 @@ const FIGURE_SCALE = 1.6;
 const WALK_DURATION_MS = 2500;
 const AGENT_COLORS = ['#ff8a3d', '#4da3ff', '#3ecf6f', '#c07cff', '#ffd75e', '#ff6b9e'];
 
+/** Visuele stijl per agent-type: rol in één oogopslag herkenbaar. */
+interface AgentStyle {
+  helmet: string;
+  body?: string;
+  accessory: 'telescope' | 'clipboard' | 'toolbelt' | 'tie' | null;
+}
+
+function styleFor(agentType: string | undefined): AgentStyle {
+  const type = (agentType ?? '').toLowerCase();
+  if (type.includes('scout') || type.includes('explore'))
+    return { helmet: '#c07cff', accessory: 'telescope' };
+  if (type.includes('plan')) return { helmet: '#4da3ff', accessory: 'clipboard' };
+  if (type.includes('manager') || type.includes('supervisor') || type.includes('chief'))
+    return { helmet: '#2a2f3a', body: '#3b3347', accessory: 'tie' };
+  if (type.includes('worker')) return { helmet: '#ffd75e', accessory: 'toolbelt' };
+  return { helmet: '#f7f5f2', accessory: null };
+}
+
 interface FigureInfo {
   agent: AgentState;
   pod: PodInfo;
@@ -58,7 +76,8 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
   );
   const lodFar = useAra((s) => s.lodFar);
 
-  const color = AGENT_COLORS[slot % AGENT_COLORS.length]!;
+  const style = useMemo(() => styleFor(agent.agentType), [agent.agentType]);
+  const color = style.body ?? AGENT_COLORS[slot % AGENT_COLORS.length]!;
   const start = useMemo(() => districtEdge(world, pod.session.project), [world, pod.session.project]);
   const target = useMemo(() => slotTarget(pod, slot), [pod, slot]);
 
@@ -144,11 +163,36 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
         <sphereGeometry args={[0.08, 10, 8]} />
         <meshStandardMaterial color="#ffdbb5" />
       </mesh>
-      {/* helmet */}
+      {/* helmet — kleur per rol */}
       <mesh position={[0, 0.38, 0]}>
         <sphereGeometry args={[0.085, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
-        <meshStandardMaterial color="#f7f5f2" />
+        <meshStandardMaterial color={style.helmet} />
       </mesh>
+      {/* rol-accessoire */}
+      {style.accessory === 'telescope' && (
+        <mesh position={[0.1, 0.36, 0.06]} rotation={[0.3, 0, 1.1]}>
+          <cylinderGeometry args={[0.018, 0.026, 0.14, 6]} />
+          <meshStandardMaterial color="#5b4a6b" metalness={0.4} />
+        </mesh>
+      )}
+      {style.accessory === 'clipboard' && (
+        <mesh position={[0.1, 0.16, 0.05]} rotation={[0.2, -0.4, 0]}>
+          <boxGeometry args={[0.09, 0.12, 0.012]} />
+          <meshStandardMaterial color="#e8dcc8" />
+        </mesh>
+      )}
+      {style.accessory === 'toolbelt' && (
+        <mesh position={[0, 0.08, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.095, 0.02, 5, 10]} />
+          <meshStandardMaterial color="#7a5230" />
+        </mesh>
+      )}
+      {style.accessory === 'tie' && (
+        <mesh position={[0, 0.18, 0.085]} rotation={[0.1, 0, 0]}>
+          <boxGeometry args={[0.03, 0.1, 0.012]} />
+          <meshStandardMaterial color="#d90012" />
+        </mesh>
+      )}
       {/* tool icon sprite (LOD: uit wanneer ver uitgezoomd) */}
       {agent.activeTool && !agent.stopped && !lodFar && (
         <sprite position={[0.14, 0.52, 0]} scale={[0.22, 0.22, 0.22]}>

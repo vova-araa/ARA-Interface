@@ -128,6 +128,13 @@
 - [x] **`?time=day|night|dawn|dusk`** forceert het palet (demo's/screenshots).
 - [x] **QualityGovernor**: meet echte fps eerste 4s; <25fps → schaduwen uit + dpr 1 (oude iPhones). Container (software-rendering): 8→10fps na ingreep; op GPU-hardware n.v.t.
 
+## Batch: geluid, agent-variatie, tests, details (autonome check-in 10/9)
+- [x] **Geluidsontwerp** achter de 🔔-toggle: warme twee-noten chime bij taak/sessie-afronding, zachte lage plof bij tool-fouten; één gedeelde AudioContext, rate-limited (max 1 klank/400ms).
+- [x] **Figuur-variatie per agentType**: scout/Explore paarse helm + telescoop · Plan blauwe helm + klembord · worker gele bouwhelm + gereedschapsriem · manager/supervisor/chief donker pak + rode stropdas.
+- [x] **3 nieuwe endpoint-testsuites** (20 collector-tests totaal): /usage validatie+clamping+upsert+dagfilter, /world+refresh, /stats groepering + /history bereik.
+- [x] **Landmark-details**: warehouse roldeur + verlichte raampjes, stage-speakers, billboard-spotjes.
+- [x] **2 echte bugs gevonden & gefixt door de nieuwe tests**: (1) `/world/refresh` schreef bij ontbrekende projects.json + hidden misc een wereld met 0 districten (demo-fallback nu ook in de collector-fallback, DEMO_PROJECTS gedeeld); (2) `placementForProject` crashte op een lege districts-array (guard + veilige plek buiten beeld). Plus `ARA_WORLD_CONFIG` env zodat tests nooit het echte world.config.json aanraken.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

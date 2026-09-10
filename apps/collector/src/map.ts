@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { buildWorldConfig } from '@ara/shared';
 import { ORG_JSON_PATH, WORLD_CONFIG_PATH } from './config.ts';
-import { loadProjects } from './projects.ts';
+import { DEMO_PROJECTS, loadProjects } from './projects.ts';
 
 function hiddenVentures(): string[] {
   try {
@@ -18,14 +18,7 @@ function hiddenVentures(): string[] {
 const projects = loadProjects();
 if (projects.length === 0) {
   console.warn('[ara-map] projects.json empty or missing — generating demo world');
-  projects.push(
-    { name: 'traject-tms' },
-    { name: 'blex-logistics' },
-    { name: 'elevate-design' },
-    { name: 'uprising-studio' },
-    { name: 'xauusd-bot' },
-    { name: 'vovara-site' },
-  );
+  projects.push(...DEMO_PROJECTS);
 }
 const config = buildWorldConfig(projects, Date.now(), { hiddenVentures: hiddenVentures() });
 fs.writeFileSync(WORLD_CONFIG_PATH, JSON.stringify(config, null, 2));

@@ -9,6 +9,7 @@ import { Minimap } from './ui/Minimap.tsx';
 import { BoardPanel } from './ui/BoardPanel.tsx';
 import { OverviewPanel } from './ui/OverviewPanel.tsx';
 import { Ticker } from './ui/Ticker.tsx';
+import { SoundPlayer } from './ui/Sound.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
 import { runDemo } from './demo.ts';
@@ -63,6 +64,7 @@ export function App(): JSX.Element {
       <Scrubber />
       <ReconnectBanner />
       <NudgePulse />
+      <SoundPlayer />
       {/* Mobiel: veeg omhoog vanaf de onderrand om de threadlijst te openen */}
       {!panelOpen && (
         <div

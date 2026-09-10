@@ -8,6 +8,16 @@ import { PROJECTS_JSON_PATH, WORLD_CONFIG_PATH } from './config.ts';
  * project list. Shape is tolerant: we accept {projects:[...]} or a bare array,
  * entries as strings or {name, path, repo, venture}.
  */
+/** Demo-wereld wanneer projects.json ontbreekt — de viewer mag nooit leeg zijn. */
+export const DEMO_PROJECTS: ProjectEntry[] = [
+  { name: 'traject-tms' },
+  { name: 'blex-logistics' },
+  { name: 'elevate-design' },
+  { name: 'uprising-studio' },
+  { name: 'xauusd-bot' },
+  { name: 'vovara-site' },
+];
+
 export function loadProjects(): ProjectEntry[] {
   try {
     const raw = JSON.parse(fs.readFileSync(PROJECTS_JSON_PATH, 'utf8')) as unknown;
@@ -75,7 +85,12 @@ export function loadOrBuildWorldConfig(): WorldConfig {
     } catch {
       /* default */
     }
-    const config = buildWorldConfig(loadProjects(), Date.now(), { hiddenVentures: hidden });
+    const projects = loadProjects();
+    const config = buildWorldConfig(
+      projects.length > 0 ? projects : DEMO_PROJECTS,
+      Date.now(),
+      { hiddenVentures: hidden },
+    );
     try {
       fs.writeFileSync(WORLD_CONFIG_PATH, JSON.stringify(config, null, 2));
     } catch {

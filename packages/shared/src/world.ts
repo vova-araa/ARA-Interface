@@ -144,7 +144,12 @@ export function placementForProject(
     if (found) return found;
   }
   // Unknown project → Nor Kaghak: deterministic slot near the misc district.
-  const misc = config.districts.find((d) => d.venture.id === 'misc') ?? config.districts[0]!;
+  // Lege wereld (0 districten) → vaste plek ver buiten beeld, nooit crashen.
+  const misc = config.districts.find((d) => d.venture.id === 'misc') ?? config.districts[0];
+  if (!misc) {
+    const center: Axial = { q: 24, r: 24 };
+    return { name: projectName, venture: 'misc', center, hexes: hexDisc(center, 1) };
+  }
   const taken = new Set<string>();
   for (const district of config.districts) {
     taken.add(axialKey(district.center));
