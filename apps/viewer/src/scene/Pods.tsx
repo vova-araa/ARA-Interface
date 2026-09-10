@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { SessionState, WorldConfig } from '@ara/shared';
+import { visibleInWorld, type SessionState, type WorldConfig } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
 import { projectPlacement, sessionPosition } from '../placements.ts';
 import { toolColor } from '../util.ts';
@@ -19,6 +19,7 @@ export function visiblePods(world: WorldConfig, sessions: SessionState[]): PodIn
   const byProject = new Map<string, SessionState[]>();
   for (const session of sessions) {
     if (now - session.lastSeenAt > SHOW_WINDOW_MS) continue;
+    if (!visibleInWorld(world, session.project)) continue; // verborgen ventures (bv. Nor Kaghak)
     const list = byProject.get(session.project) ?? [];
     list.push(session);
     byProject.set(session.project, list);

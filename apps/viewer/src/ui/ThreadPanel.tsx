@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { VENTURES } from '@ara/shared';
+import { VENTURES, visibleInWorld } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
 import { loadSessionEvents } from '../api.ts';
 import { projectPlacement } from '../placements.ts';
@@ -24,6 +24,7 @@ export function ThreadPanel(): JSX.Element | null {
 
   const groups = useMemo(() => {
     let sessions = Object.values(snapshot.sessions);
+    if (world) sessions = sessions.filter((s) => visibleInWorld(world, s.project));
     if (filterVenture && world) {
       sessions = sessions.filter(
         (s) => projectPlacement(world, s.project).venture === filterVenture,

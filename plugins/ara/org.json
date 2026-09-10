@@ -6,6 +6,7 @@
     "branchPrefix": "ara/",
     "tokenBudgetDaily": 2000000,
     "repoRoot": "~/dev",
+    "hiddenVentures": ["misc"],
     "models": {
       "supervisor": "default",
       "manager": "default",

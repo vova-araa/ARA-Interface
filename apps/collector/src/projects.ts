@@ -66,7 +66,16 @@ export function loadOrBuildWorldConfig(): WorldConfig {
   try {
     return JSON.parse(fs.readFileSync(WORLD_CONFIG_PATH, 'utf8')) as WorldConfig;
   } catch {
-    const config = buildWorldConfig(loadProjects());
+    let hidden: string[] = ['misc'];
+    try {
+      const org = JSON.parse(
+        fs.readFileSync(path.join(path.dirname(WORLD_CONFIG_PATH), 'plugins', 'ara', 'org.json'), 'utf8'),
+      ) as { policy?: { hiddenVentures?: string[] } };
+      hidden = org.policy?.hiddenVentures ?? ['misc'];
+    } catch {
+      /* default */
+    }
+    const config = buildWorldConfig(loadProjects(), Date.now(), { hiddenVentures: hidden });
     try {
       fs.writeFileSync(WORLD_CONFIG_PATH, JSON.stringify(config, null, 2));
     } catch {

@@ -115,7 +115,9 @@ export function OverviewPanel(): JSX.Element | null {
       const card = task.project ? byVenture.get(projectVenture(task.project)) : undefined;
       if (card) card.openTasks += 1;
     }
+    const inWorld = new Set(world.districts.map((d) => d.venture.id));
     return [...byVenture.values()]
+      .filter((card) => inWorld.has(card.id))
       .filter((card) => card.sessions.length > 0 || card.tokens > 0 || card.openTasks > 0)
       .sort((a, b) => b.lastActivity - a.lastActivity);
   }, [world, snapshot, usage, stats, tasks]);

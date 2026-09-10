@@ -97,6 +97,18 @@ test('doneToday counts each session once despite multiple completion events', as
   assert.equal(state.snapshot().counters.doneToday, 1);
 });
 
+test('hiddenVentures: leeg misc-district vervalt; onbekende projecten onzichtbaar', async () => {
+  const { visibleInWorld } = await import('./world.ts');
+  const config = buildWorldConfig([{ name: 'traject-tms' }], 123, { hiddenVentures: ['misc'] });
+  assert.ok(!config.districts.some((d) => d.venture.id === 'misc'));
+  assert.equal(visibleInWorld(config, 'traject-tms'), true);
+  assert.equal(visibleInWorld(config, 'random-onbekend-repo'), false);
+  // Expliciet project in misc → data wint, district blijft.
+  const withMisc = buildWorldConfig([{ name: 'mystery-lab' }], 123, { hiddenVentures: ['misc'] });
+  assert.ok(withMisc.districts.some((d) => d.venture.id === 'misc'));
+  assert.equal(visibleInWorld(withMisc, 'mystery-lab'), true);
+});
+
 test('placementForProject invents a stable slot for unknown projects', () => {
   const config = buildWorldConfig([{ name: 'traject-tms' }], 123);
   const p1 = placementForProject(config, 'brand-new');

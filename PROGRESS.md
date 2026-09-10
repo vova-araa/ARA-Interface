@@ -115,6 +115,11 @@
 - [x] **Pod-animaties**: veerkrachtig uit de grond bij spawn (~0.6s), beëindigde sessies dommelen in (kleiner, licht gedimd), koepels gloeien 's nachts.
 - [x] **Camera-intro**: 2s fly-in van ver naar de standaard-zoom bij laden.
 
+## Ark + district-leven + zichtbaarheidsconfig
+- [x] **Ark van Noach** op een mini-Ararat met sneeuwtop aan de zuidwestrand (altijd in beeld), met cirkelende witte duif en warm raamlicht; grote Ararat blijft verre horizon-decor.
+- [x] **District-leven per venture**: Trading — candlestick-bars die live groen/rood bewegen · Elevate — schildersezel met kleurverschuivend doek + bewegende kwast · Traject/TMS — planbord met lopende route-stippen + rondrijdende vrachtwagen · Blex — shuntende truck + geparkeerde trailer · Uprising/Vovara — opstijgende muzieknoten. LOD-aware (verborgen bij ver uitzoomen).
+- [x] **hiddenVentures** door de hele stack: org.json (`["misc"]`) → world.config → pods, threads, minimap, overzicht, token-pilaren, chips. Nor Kaghak is uit de interface; onbekende repo's onzichtbaar tenzij expliciet in projects.json. Data wint: een expliciet misc-project houdt zijn district. Unit-getest.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

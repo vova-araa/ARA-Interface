@@ -12,6 +12,7 @@ import { Labels } from './Labels.tsx';
 import { useDaylight } from './daylight.ts';
 import { TokenPillars } from './TokenPillars.tsx';
 import { AmbientLife } from './AmbientLife.tsx';
+import { DistrictLife } from './DistrictLife.tsx';
 
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
@@ -51,6 +52,7 @@ export function Scene(): JSX.Element {
         <AmbientLife />
         {world && (
           <>
+            <DistrictLife world={world} />
             <Labels world={world} />
             <TokenPillars world={world} />
             <Pods world={world} />

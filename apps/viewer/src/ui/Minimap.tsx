@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { axialToWorld } from '@ara/shared';
+import { axialToWorld, visibleInWorld } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
 import { HEX_SPACING, projectPlacement, sessionPosition } from '../placements.ts';
 import { STATUS_COLORS } from '../util.ts';
@@ -48,7 +48,7 @@ export function Minimap(): JSX.Element | null {
     ctx.strokeRect(hx - 2.5, hy - 2.5, 5, 5);
 
     // Pods per sessie, kleur = status
-    const sessions = Object.values(snapshot.sessions);
+    const sessions = Object.values(snapshot.sessions).filter((s) => visibleInWorld(world, s.project));
     const byProject = new Map<string, typeof sessions>();
     for (const session of sessions) {
       const list = byProject.get(session.project) ?? [];
@@ -82,7 +82,7 @@ export function Minimap(): JSX.Element | null {
     const wz = ((e.clientY - rect.top - SIZE / 2) / (SIZE / 2)) * EXTENT;
     let best: { id: string; d: number } | null = null;
     const byProject = new Map<string, number>();
-    for (const session of Object.values(snapshot.sessions)) {
+    for (const session of Object.values(snapshot.sessions).filter((s) => visibleInWorld(world, s.project))) {
       const index = byProject.get(session.project) ?? 0;
       byProject.set(session.project, index + 1);
       const pos = sessionPosition(world, session, index);

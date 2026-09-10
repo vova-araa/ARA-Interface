@@ -59,6 +59,8 @@ export interface WorldConfig {
   generatedAt: number;
   hubRadius: number;
   districts: DistrictPlacement[];
+  /** Ventures die bewust NIET in de interface verschijnen (bv. 'misc'). */
+  hiddenVentures?: string[];
 }
 
 export interface ProjectEntry {
@@ -77,7 +79,12 @@ const PROJECT_CLUSTER_RADIUS = 1; // each project = 7 hexes (center + ring)
  *  - district centers on a ring, angle from venture id hash
  *  - projects spiral outward from their district center
  */
-export function buildWorldConfig(projects: ProjectEntry[], now = Date.now()): WorldConfig {
+export function buildWorldConfig(
+  projects: ProjectEntry[],
+  now = Date.now(),
+  opts: { hiddenVentures?: string[] } = {},
+): WorldConfig {
+  const hidden = new Set(opts.hiddenVentures ?? []);
   const taken = new Set<string>();
   for (const hex of hexDisc({ q: 0, r: 0 }, 2)) taken.add(axialKey(hex)); // reserve hub
 
@@ -93,7 +100,11 @@ export function buildWorldConfig(projects: ProjectEntry[], now = Date.now()): Wo
 
   const districts: DistrictPlacement[] = [];
   // Stable order: declaration order of VENTURES, so angles never shuffle.
-  const active = VENTURES.filter((v) => byVenture.has(v.id) || v.id === 'misc');
+  // Een venture met expliciete projecten blijft altijd bestaan (data wint);
+  // een leeg 'misc'-district vervalt wanneer het verborgen is.
+  const active = VENTURES.filter(
+    (v) => byVenture.has(v.id) || (v.id === 'misc' && !hidden.has('misc')),
+  );
   active.forEach((venture, index) => {
     const angle = (index / active.length) * Math.PI * 2 + (stableHash(venture.id) % 100) / 500;
     const q = Math.round(Math.cos(angle) * DISTRICT_RING_RADIUS);
@@ -111,7 +122,16 @@ export function buildWorldConfig(projects: ProjectEntry[], now = Date.now()): Wo
     districts.push({ venture, center, projects: placements });
   });
 
-  return { generatedAt: now, hubRadius: 2, districts };
+  return { generatedAt: now, hubRadius: 2, districts, hiddenVentures: [...hidden] };
+}
+
+/** Hoort dit project zichtbaar te zijn in de interface? */
+export function visibleInWorld(config: WorldConfig, projectName: string): boolean {
+  for (const district of config.districts) {
+    if (district.projects.some((p) => p.name === projectName)) return true;
+  }
+  const ventureId = ventureForProject(projectName).id;
+  return config.districts.some((d) => d.venture.id === ventureId);
 }
 
 /** Find (or deterministically invent) a placement for a project name. */

@@ -3,7 +3,7 @@ import type { WorldConfig } from '@ara/shared';
 import { loadUsage, type UsageRow } from '../api.ts';
 import { useAra } from '../store.ts';
 import { projectPlacement } from '../placements.ts';
-import { axialToWorld } from '@ara/shared';
+import { axialToWorld, visibleInWorld } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
 
 /**
@@ -32,6 +32,7 @@ export function TokenPillars({ world }: { world: WorldConfig }): JSX.Element | n
   return (
     <group>
       {rows.map((row) => {
+        if (!visibleInWorld(world, row.project)) return null;
         const coins = coinsFor(row.inputTokens + row.outputTokens);
         if (coins === 0) return null;
         const placement = projectPlacement(world, row.project);
