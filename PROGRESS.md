@@ -120,6 +120,14 @@
 - [x] **District-leven per venture**: Trading — candlestick-bars die live groen/rood bewegen · Elevate — schildersezel met kleurverschuivend doek + bewegende kwast · Traject/TMS — planbord met lopende route-stippen + rondrijdende vrachtwagen · Blex — shuntende truck + geparkeerde trailer · Uprising/Vovara — opstijgende muzieknoten. LOD-aware (verborgen bij ver uitzoomen).
 - [x] **hiddenVentures** door de hele stack: org.json (`["misc"]`) → world.config → pods, threads, minimap, overzicht, token-pilaren, chips. Nor Kaghak is uit de interface; onbekende repo's onzichtbaar tenzij expliciet in projects.json. Data wint: een expliciet misc-project houdt zijn district. Unit-getest.
 
+## Super-animatie batch (referentie: drukke platform-look)
+- [x] **Ambient bewoners** per district: werkers die lopen→pauzeren→verder scharrelen; dichtheid schaalt eerlijk met echte activiteit (stil district 2, druk district tot 7). LOD-aware.
+- [x] **Props-clutter**: rode kratstapels, zonnepanelen, knipperende antennes, vaten, mini-domes — deterministisch verspreid over cluster-ringen (~60% van ring-hexes).
+- [x] **Platform-look**: districten als dikke verhoogde platforms (h 0.56) met fellere/dikkere gloeirandjes; basisgrond donkerder voor contrast.
+- [x] **Orbit-vonken** in tool-kleur rond werkende pods; **wapperende Armeense driekleur** op de Cascade.
+- [x] **`?time=day|night|dawn|dusk`** forceert het palet (demo's/screenshots).
+- [x] **QualityGovernor**: meet echte fps eerste 4s; <25fps → schaduwen uit + dpr 1 (oude iPhones). Container (software-rendering): 8→10fps na ingreep; op GPU-hardware n.v.t.
+
 ## Next (vereist de Mac)
 - `./scripts/install.sh` op de Mac; echte sessie → pod <1s; iPhone via Tailscale; launchd-reboot-check.
 - Phase 2 backlog in README.

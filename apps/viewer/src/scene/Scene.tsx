@@ -1,5 +1,5 @@
-import { Suspense } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Suspense, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useAra } from '../store.ts';
 import { CameraRig } from './CameraRig.tsx';
 import { HexGround } from './HexGround.tsx';
@@ -13,6 +13,41 @@ import { useDaylight } from './daylight.ts';
 import { TokenPillars } from './TokenPillars.tsx';
 import { AmbientLife } from './AmbientLife.tsx';
 import { DistrictLife } from './DistrictLife.tsx';
+import { Props } from './Props.tsx';
+import { Crowd } from './Crowd.tsx';
+
+/**
+ * Adaptieve kwaliteit: meet de echte framerate de eerste seconden; haalt een
+ * device geen 25fps (oude telefoon, software-rendering), dan gaan schaduwen
+ * uit en de pixel-ratio omlaag. Sterke hardware merkt er niets van.
+ */
+function QualityGovernor(): null {
+  const { gl, scene, setDpr } = useThree();
+  const frames = useRef(0);
+  const startedAt = useRef(0);
+  const decided = useRef(false);
+
+  useFrame(({ clock }) => {
+    if (decided.current) return;
+    if (startedAt.current === 0) startedAt.current = clock.elapsedTime;
+    frames.current += 1;
+    const elapsed = clock.elapsedTime - startedAt.current;
+    if (elapsed < 4) return;
+    decided.current = true;
+    const fps = frames.current / elapsed;
+    if (fps < 25) {
+      gl.shadowMap.enabled = false;
+      gl.shadowMap.autoUpdate = false;
+      scene.traverse((obj) => {
+        obj.castShadow = false;
+        obj.receiveShadow = false;
+      });
+      setDpr(1);
+      console.info(`[ara] lage framerate (${fps.toFixed(0)}fps) — schaduwen uit, dpr 1`);
+    }
+  });
+  return null;
+}
 
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
@@ -52,6 +87,8 @@ export function Scene(): JSX.Element {
         <AmbientLife />
         {world && (
           <>
+            <Props world={world} />
+            <Crowd world={world} />
             <DistrictLife world={world} />
             <Labels world={world} />
             <TokenPillars world={world} />
@@ -62,6 +99,7 @@ export function Scene(): JSX.Element {
         )}
       </Suspense>
       <CameraRig />
+      <QualityGovernor />
     </Canvas>
   );
 }

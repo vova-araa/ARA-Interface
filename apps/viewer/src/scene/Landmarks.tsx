@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialToWorld, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
@@ -72,6 +73,33 @@ function MotherArmenia(): JSX.Element {
         <boxGeometry args={[0.06, 1, 0.04]} />
         <meshStandardMaterial color="#d8d3cc" metalness={0.7} roughness={0.3} />
       </mesh>
+    </group>
+  );
+}
+
+/** Wapperende Armeense driekleur op de top van de Cascade. */
+function ArmenianFlag(): JSX.Element {
+  const flag = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (flag.current) {
+      flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.2) * 0.25;
+      flag.current.scale.x = 1 + Math.sin(clock.elapsedTime * 4.5) * 0.06;
+    }
+  });
+  return (
+    <group>
+      <mesh position={[0, 0.55, 0]}>
+        <cylinderGeometry args={[0.022, 0.028, 1.1, 6]} />
+        <meshStandardMaterial color="#d8d3cc" metalness={0.4} />
+      </mesh>
+      <group ref={flag} position={[0.26, 0.92, 0]}>
+        {(['#d90012', '#0033a0', '#f2a800'] as const).map((color, i) => (
+          <mesh key={color} position={[0, 0.1 - i * 0.1, 0]}>
+            <planeGeometry args={[0.5, 0.1]} />
+            <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+      </group>
     </group>
   );
 }
@@ -228,6 +256,9 @@ export function Landmarks({ world }: { world: WorldConfig | null }): JSX.Element
       {/* Hub: Cascade stairs + Mother Armenia + apricot trees */}
       <group position={[0, 0.15, 0]}>
         <CascadeStairs />
+        <group position={[-0.8, 1.15, -1.4]}>
+          <ArmenianFlag />
+        </group>
         <group position={[0, 1.2, -1.5]} scale={0.8}>
           <MotherArmenia />
         </group>

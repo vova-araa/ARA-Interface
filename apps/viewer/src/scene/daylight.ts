@@ -50,11 +50,24 @@ export function periodForHour(hour: number): Daylight['period'] {
   return 'dusk';
 }
 
+/** ?time=day|night|dawn|dusk forceert het palet (demo's, screenshots). */
+const FORCED: Daylight['period'] | null = (() => {
+  try {
+    const value = new URLSearchParams(location.search).get('time');
+    return value === 'day' || value === 'night' || value === 'dawn' || value === 'dusk'
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 export function useDaylight(): Daylight {
-  const [period, setPeriod] = useState<Daylight['period']>(() =>
-    periodForHour(new Date().getHours()),
+  const [period, setPeriod] = useState<Daylight['period']>(
+    () => FORCED ?? periodForHour(new Date().getHours()),
   );
   useEffect(() => {
+    if (FORCED) return;
     const timer = setInterval(
       () => setPeriod(periodForHour(new Date().getHours())),
       60_000,

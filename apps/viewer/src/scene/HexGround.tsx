@@ -53,7 +53,8 @@ function computeTiles(world: WorldConfig | null): Tiles {
     const noise = (stableHash(key) % 100) / 100;
     tiles.base.push({
       pos: [x * HEX_SPACING, 0, z * HEX_SPACING],
-      color: TUFF_PINK.clone().lerp(TUFF_DARK, noise * 0.6),
+      // Basisgrond iets donkerder zodat de verhoogde platforms poppen.
+      color: TUFF_PINK.clone().lerp(TUFF_DARK, 0.35 + noise * 0.5),
     });
   }
   return tiles;
@@ -105,14 +106,15 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
         <meshStandardMaterial color="#ffffff" roughness={0.95} />
       </instancedMesh>
 
+      {/* Districten als dikke verhoogde platforms (referentie-look) */}
       <instancedMesh
         key={`district-${tiles.district.length}`}
         args={[undefined, undefined, Math.max(1, tiles.district.length)]}
-        ref={useInstances(tiles.district, 0.05)}
+        ref={useInstances(tiles.district, 0.03)}
         receiveShadow
       >
-        <cylinderGeometry args={[0.98, 0.98, 0.34, 6]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.85} />
+        <cylinderGeometry args={[0.98, 0.92, 0.56, 6]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.8} />
       </instancedMesh>
 
       {/* Glowing district borders: thin emissive rims */}
@@ -129,7 +131,7 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
           const scale = new THREE.Vector3(1, 1, 1);
           const position = new THREE.Vector3();
           tiles.district.forEach((tile, i) => {
-            position.set(tile.pos[0], 0.23, tile.pos[2]);
+            position.set(tile.pos[0], 0.315, tile.pos[2]);
             matrix.compose(position, rotation, scale);
             mesh.setMatrixAt(i, matrix);
             mesh.setColorAt(i, tile.borderColor);
@@ -139,11 +141,11 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
           mesh.computeBoundingSphere();
         }}
       >
-        <torusGeometry args={[0.9, 0.035, 6, 6]} />
+        <torusGeometry args={[0.92, 0.05, 6, 6]} />
         <meshStandardMaterial
           color="#ffffff"
           emissive="#ffffff"
-          emissiveIntensity={0.55}
+          emissiveIntensity={0.95}
           toneMapped={false}
         />
       </instancedMesh>

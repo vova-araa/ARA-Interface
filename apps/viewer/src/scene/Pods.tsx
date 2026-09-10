@@ -42,6 +42,8 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
   const bodyMaterial = useRef<THREE.MeshStandardMaterial>(null);
   const innerLight = useRef<THREE.MeshStandardMaterial>(null);
   const ringRef = useRef<THREE.Group>(null);
+  const spark1 = useRef<THREE.Mesh>(null);
+  const spark2 = useRef<THREE.Mesh>(null);
   const select = useAra((s) => s.select);
   const flyTo = useAra((s) => s.flyTo);
   const selected = useAra((s) => s.selectedSessionId === session.sessionId);
@@ -94,6 +96,19 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
       ringRef.current.visible = session.status === 'needsHuman';
       ringRef.current.rotation.y = t * 1.2;
     }
+
+    // Werkende pods krijgen orbiterende vonken in de tool-kleur.
+    const working = session.status === 'working';
+    if (spark1.current) {
+      spark1.current.visible = working;
+      spark1.current.position.set(Math.cos(t * 3.1) * 0.5, 0.45 + Math.sin(t * 5) * 0.12, Math.sin(t * 3.1) * 0.5);
+      (spark1.current.material as THREE.MeshStandardMaterial).emissive.copy(lightColor);
+    }
+    if (spark2.current) {
+      spark2.current.visible = working;
+      spark2.current.position.set(Math.cos(t * 2.3 + Math.PI) * 0.55, 0.4 + Math.cos(t * 4) * 0.1, Math.sin(t * 2.3 + Math.PI) * 0.55);
+      (spark2.current.material as THREE.MeshStandardMaterial).emissive.copy(lightColor);
+    }
   });
 
   return (
@@ -141,6 +156,15 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
             <meshStandardMaterial color="#ffb020" emissive="#ffb020" emissiveIntensity={1.6} toneMapped={false} />
           </mesh>
         </group>
+        {/* orbit-vonken (alleen zichtbaar tijdens werken) */}
+        <mesh ref={spark1} visible={false}>
+          <sphereGeometry args={[0.045, 6, 5]} />
+          <meshStandardMaterial color="#fff" emissive="#4da3ff" emissiveIntensity={2} toneMapped={false} />
+        </mesh>
+        <mesh ref={spark2} visible={false}>
+          <sphereGeometry args={[0.035, 6, 5]} />
+          <meshStandardMaterial color="#fff" emissive="#4da3ff" emissiveIntensity={2} toneMapped={false} />
+        </mesh>
         {/* selection ring */}
         {selected && (
           <mesh position={[0, -0.28, 0]} rotation={[-Math.PI / 2, 0, 0]}>
