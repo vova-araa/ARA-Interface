@@ -148,3 +148,10 @@
 - [x] **Juice**: hijskraan bij Truck & Trailers (draaiende arm, zakkende container), 2 bezorgdrones met pakketjes tussen districten (spinnende rotors, boogvlucht), stofwolkjes achter lopende figuren, squash & stretch pod-spawn (volume-behoud), vuurwerk bij afgeronde taken in schemer/nacht.
 - [x] **Weer**: wolkschaduwen die traag over de grond glijden (overdag), eeuwige sneeuwval boven de Ararat-piek, schuim op het Sevan-meer.
 - [x] **Governor in 2 trappen**: <25fps → schaduwen/postfx uit + dpr 1; <14fps → ook crowd/districtleven/drones/weer uit. Geverifieerd in container (2fps software-rendering → alles netjes uitgeschakeld, geen errors); op GPU-hardware blijft alles aan.
+
+## Slotbatch remote (2026-09-10, avond)
+- ✅ **CI op GitHub groen**: dubbele pnpm-versie in workflow gefixt; run #21 doorliep de volledige pipeline op een echte runner.
+- ✅ **Adversariële review-hardening**: 2 review-agents, 27 geverifieerde findings gefixt — incl. kritieke auth-bypass (case-insensitieve routing), CORS-aanscherping, loopback-bind zonder token, dag-delta tokenbudget, redact-vóór-knippen, prompt>500-fix, scrub-tijd-fix, watchdog-locks/foutafhandeling, SSE-backpressure, geheugengrenzen, GPU-lek. Zie DECISIONS.md.
+- ✅ **CLAUDE.md**: repo-gids voor elke toekomstige Claude-sessie op de Mac.
+- ✅ **Demo-video**: `apps/viewer/scripts/record.mjs` (Playwright screencast); 30s opname naar gebruiker gestuurd.
+- Hiermee is het remote bouwwerk afgerond; rest staat onder "Mac-installatie" hierboven.
