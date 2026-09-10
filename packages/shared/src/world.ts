@@ -24,8 +24,8 @@ export interface VentureStyle {
 }
 
 export const VENTURES: VentureStyle[] = [
-  { id: 'traject', label: 'Traject (TMS)', color: '#f5c518', landmark: 'truck-depot', match: ['traject', 'tms'] },
-  { id: 'blex', label: 'Blex Logistics', color: '#ffd75e', landmark: 'warehouse', match: ['blex'] },
+  { id: 'traject', label: 'Sharzi TMS', color: '#f5c518', landmark: 'truck-depot', match: ['sharzi', 'traject', 'tms'] },
+  { id: 'blex', label: 'Truck & Trailers', color: '#ffd75e', landmark: 'warehouse', match: ['truck', 'trailer', 'blex'] },
   { id: 'elevate', label: 'Elevate Design', color: '#ff3fa4', landmark: 'billboard', match: ['elevate'] },
   { id: 'uprising', label: 'Uprising Studio', color: '#ff8a3d', landmark: 'stage', match: ['uprising', 'studio'] },
   { id: 'trading', label: 'Trading bots', color: '#e6b800', landmark: 'obelisk', match: ['trading', 'xau', 'bot'] },

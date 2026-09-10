@@ -10,8 +10,8 @@ import { PROJECTS_JSON_PATH, WORLD_CONFIG_PATH } from './config.ts';
  */
 /** Demo-wereld wanneer projects.json ontbreekt — de viewer mag nooit leeg zijn. */
 export const DEMO_PROJECTS: ProjectEntry[] = [
-  { name: 'traject-tms' },
-  { name: 'blex-logistics' },
+  { name: 'sharzi-tms' },
+  { name: 'truck-trailers' },
   { name: 'elevate-design' },
   { name: 'uprising-studio' },
   { name: 'xauusd-bot' },

@@ -16,13 +16,13 @@
       "launchdService": "com.ara.viewer"
     },
     {
-      "name": "traject-site",
+      "name": "sharzi-site",
       "url": "https://VUL-IN.example",
       "enabled": false,
       "bodyContains": ""
     },
     {
-      "name": "blex-site",
+      "name": "truck-trailers-site",
       "url": "https://VUL-IN.example",
       "enabled": false
     },

@@ -44,7 +44,7 @@ plugins/ara             hooks + ara-status skill + /ara-open + /ara-map + ara-or
 
 - **Pod** = session. Idle breathes, working pulses in the tool's color, needs-you gets an amber beacon + ring, done gets a green cap + confetti, errors flicker red.
 - **Figure** = agent/subagent. Walks in from the district edge, carries a tool icon (📖 Read, 🔨 Edit, 🔧 Bash, 🔍 Grep, 🔭 WebSearch, 📣 Task, 🔌 MCP), shows a speech bubble with the tool summary.
-- **Districts** = ventures (Traject, Blex, Elevate, Uprising, Trading, Vovara). Placement is a deterministic hash of the project name — positions never shuffle. Unknown repos land in **Nor Kaghak**.
+- **Districts** = ventures (Sharzi TMS, Truck & Trailers, Elevate, Uprising, Trading, Vovara). Placement is a deterministic hash of the project name — positions never shuffle. Onbekende repo's zijn verborgen (`hiddenVentures` in org.json) tot je ze in projects.json opneemt.
 
 ## Commands
 
@@ -88,7 +88,7 @@ tokenbudget naar 3M` · `/ara houd https://mijnsite.nl in de gaten`.
 Beleid (in `plugins/ara/org.json`): managers **on-demand** per venture ·
 schrijfwerk alleen op **`ara/*`-branches** (mergen/deployen/geld = escalatie
 naar jou) · trading-venture is read-only op live orderlogica · prioriteit 1:
-Traject, Blex, Uprising, Trading.
+Sharzi TMS, Truck & Trailers, Uprising, Trading.
 
 ## Tokens
 

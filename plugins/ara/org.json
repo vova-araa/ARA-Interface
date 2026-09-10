@@ -45,13 +45,13 @@
       "id": "traject",
       "manager": "manager:traject",
       "priority": 1,
-      "focus": "TMS: planning, facturatie, transport-integraties. Productie-gevoelig: migraties en externe API's altijd escaleren."
+      "focus": "Sharzi TMS: ritten plannen, facturatie, transport-integraties. Productie-gevoelig: migraties en externe API's altijd escaleren."
     },
     {
       "id": "blex",
       "manager": "manager:blex",
       "priority": 1,
-      "focus": "Logistiek: voorraad/trailers, Supabase-sync. Data-integriteit boven snelheid."
+      "focus": "Truck & Trailers: wagenparkbeheer, voorraad/trailers, Supabase-sync. Data-integriteit boven snelheid."
     },
     {
       "id": "uprising",

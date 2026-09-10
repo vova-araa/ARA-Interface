@@ -31,42 +31,42 @@ function emit(
 }
 
 // ── Story ──────────────────────────────────────────────────────────────
-// Session A: traject-tms — busy build with a subagent and a happy ending.
+// Session A: sharzi-tms — busy build with a subagent and a happy ending.
 const A = 'demo-traject';
-emit(0, 'session.start', A, 'traject-tms');
-emit(2, 'prompt', A, 'traject-tms', { message: 'Fix the invoice PDF export' });
-emit(4, 'tool.pre', A, 'traject-tms', { tool: 'Read', toolSummary: 'Read invoice.ts' });
-emit(6, 'tool.post', A, 'traject-tms', { tool: 'Read', status: 'ok', durationMs: 1800 });
-emit(8, 'tool.pre', A, 'traject-tms', { tool: 'Grep', toolSummary: 'Search renderPdf usages' });
-emit(10, 'tool.post', A, 'traject-tms', { tool: 'Grep', status: 'ok', durationMs: 900 });
-emit(12, 'agent.start', A, 'traject-tms', { agentId: 'a1', agentType: 'Explore', toolSummary: 'Scout PDF pipeline' });
-emit(14, 'tool.pre', A, 'traject-tms', { agentId: 'a1', tool: 'Glob', toolSummary: 'Find *.pdf.ts' });
-emit(17, 'tool.post', A, 'traject-tms', { agentId: 'a1', tool: 'Glob', status: 'ok', durationMs: 700 });
-emit(20, 'agent.stop', A, 'traject-tms', { agentId: 'a1' });
-emit(24, 'tool.pre', A, 'traject-tms', { tool: 'Edit', toolSummary: 'Patch margin calculation' });
-emit(27, 'tool.post', A, 'traject-tms', { tool: 'Edit', status: 'ok', durationMs: 2500 });
-emit(30, 'tool.pre', A, 'traject-tms', { tool: 'Bash', toolSummary: 'pnpm test invoice' });
-emit(38, 'tool.post', A, 'traject-tms', { tool: 'Bash', status: 'error', durationMs: 8000 });
-emit(42, 'tool.pre', A, 'traject-tms', { tool: 'Edit', toolSummary: 'Fix failing snapshot' });
-emit(45, 'tool.post', A, 'traject-tms', { tool: 'Edit', status: 'ok', durationMs: 2100 });
-emit(48, 'tool.pre', A, 'traject-tms', { tool: 'Bash', toolSummary: 'pnpm test invoice' });
-emit(56, 'tool.post', A, 'traject-tms', { tool: 'Bash', status: 'ok', durationMs: 7600 });
-emit(60, 'task.completed', A, 'traject-tms', { message: 'Invoice export fixed, tests green' });
-emit(64, 'session.end', A, 'traject-tms');
+emit(0, 'session.start', A, 'sharzi-tms');
+emit(2, 'prompt', A, 'sharzi-tms', { message: 'Fix the invoice PDF export' });
+emit(4, 'tool.pre', A, 'sharzi-tms', { tool: 'Read', toolSummary: 'Read invoice.ts' });
+emit(6, 'tool.post', A, 'sharzi-tms', { tool: 'Read', status: 'ok', durationMs: 1800 });
+emit(8, 'tool.pre', A, 'sharzi-tms', { tool: 'Grep', toolSummary: 'Search renderPdf usages' });
+emit(10, 'tool.post', A, 'sharzi-tms', { tool: 'Grep', status: 'ok', durationMs: 900 });
+emit(12, 'agent.start', A, 'sharzi-tms', { agentId: 'a1', agentType: 'Explore', toolSummary: 'Scout PDF pipeline' });
+emit(14, 'tool.pre', A, 'sharzi-tms', { agentId: 'a1', tool: 'Glob', toolSummary: 'Find *.pdf.ts' });
+emit(17, 'tool.post', A, 'sharzi-tms', { agentId: 'a1', tool: 'Glob', status: 'ok', durationMs: 700 });
+emit(20, 'agent.stop', A, 'sharzi-tms', { agentId: 'a1' });
+emit(24, 'tool.pre', A, 'sharzi-tms', { tool: 'Edit', toolSummary: 'Patch margin calculation' });
+emit(27, 'tool.post', A, 'sharzi-tms', { tool: 'Edit', status: 'ok', durationMs: 2500 });
+emit(30, 'tool.pre', A, 'sharzi-tms', { tool: 'Bash', toolSummary: 'pnpm test invoice' });
+emit(38, 'tool.post', A, 'sharzi-tms', { tool: 'Bash', status: 'error', durationMs: 8000 });
+emit(42, 'tool.pre', A, 'sharzi-tms', { tool: 'Edit', toolSummary: 'Fix failing snapshot' });
+emit(45, 'tool.post', A, 'sharzi-tms', { tool: 'Edit', status: 'ok', durationMs: 2100 });
+emit(48, 'tool.pre', A, 'sharzi-tms', { tool: 'Bash', toolSummary: 'pnpm test invoice' });
+emit(56, 'tool.post', A, 'sharzi-tms', { tool: 'Bash', status: 'ok', durationMs: 7600 });
+emit(60, 'task.completed', A, 'sharzi-tms', { message: 'Invoice export fixed, tests green' });
+emit(64, 'session.end', A, 'sharzi-tms');
 
 // Session B: blex — needs human mid-way.
 const B = 'demo-blex';
-emit(6, 'session.start', B, 'blex-logistics');
-emit(8, 'prompt', B, 'blex-logistics', { message: 'Sync trailer inventory to Supabase' });
-emit(11, 'tool.pre', B, 'blex-logistics', { tool: 'mcp__Supabase__execute_sql', toolSummary: 'Count trailers' });
-emit(15, 'tool.post', B, 'blex-logistics', { tool: 'mcp__Supabase__execute_sql', status: 'ok', durationMs: 3400 });
-emit(20, 'tool.pre', B, 'blex-logistics', { tool: 'Write', toolSummary: 'Write sync script' });
-emit(24, 'tool.post', B, 'blex-logistics', { tool: 'Write', status: 'ok', durationMs: 2900 });
-emit(30, 'notification', B, 'blex-logistics', { needsHuman: true, message: 'Permission needed: run migration on prod?' });
-emit(75, 'prompt', B, 'blex-logistics', { message: 'Yes, run it' });
-emit(78, 'tool.pre', B, 'blex-logistics', { tool: 'Bash', toolSummary: 'Run migration' });
-emit(86, 'tool.post', B, 'blex-logistics', { tool: 'Bash', status: 'ok', durationMs: 7800 });
-emit(90, 'stop', B, 'blex-logistics');
+emit(6, 'session.start', B, 'truck-trailers');
+emit(8, 'prompt', B, 'truck-trailers', { message: 'Sync trailer inventory to Supabase' });
+emit(11, 'tool.pre', B, 'truck-trailers', { tool: 'mcp__Supabase__execute_sql', toolSummary: 'Count trailers' });
+emit(15, 'tool.post', B, 'truck-trailers', { tool: 'mcp__Supabase__execute_sql', status: 'ok', durationMs: 3400 });
+emit(20, 'tool.pre', B, 'truck-trailers', { tool: 'Write', toolSummary: 'Write sync script' });
+emit(24, 'tool.post', B, 'truck-trailers', { tool: 'Write', status: 'ok', durationMs: 2900 });
+emit(30, 'notification', B, 'truck-trailers', { needsHuman: true, message: 'Permission needed: run migration on prod?' });
+emit(75, 'prompt', B, 'truck-trailers', { message: 'Yes, run it' });
+emit(78, 'tool.pre', B, 'truck-trailers', { tool: 'Bash', toolSummary: 'Run migration' });
+emit(86, 'tool.post', B, 'truck-trailers', { tool: 'Bash', status: 'ok', durationMs: 7800 });
+emit(90, 'stop', B, 'truck-trailers');
 
 // Session C: vovara — long research with two subagents in parallel.
 const C = 'demo-vovara';
