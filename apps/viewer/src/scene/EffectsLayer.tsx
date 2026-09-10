@@ -5,6 +5,7 @@ import type { WorldConfig } from '@ara/shared';
 import { useAra, type Effect } from '../store.ts';
 import { visiblePods } from './Pods.tsx';
 import { stableHash } from '@ara/shared';
+import { useDaylight } from './daylight.ts';
 
 /** Event feedback: sparkles (tool ok), smoke (tool error), confetti + flag (completed). */
 
@@ -98,6 +99,75 @@ function Confetti({ position, ts, seed }: { position: THREE.Vector3; ts: number;
   );
 }
 
+const FIREWORK_SPARKS = 22;
+const FIREWORK_COLORS = ['#ffd75e', '#ff6b57', '#4dd7ff', '#c07cff'];
+
+/** Vuurwerk: raket stijgt (0.6s), dan een bolvormige burst van vonken (1.2s). */
+function Firework({ position, ts, seed }: { position: THREE.Vector3; ts: number; seed: number }): JSX.Element {
+  const rocket = useRef<THREE.Mesh>(null);
+  const burst = useRef<THREE.InstancedMesh>(null);
+  const directions = useMemo(
+    () =>
+      Array.from({ length: FIREWORK_SPARKS }, (_, i) => {
+        const theta = ((stableHash(`${seed}-t${i}`) % 628) / 100);
+        const phi = ((stableHash(`${seed}-p${i}`) % 314) / 100);
+        return new THREE.Vector3(
+          Math.sin(phi) * Math.cos(theta),
+          Math.cos(phi) * 0.8 + 0.3,
+          Math.sin(phi) * Math.sin(theta),
+        );
+      }),
+    [seed],
+  );
+
+  useFrame(() => {
+    const t = (Date.now() - ts) / 1000;
+    const apex = new THREE.Vector3(position.x, position.y + 2.6, position.z);
+    if (rocket.current) {
+      rocket.current.visible = t < 0.6;
+      const rise = Math.min(1, t / 0.6);
+      rocket.current.position.set(position.x, position.y + rise * 2.6, position.z);
+    }
+    const mesh = burst.current;
+    if (mesh) {
+      const bt = t - 0.6;
+      mesh.visible = bt > 0 && bt < 1.2;
+      if (mesh.visible) {
+        const matrix = new THREE.Matrix4();
+        const spread = 0.2 + bt * 1.6;
+        directions.forEach((dir, i) => {
+          matrix.makeTranslation(
+            apex.x + dir.x * spread,
+            apex.y + dir.y * spread - bt * bt * 1.2,
+            apex.z + dir.z * spread,
+          );
+          mesh.setMatrixAt(i, matrix);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        (mesh.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 1 - bt / 1.2);
+      }
+    }
+  });
+
+  return (
+    <group>
+      <mesh ref={rocket} visible={false}>
+        <sphereGeometry args={[0.05, 6, 5]} />
+        <meshBasicMaterial color="#fff3d6" toneMapped={false} />
+      </mesh>
+      <instancedMesh ref={burst} args={[undefined, undefined, FIREWORK_SPARKS]} visible={false}>
+        <sphereGeometry args={[0.05, 5, 4]} />
+        <meshBasicMaterial
+          color={FIREWORK_COLORS[seed % FIREWORK_COLORS.length]}
+          transparent
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </instancedMesh>
+    </group>
+  );
+}
+
 function Flag({ position, ts }: { position: THREE.Vector3; ts: number }): JSX.Element {
   const group = useRef<THREE.Group>(null);
   useFrame(() => {
@@ -123,6 +193,8 @@ export function EffectsLayer({ world }: { world: WorldConfig }): JSX.Element | n
   const effects = useAra((s) => s.effects);
   const snapshot = useAra((s) => s.snapshot);
   const replaying = useAra((s) => s.replayTs !== null);
+  const daylight = useDaylight();
+  const fireworksOn = daylight.period === 'night' || daylight.period === 'dusk';
 
   const located = useMemo(() => {
     const pods = visiblePods(world, Object.values(snapshot.sessions));
@@ -155,7 +227,12 @@ export function EffectsLayer({ world }: { world: WorldConfig }): JSX.Element | n
             );
           case 'flag':
             return (
-              <Flag key={effect.id} position={new THREE.Vector3(position.x + 0.35, 0.3, position.z)} ts={effect.ts} />
+              <group key={effect.id}>
+                <Flag position={new THREE.Vector3(position.x + 0.35, 0.3, position.z)} ts={effect.ts} />
+                {fireworksOn && (
+                  <Firework position={position} ts={effect.ts} seed={stableHash(effect.id) % 89} />
+                )}
+              </group>
             );
           default:
             return null;

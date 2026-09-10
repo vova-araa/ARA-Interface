@@ -141,3 +141,10 @@
 
 ## Blockers
 - None. (SubagentStart/TaskCompleted/TeammateIdle hooks fire only on Claude Code versions that support them — degrades gracefully.)
+
+## Living City Ultimate (gekozen door gebruiker)
+- [x] **Cinematic postprocessing**: tilt-shift scherptediepte, bloom op alle emissives/rims, vignette, SMAA — de diorama-look uit de referentievideo's. Achter `postFxOn`.
+- [x] **Bewegende zon**: positie volgt de echte kloktijd (06:00 oost → 22:00 west, elevatieboog), 's nachts een koele maan — schaduwen draaien mee met de dag; update 1×/5s.
+- [x] **Juice**: hijskraan bij Truck & Trailers (draaiende arm, zakkende container), 2 bezorgdrones met pakketjes tussen districten (spinnende rotors, boogvlucht), stofwolkjes achter lopende figuren, squash & stretch pod-spawn (volume-behoud), vuurwerk bij afgeronde taken in schemer/nacht.
+- [x] **Weer**: wolkschaduwen die traag over de grond glijden (overdag), eeuwige sneeuwval boven de Ararat-piek, schuim op het Sevan-meer.
+- [x] **Governor in 2 trappen**: <25fps → schaduwen/postfx uit + dpr 1; <14fps → ook crowd/districtleven/drones/weer uit. Geverifieerd in container (2fps software-rendering → alles netjes uitgeschakeld, geen errors); op GPU-hardware blijft alles aan.

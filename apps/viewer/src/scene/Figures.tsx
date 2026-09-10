@@ -56,6 +56,7 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
   const rightLeg = useRef<THREE.Group>(null);
   const leftArm = useRef<THREE.Group>(null);
   const rightArm = useRef<THREE.Group>(null);
+  const dust = useRef<THREE.Sprite>(null);
 
   // Light thread: parent figure (gold) when spawned via SPAWN-REQUEST,
   // otherwise the session pod (blue).
@@ -93,6 +94,16 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
     const bob = walk < 1 ? Math.abs(Math.sin(age / 90)) * 0.08 : Math.sin(clock.elapsedTime * 2 + slot) * 0.02;
     group.position.set(x, 0.32 + bob, z);
 
+    // Stofwolkje achter de voeten tijdens het lopen.
+    if (dust.current) {
+      const puff = (age % 380) / 380;
+      dust.current.visible = walk < 1 && !agent.stopped;
+      dust.current.position.set(-Math.sin(group.rotation.y) * 0.12, 0.02 + puff * 0.06, -Math.cos(group.rotation.y) * 0.12);
+      const s = 0.1 + puff * 0.14;
+      dust.current.scale.set(s, s, s);
+      dust.current.material.opacity = 0.5 * (1 - puff);
+    }
+
     // Walkcycle: benen en armen zwaaien tegengesteld tijdens het lopen.
     const stride = walk < 1 ? Math.sin(age / 90) * 0.7 : 0;
     if (leftLeg.current) leftLeg.current.rotation.x = stride;
@@ -127,6 +138,10 @@ function Figure({ info, world }: { info: FigureInfo; world: WorldConfig }): JSX.
   return (
     <group ref={groupRef}>
       <primitive object={thread} />
+      {/* stofwolkje bij het lopen */}
+      <sprite ref={dust} visible={false}>
+        <spriteMaterial map={emojiTexture('💨')} transparent depthWrite={false} opacity={0.5} />
+      </sprite>
       {/* body */}
       <mesh position={[0, 0.14, 0]} castShadow>
         <capsuleGeometry args={[0.09, 0.12, 4, 8]} />

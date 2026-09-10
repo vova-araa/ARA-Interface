@@ -146,6 +146,59 @@ function PlanningBoard(): JSX.Element {
   );
 }
 
+/** Hijskraan (Truck & Trailers): arm draait, container zakt en heft. */
+function Crane(): JSX.Element {
+  const arm = useRef<THREE.Group>(null);
+  const hook = useRef<THREE.Group>(null);
+  const cable = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    if (arm.current) arm.current.rotation.y = Math.sin(t * 0.28) * 1.15;
+    const drop = 0.28 + ((Math.sin(t * 0.55) + 1) / 2) * 0.5; // kabellengte
+    if (hook.current) hook.current.position.y = -drop;
+    if (cable.current) {
+      cable.current.scale.y = drop;
+      cable.current.position.y = -drop / 2;
+    }
+  });
+  return (
+    <group position={[-0.95, 0, -0.75]}>
+      <mesh position={[0, 0.08, 0]} castShadow>
+        <cylinderGeometry args={[0.16, 0.2, 0.16, 8]} />
+        <meshStandardMaterial color="#8f8578" />
+      </mesh>
+      <mesh position={[0, 0.65, 0]} castShadow>
+        <boxGeometry args={[0.09, 1.1, 0.09]} />
+        <meshStandardMaterial color="#f2a800" />
+      </mesh>
+      <group ref={arm} position={[0, 1.18, 0]}>
+        <mesh position={[0.42, 0, 0]} castShadow>
+          <boxGeometry args={[1.0, 0.07, 0.07]} />
+          <meshStandardMaterial color="#f2a800" />
+        </mesh>
+        {/* contragewicht */}
+        <mesh position={[-0.28, -0.06, 0]}>
+          <boxGeometry args={[0.16, 0.14, 0.14]} />
+          <meshStandardMaterial color="#5c5148" />
+        </mesh>
+        {/* kabel + container aan de armtip */}
+        <group position={[0.82, 0, 0]}>
+          <mesh ref={cable} position={[0, -0.25, 0]}>
+            <cylinderGeometry args={[0.008, 0.008, 1, 4]} />
+            <meshStandardMaterial color="#2a2f3a" />
+          </mesh>
+          <group ref={hook} position={[0, -0.5, 0]}>
+            <mesh castShadow>
+              <boxGeometry args={[0.22, 0.14, 0.13]} />
+              <meshStandardMaterial color="#c0392b" />
+            </mesh>
+          </group>
+        </group>
+      </group>
+    </group>
+  );
+}
+
 /** Muzieknoten die opstijgen en vervagen (Uprising stage, Vovara mic). */
 function MusicNotes({ color, rate }: { color: string; rate: number }): JSX.Element {
   const sprites = useRef<(THREE.Sprite | null)[]>([]);
@@ -182,6 +235,7 @@ const LIFE: Record<string, () => JSX.Element> = {
   ),
   blex: () => (
     <>
+      <Crane />
       <Truck radius={1.1} speed={0.5} color="#ffd75e" pingPong />
       {/* extra geparkeerde trailer */}
       <mesh position={[-0.9, 0.16, 0.85]} rotation={[0, 0.4, 0]} castShadow>

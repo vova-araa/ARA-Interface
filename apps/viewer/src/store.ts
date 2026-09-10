@@ -51,6 +51,10 @@ interface AraStore {
   boardOpen: boolean;
   /** LOD: true wanneer ver uitgezoomd — icons/bubbles verbergen (perf). */
   lodFar: boolean;
+  /** Cinematic postprocessing (tilt-shift/bloom); governor zet uit bij lage fps. */
+  postFxOn: boolean;
+  /** Zwak device: zware sier-lagen (crowd/districtlife/weer) uit. */
+  perfLow: boolean;
   /** Verhoogd bij elk SSE 'tasks'-event zodat het bord live ververst. */
   tasksVersion: number;
   flyTarget: { sessionId: string; ts: number } | null;
@@ -73,6 +77,8 @@ interface AraStore {
   setBoardOpen(open: boolean): void;
   setLodFar(far: boolean): void;
   setOverviewOpen(open: boolean): void;
+  setPostFxOn(on: boolean): void;
+  setPerfLow(low: boolean): void;
   bumpTasks(): void;
   flyTo(sessionId: string): void;
   pruneEphemera(): void;
@@ -165,6 +171,8 @@ export const useAra = create<AraStore>((set, get) => ({
   panelOpen: window.innerWidth > 800,
   boardOpen: false,
   lodFar: false,
+  postFxOn: true,
+  perfLow: false,
   tasksVersion: 0,
   flyTarget: null,
   replaySnapshot: null,
@@ -266,6 +274,8 @@ export const useAra = create<AraStore>((set, get) => ({
   setBoardOpen: (open) => set({ boardOpen: open }),
   setLodFar: (far) => set({ lodFar: far }),
   setOverviewOpen: (open) => set({ overviewOpen: open }),
+  setPostFxOn: (on) => set({ postFxOn: on }),
+  setPerfLow: (low) => set({ perfLow: low }),
   bumpTasks: () => set((s) => ({ tasksVersion: s.tasksVersion + 1 })),
 
   flyTo: (sessionId) => set({ flyTarget: { sessionId, ts: Date.now() } }),

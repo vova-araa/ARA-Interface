@@ -58,14 +58,18 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
     const group = groupRef.current;
     if (!group) return;
 
-    // Spawn: veerkrachtig opduiken uit de grond (~0.6s).
-    const born = Math.min(1, (Date.now() - spawnedAt.current) / 600);
-    const pop = born < 1 ? 1 - Math.pow(1 - born, 3) * Math.cos(born * Math.PI * 2) * 0.3 - Math.pow(1 - born, 3) : 1;
+    // Spawn met squash & stretch: uit de grond veren, uitrekken, neerploffen.
+    const born = Math.min(1, (Date.now() - spawnedAt.current) / 700);
+    const pop = born < 1 ? 1 - Math.pow(1 - born, 3) : 1;
+    const overshoot = born < 1 ? Math.sin(born * Math.PI) * 0.35 * (1 - born) : 0;
+    const sy = pop + overshoot; // rekt uit tijdens de sprong
+    const sxz = sy > 0.01 ? 1 / Math.sqrt(sy) : 1; // volume-behoud → squash
 
     // Beëindigde sessies dommelen in: kleiner, geen ademhaling.
     const ended = session.endedAt !== undefined;
     const breathe = !ended && session.status === 'idle' ? 1 + Math.sin(t * 1.6) * 0.02 : 1;
-    group.scale.setScalar(1.5 * breathe * pop * (ended ? 0.78 : 1));
+    const base = 1.5 * breathe * (ended ? 0.78 : 1);
+    group.scale.set(base * sxz, base * sy, base * sxz);
     group.position.y = -(1 - born) * 0.5; // relatief: stijgt uit de grond op
 
     // 's Nachts gloeien de koepels — de stad leeft door.
