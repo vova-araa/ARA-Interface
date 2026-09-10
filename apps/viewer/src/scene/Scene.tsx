@@ -31,9 +31,11 @@ function QualityGovernor(): null {
   const frames = useRef(0);
   const startedAt = useRef(0);
   const decided = useRef(false);
+  // ?fx=force houdt alle lagen aan, ongeacht fps (screenshots/demo-opnames).
+  const forced = useRef(new URLSearchParams(location.search).get('fx') === 'force');
 
   useFrame(({ clock }) => {
-    if (decided.current) return;
+    if (decided.current || forced.current) return;
     if (startedAt.current === 0) startedAt.current = clock.elapsedTime;
     frames.current += 1;
     const elapsed = clock.elapsedTime - startedAt.current;
