@@ -163,3 +163,9 @@
 - **Extra Mac-stap**: statusline activeren in `~/.claude/settings.json`:
   `"statusLine": { "type": "command", "command": "node <repo>/plugins/ara/hooks/statusline.mjs", "refreshInterval": 5 }`
   (met `ARA_TOKEN` in de omgeving als de collector met auth draait).
+
+## OTel latency-physics (2026-09-11)
+- ✅ OTLP-receiver in de collector + latency-EMA per sessie + SSE/GET; pods bewegen op échte tool-latency (snelle sessies hyperactief, trage zwoegen).
+- **Extra Mac-stap** — telemetrie aanzetten in `~/.claude/settings.json` onder `"env"`:
+  `"CLAUDE_CODE_ENABLE_TELEMETRY": "1", "OTEL_LOGS_EXPORTER": "otlp", "OTEL_METRICS_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4747/otel", "OTEL_LOG_USER_PROMPTS": "0"`
+  (draait de collector met token: ook `"OTEL_EXPORTER_OTLP_HEADERS": "X-ARA-Token=<token>"`.)

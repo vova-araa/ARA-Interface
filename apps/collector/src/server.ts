@@ -32,7 +32,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage)(\/|$)/i;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -389,6 +389,98 @@ export function createCollector(store: EventStore): CollectorApp {
   app.get('/status', (req, res) => {
     allowOrigin(req, res);
     res.json({ status: [...liveStatus.values()] });
+  });
+
+  // ── OTLP-receiver (http/json) → latency-physics ─────────────────────────
+  // Claude Code exporteert OpenTelemetry-events; wij vangen alleen de logs op
+  // en filteren claude_code.tool_result (echte duration_ms per tool-call).
+  // Geen protobuf-dependencies: exporter op OTEL_EXPORTER_OTLP_PROTOCOL=http/json.
+  interface LatencyStat {
+    sessionId: string;
+    ts: number;
+    /** Exponentieel gladgestreken gemiddelde tool-duur (ms). */
+    avgToolMs: number;
+    lastToolMs: number;
+    lastTool: string;
+    samples: number;
+  }
+  const latencyStats = new Map<string, LatencyStat>();
+
+  type OtlpValue = { stringValue?: string; intValue?: string | number; doubleValue?: number; boolValue?: boolean };
+  type OtlpAttr = { key?: string; value?: OtlpValue };
+  const attrValue = (v: OtlpValue | undefined): string | number | boolean | undefined => {
+    if (!v) return undefined;
+    if (v.stringValue !== undefined) return v.stringValue;
+    if (v.intValue !== undefined) return Number(v.intValue);
+    if (v.doubleValue !== undefined) return v.doubleValue;
+    return v.boolValue;
+  };
+  const toAttrMap = (attrs: unknown): Map<string, string | number | boolean> => {
+    const map = new Map<string, string | number | boolean>();
+    if (Array.isArray(attrs)) {
+      for (const a of attrs as OtlpAttr[]) {
+        const value = attrValue(a?.value);
+        if (a?.key && value !== undefined) map.set(a.key, value);
+      }
+    }
+    return map;
+  };
+
+  app.post('/otel/v1/logs', (req, res) => {
+    if (!/json/i.test(req.get('content-type') ?? '')) {
+      // http/protobuf niet ondersteund — wel 200 zodat de exporter niet blijft retryen.
+      res.json({ partialSuccess: { rejectedLogRecords: 0, errorMessage: 'use OTEL_EXPORTER_OTLP_PROTOCOL=http/json' } });
+      return;
+    }
+    try {
+      const body = (req.body ?? {}) as {
+        resourceLogs?: { resource?: { attributes?: unknown }; scopeLogs?: { logRecords?: unknown[] }[] }[];
+      };
+      let updated = 0;
+      for (const rl of body.resourceLogs ?? []) {
+        const resourceAttrs = toAttrMap(rl.resource?.attributes);
+        for (const sl of rl.scopeLogs ?? []) {
+          for (const record of (sl.logRecords ?? []) as { attributes?: unknown; body?: OtlpValue }[]) {
+            const attrs = toAttrMap(record.attributes);
+            const eventName = String(attrs.get('event.name') ?? attrValue(record.body) ?? '');
+            if (!eventName.includes('tool_result')) continue;
+            const sessionId = String(attrs.get('session.id') ?? resourceAttrs.get('session.id') ?? '');
+            const duration = Number(attrs.get('duration_ms') ?? NaN);
+            if (!sessionId || !Number.isFinite(duration) || duration < 0) continue;
+            const prev = latencyStats.get(sessionId);
+            const avg = prev ? prev.avgToolMs * 0.7 + duration * 0.3 : duration;
+            const stat: LatencyStat = {
+              sessionId,
+              ts: Date.now(),
+              avgToolMs: Math.round(avg),
+              lastToolMs: Math.round(duration),
+              lastTool: String(attrs.get('tool_name') ?? ''),
+              samples: (prev?.samples ?? 0) + 1,
+            };
+            latencyStats.set(sessionId, stat);
+            broadcastFrame(`event: latency\ndata: ${JSON.stringify(stat)}\n\n`);
+            updated += 1;
+          }
+        }
+      }
+      if (updated > 0 && latencyStats.size > 500) {
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        for (const [id, st] of latencyStats) if (st.ts < cutoff) latencyStats.delete(id);
+      }
+      res.json({ partialSuccess: {} });
+    } catch {
+      res.status(400).json({ partialSuccess: { errorMessage: 'malformed OTLP JSON' } });
+    }
+  });
+
+  // Metrics/traces accepteren we (200) maar gebruiken we nog niet — zo blijft
+  // de exporter tevreden met alle drie de signalen op één endpoint.
+  app.post('/otel/v1/metrics', (_req, res) => res.json({ partialSuccess: {} }));
+  app.post('/otel/v1/traces', (_req, res) => res.json({ partialSuccess: {} }));
+
+  app.get('/latency', (req, res) => {
+    allowOrigin(req, res);
+    res.json({ latency: [...latencyStats.values()] });
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));

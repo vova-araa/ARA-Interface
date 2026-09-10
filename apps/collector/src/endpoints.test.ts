@@ -124,3 +124,45 @@ test('/stats groepeert per project en uur; /history respecteert het bereik', asy
     store.close();
   }
 });
+
+test('/otel/v1/logs: tool_result → latency-statistiek per sessie', async () => {
+  const { store, server, base } = boot();
+  try {
+    const record = (durationMs: number, tool: string) => ({
+      attributes: [
+        { key: 'event.name', value: { stringValue: 'claude_code.tool_result' } },
+        { key: 'tool_name', value: { stringValue: tool } },
+        { key: 'duration_ms', value: { intValue: String(durationMs) } },
+      ],
+    });
+    const payload = {
+      resourceLogs: [
+        {
+          resource: { attributes: [{ key: 'session.id', value: { stringValue: 'lat-1' } }] },
+          scopeLogs: [{ logRecords: [record(1000, 'Bash'), record(200, 'Read')] }],
+        },
+      ],
+    };
+    const post = await fetch(`${base}/otel/v1/logs`, { method: 'POST', headers: json, body: JSON.stringify(payload) });
+    assert.equal(post.status, 200);
+
+    const res = (await (await fetch(`${base}/latency`)).json()) as {
+      latency: { sessionId: string; avgToolMs: number; lastToolMs: number; lastTool: string; samples: number }[];
+    };
+    assert.equal(res.latency.length, 1);
+    const stat = res.latency[0]!;
+    assert.equal(stat.sessionId, 'lat-1');
+    assert.equal(stat.samples, 2);
+    assert.equal(stat.lastTool, 'Read');
+    assert.equal(stat.lastToolMs, 200);
+    // EMA: 1000 * 0.7 + 200 * 0.3 = 760
+    assert.equal(stat.avgToolMs, 760);
+
+    // Andere events dan tool_result worden genegeerd; kapotte JSON → 400.
+    const other = await fetch(`${base}/otel/v1/metrics`, { method: 'POST', headers: json, body: '{}' });
+    assert.equal(other.status, 200);
+  } finally {
+    server.close();
+    store.close();
+  }
+});

@@ -50,3 +50,9 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - **Model = gedaante**: session.model (uit SessionStart/PostModelSwitch) bepaalt pod-schaal en koepelkleur (haiku klein/ijsblauw, opus/fable groot/goud, boost op de kern). Morph-ring + lichtzuil bij een switch.
 - **Statusline-tap**: plugins/ara/hooks/statusline.mjs print een compacte regel voor de terminal én POST een subset (contextPct, kosten, cache) naar collector /status → SSE 'status' → live context-buis naast elke pod (groen→amber→rood). In-memory, vluchtig by design; /status valt onder dezelfde auth als de rest.
 - permission.ask zet needsHuman (klopt semantisch: er wordt op een mens gewacht); een geslaagde tool.post heft needsHuman op (goedkeuring is dan verleend).
+
+## OTel latency-physics (2026-09-11)
+- Collector is nu zelf een minimale **OTLP-receiver** (`POST /otel/v1/logs|metrics|traces`) voor `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` — bewust geen protobuf-dependencies of losse otel-collector-binary. Alleen `claude_code.tool_result` wordt gebruikt (duration_ms + session.id, resource- én record-attributen).
+- Latency per sessie als EMA (0.7/0.3), in-memory en vluchtig; SSE 'latency' + GET /latency, zelfde auth als de rest.
+- Viewer: `speedForLatency()` mapt gemiddelde tool-duur logaritmisch naar 0.55×–1.6× animatiesnelheid (orbit-vonken + werkpuls). Vanaf 2 samples, anders neutraal 1×.
+- http/protobuf-payloads krijgen 200 + hint (exporter blijft dan niet retryen); als http/json op de Mac niet blijkt te werken is protobuf-decode de vervolgstap.

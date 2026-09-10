@@ -20,6 +20,16 @@ export type EffectType =
   | 'bolt' // parallelle tool-batch: waaier van stralen
   | 'paper'; // taak aangemaakt: papiertje vliegt vanaf de hub
 
+/** OTel-latency per sessie: echte tool-duur drijft de animatiesnelheid. */
+export interface LatencyStat {
+  sessionId: string;
+  ts: number;
+  avgToolMs: number;
+  lastToolMs: number;
+  lastTool: string;
+  samples: number;
+}
+
 /** Live statusline-telemetrie per sessie (token-buis, kosten, cache). */
 export interface LiveStatus {
   sessionId: string;
@@ -90,6 +100,8 @@ interface AraStore {
   replayTs: number | null;
   /** Statusline-feed: sessionId → live context/kosten/cache. */
   liveStatus: Record<string, LiveStatus>;
+  /** OTel-feed: sessionId → latency-statistiek. */
+  latency: Record<string, LatencyStat>;
 
   setConnected(connected: boolean): void;
   setWorld(world: WorldConfig): void;
@@ -114,6 +126,8 @@ interface AraStore {
   setReplay(ts: number | null, snapshot: WorldSnapshot | null): void;
   setLiveStatus(status: LiveStatus): void;
   setAllLiveStatus(list: LiveStatus[]): void;
+  setLatency(stat: LatencyStat): void;
+  setAllLatency(list: LatencyStat[]): void;
 }
 
 const worldState = new WorldState();
@@ -229,6 +243,7 @@ export const useAra = create<AraStore>((set, get) => ({
   replaySnapshot: null,
   replayTs: null,
   liveStatus: {},
+  latency: {},
 
   setConnected: (connected) => set({ connected }),
   setWorld: (world) => set({ world }),
@@ -365,7 +380,20 @@ export const useAra = create<AraStore>((set, get) => ({
     set((s) => ({ liveStatus: { ...s.liveStatus, [status.sessionId]: status } })),
   setAllLiveStatus: (list) =>
     set({ liveStatus: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),
+  setLatency: (stat) => set((s) => ({ latency: { ...s.latency, [stat.sessionId]: stat } })),
+  setAllLatency: (list) =>
+    set({ latency: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),
 }));
+
+/**
+ * Latency-physics: echte tool-duur → animatiesnelheid.
+ * ~100ms gemiddeld = 1.5× (hyperactief), ~1s = 0.95×, 10s+ = 0.55× (zwoegen).
+ */
+export function speedForLatency(stat: LatencyStat | undefined): number {
+  if (!stat || stat.samples < 2) return 1;
+  const avg = Math.max(50, stat.avgToolMs);
+  return Math.min(1.6, Math.max(0.55, 2.6 - 0.55 * Math.log10(avg)));
+}
 
 /** The snapshot the scene should render: history scrub wins over live. */
 export function useViewSnapshot(): WorldSnapshot {

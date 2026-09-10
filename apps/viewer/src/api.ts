@@ -1,5 +1,5 @@
 import type { AraEvent, WorldConfig, WorldSnapshot } from '@ara/shared';
-import { useAra, type LiveStatus } from './store.ts';
+import { useAra, type LatencyStat, type LiveStatus } from './store.ts';
 
 /**
  * Auth token for online deployments (collector started with ARA_TOKEN).
@@ -50,6 +50,12 @@ export function connectLive(): void {
         if (res.status) useAra.getState().setAllLiveStatus(res.status);
       })
       .catch(() => undefined);
+    void fetch(withToken('/latency'))
+      .then((r) => r.json())
+      .then((res: { latency?: LatencyStat[] }) => {
+        if (res.latency) useAra.getState().setAllLatency(res.latency);
+      })
+      .catch(() => undefined);
     try {
       const snapshot = (await (await fetch(withToken('/state'))).json()) as WorldSnapshot;
       useAra.getState().hydrate(snapshot);
@@ -82,6 +88,13 @@ export function connectLive(): void {
     source.addEventListener('status', (msg) => {
       try {
         useAra.getState().setLiveStatus(JSON.parse((msg as MessageEvent).data) as LiveStatus);
+      } catch {
+        /* skip malformed frame */
+      }
+    });
+    source.addEventListener('latency', (msg) => {
+      try {
+        useAra.getState().setLatency(JSON.parse((msg as MessageEvent).data) as LatencyStat);
       } catch {
         /* skip malformed frame */
       }

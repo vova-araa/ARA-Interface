@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { visibleInWorld, type SessionState, type WorldConfig } from '@ara/shared';
-import { useAra, useViewSnapshot } from '../store.ts';
+import { speedForLatency, useAra, useViewSnapshot } from '../store.ts';
 import { projectPlacement, sessionPosition } from '../placements.ts';
 import { toolColor } from '../util.ts';
 import { useDaylight } from './daylight.ts';
@@ -61,7 +61,10 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
   const flyTo = useAra((s) => s.flyTo);
   const selected = useAra((s) => s.selectedSessionId === session.sessionId);
   const live = useAra((s) => s.liveStatus[session.sessionId]);
+  const latency = useAra((s) => s.latency[session.sessionId]);
   const island = useRef<THREE.Group>(null);
+  // Latency-physics: échte gemiddelde tool-duur (OTel) bepaalt het werktempo.
+  const speed = speedForLatency(latency);
 
   const lightColor = useMemo(
     () => new THREE.Color(toolColor(session.activeTool ?? session.lastTool)),
@@ -101,7 +104,7 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
         innerLight.current.emissiveIntensity = 0.9 + Math.sin(t * 10) * 0.5;
       } else if (session.status === 'working') {
         innerLight.current.emissive.copy(lightColor);
-        innerLight.current.emissiveIntensity = 0.8 + style.boost + Math.sin(t * 6) * 0.5;
+        innerLight.current.emissiveIntensity = 0.8 + style.boost + Math.sin(t * 6 * speed) * 0.5;
       } else if (session.status === 'done') {
         innerLight.current.emissive.set('#3ecf6f');
         innerLight.current.emissiveIntensity = ended ? 0.35 + nightGlow : 0.7;
@@ -128,12 +131,14 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
     const working = session.status === 'working';
     if (spark1.current) {
       spark1.current.visible = working;
-      spark1.current.position.set(Math.cos(t * 3.1) * 0.5, 0.45 + Math.sin(t * 5) * 0.12, Math.sin(t * 3.1) * 0.5);
+      const ts1 = t * speed;
+      spark1.current.position.set(Math.cos(ts1 * 3.1) * 0.5, 0.45 + Math.sin(ts1 * 5) * 0.12, Math.sin(ts1 * 3.1) * 0.5);
       (spark1.current.material as THREE.MeshStandardMaterial).emissive.copy(lightColor);
     }
     if (spark2.current) {
       spark2.current.visible = working;
-      spark2.current.position.set(Math.cos(t * 2.3 + Math.PI) * 0.55, 0.4 + Math.cos(t * 4) * 0.1, Math.sin(t * 2.3 + Math.PI) * 0.55);
+      const ts2 = t * speed;
+      spark2.current.position.set(Math.cos(ts2 * 2.3 + Math.PI) * 0.55, 0.4 + Math.cos(ts2 * 4) * 0.1, Math.sin(ts2 * 2.3 + Math.PI) * 0.55);
       (spark2.current.material as THREE.MeshStandardMaterial).emissive.copy(lightColor);
     }
 
