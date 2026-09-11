@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Outlines } from '@react-three/drei';
 import { visibleInWorld, type SessionState, type WorldConfig } from '@ara/shared';
 import { speedForLatency, useAra, useViewSnapshot } from '../store.ts';
 import { projectPlacement, sessionPosition } from '../placements.ts';
@@ -162,10 +163,11 @@ function Pod({ info }: { info: PodInfo }): JSX.Element {
       onPointerOut={() => (document.body.style.cursor = 'default')}
     >
       <group ref={groupRef}>
-        {/* white capsule body */}
+        {/* white capsule body — met ink-outline (diorama-contour) */}
         <mesh position={[0, 0.22, 0]} castShadow>
           <cylinderGeometry args={[0.3, 0.34, 0.42, 16]} />
           <meshStandardMaterial ref={bodyMaterial} color="#f7f5f2" roughness={0.4} />
+          <Outlines thickness={0.012} color="#2a1a2e" opacity={0.55} transparent />
         </mesh>
         {/* inner light core */}
         <mesh position={[0, 0.4, 0]}>

@@ -3,6 +3,17 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialToWorld, axialKey, hexDisc, stableHash, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
+import { stylize } from './stylize.ts';
+
+// Gedeelde gestileerde materialen voor de platforms (rim + koele schaduw).
+const BASE_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95 }), {
+  rimStrength: 0.35,
+  shadowStrength: 0.3,
+});
+const DISTRICT_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }), {
+  rimStrength: 0.5,
+  shadowStrength: 0.28,
+});
 
 const TUFF_PINK = new THREE.Color('#e2a49a'); // Yerevan tuff
 const TUFF_DARK = new THREE.Color('#c98d84');
@@ -103,9 +114,9 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
         args={[undefined, undefined, Math.max(1, tiles.base.length)]}
         ref={useInstances(tiles.base, -0.08)}
         receiveShadow
+        material={BASE_MAT}
       >
         <cylinderGeometry args={[0.98, 0.98, 0.46, 6]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.95} />
       </instancedMesh>
 
       {/* Districten als dikke verhoogde platforms (referentie-look) */}
@@ -114,9 +125,9 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
         args={[undefined, undefined, Math.max(1, tiles.district.length)]}
         ref={useInstances(tiles.district, -0.11)}
         receiveShadow
+        material={DISTRICT_MAT}
       >
         <cylinderGeometry args={[0.99, 0.9, 0.84, 6]} />
-        <meshStandardMaterial color="#ffffff" roughness={0.8} />
       </instancedMesh>
 
       {/* Glowing district borders: thin emissive rims */}
