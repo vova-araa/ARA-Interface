@@ -28,6 +28,7 @@ interface Wanderer {
 
 function DistrictCrowd({ wanderers }: { wanderers: Wanderer[] }): JSX.Element {
   const groups = useRef<(THREE.Group | null)[]>([]);
+  const heads = useRef<(THREE.Group | null)[]>([]);
 
   useFrame(({ clock }, delta) => {
     const now = clock.elapsedTime;
@@ -37,6 +38,13 @@ function DistrictCrowd({ wanderers }: { wanderers: Wanderer[] }): JSX.Element {
       const toTarget = new THREE.Vector2().subVectors(w.target, w.pos);
       const dist = toTarget.length();
       const walking = now > w.pauseUntil && dist > 0.05;
+      // Secundaire beweging: kop kijkt tijdens pauze traag rond (leest als leven).
+      const head = heads.current[i];
+      if (head) {
+        const targetYaw = walking ? 0 : Math.sin(now * 0.6 + w.phase) * 0.7;
+        head.rotation.y += (targetYaw - head.rotation.y) * Math.min(1, delta * 3);
+        head.rotation.z = walking ? 0 : Math.sin(now * 1.3 + w.phase) * 0.08;
+      }
       if (walking) {
         toTarget.normalize().multiplyScalar(Math.min(dist, WALK_SPEED * delta));
         w.pos.add(toTarget);
@@ -63,14 +71,17 @@ function DistrictCrowd({ wanderers }: { wanderers: Wanderer[] }): JSX.Element {
             <capsuleGeometry args={[0.075, 0.1, 4, 7]} />
             <meshStandardMaterial color={w.color} />
           </mesh>
-          <mesh position={[0, 0.28, 0]}>
-            <sphereGeometry args={[0.065, 8, 6]} />
-            <meshStandardMaterial color="#ffdbb5" />
-          </mesh>
-          <mesh position={[0, 0.315, 0]}>
-            <sphereGeometry args={[0.07, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2]} />
-            <meshStandardMaterial color="#f7f5f2" />
-          </mesh>
+          {/* kop + petje in een eigen groep zodat ze los kunnen rondkijken */}
+          <group ref={(h) => (heads.current[i] = h)} position={[0, 0.28, 0]}>
+            <mesh>
+              <sphereGeometry args={[0.065, 8, 6]} />
+              <meshStandardMaterial color="#ffdbb5" />
+            </mesh>
+            <mesh position={[0, 0.035, 0]}>
+              <sphereGeometry args={[0.07, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2]} />
+              <meshStandardMaterial color="#f7f5f2" />
+            </mesh>
+          </group>
         </group>
       ))}
     </group>

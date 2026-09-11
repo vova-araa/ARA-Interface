@@ -34,6 +34,7 @@ import { Props } from './Props.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
 import { Drones } from './Drones.tsx';
+import { Petals } from './Petals.tsx';
 
 // Subtiele lens-imperfectie; als constante zodat de prop referentie-stabiel is.
 const CHROMATIC_OFFSET = new THREE.Vector2(0.0008, 0.0008);
@@ -203,6 +204,8 @@ export function Scene(): JSX.Element {
         <Landmarks world={world} />
         <AmbientLife />
         {!perfLow && <Weather />}
+        {/* Abrikozenbloesem-drift overdag/schemer (niet 's nachts). */}
+        {!perfLow && daylight.period !== 'night' && <Petals />}
         {/* Vuurvliegjes zodra het schemert/nacht is; goudstof overdag boven de hub. */}
         {!perfLow && (daylight.period === 'night' || daylight.period === 'dusk') && (
           <Sparkles count={90} scale={[26, 3, 26]} position={[0, 1.4, 0]} size={2.4} speed={0.25} color="#ffdf80" opacity={0.65} />

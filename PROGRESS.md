@@ -169,3 +169,10 @@
 - **Extra Mac-stap** — telemetrie aanzetten in `~/.claude/settings.json` onder `"env"`:
   `"CLAUDE_CODE_ENABLE_TELEMETRY": "1", "OTEL_LOGS_EXPORTER": "otlp", "OTEL_METRICS_EXPORTER": "otlp", "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://127.0.0.1:4747/otel", "OTEL_LOG_USER_PROMPTS": "0"`
   (draait de collector met token: ook `"OTEL_EXPORTER_OTLP_HEADERS": "X-ARA-Token=<token>"`.)
+
+## Diorama Ultimate — graphics-overhaul (2026-09-11)
+- ✅ Stap 1: filmic ACES-grade + procedurele Environment-IBL + N8AO + rijkere composer.
+- ✅ Stap 2: maath-damping camera, camera game-feel (shake/idle-drift/focus-pull), GPU-wind op bomen, fireflies (Sparkles), drone-trails.
+- ✅ Stap 3: Monument-Valley-shading (koele schaduw-tint + fresnel-rim via stylize.ts) op de platforms, ink-outlines op de pods.
+- ✅ Stap 4: abrikozenbloesem-petals (1 instanced draw), crowd-kopjes die tijdens pauze rondkijken.
+- Alles achter de QualityGovernor, nul nieuwe render-deps, nul externe assets. Op je Mac (echte GPU) draait dit op 60fps met alle lagen aan.

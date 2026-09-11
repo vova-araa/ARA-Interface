@@ -56,3 +56,12 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - Latency per sessie als EMA (0.7/0.3), in-memory en vluchtig; SSE 'latency' + GET /latency, zelfde auth als de rest.
 - Viewer: `speedForLatency()` mapt gemiddelde tool-duur logaritmisch naar 0.55×–1.6× animatiesnelheid (orbit-vonken + werkpuls). Vanaf 2 samples, anders neutraal 1×.
 - http/protobuf-payloads krijgen 200 + hint (exporter blijft dan niet retryen); als http/json op de Mac niet blijkt te werken is protobuf-decode de vervolgstap.
+
+## Diorama Ultimate (graphics-overhaul, 2026-09-11)
+- **Nul nieuwe render-deps**: ToneMapping/N8AO/HueSaturation/BrightnessContrast/ChromaticAberration/Noise zitten al in @react-three/postprocessing 2.19; Environment/Lightformer/Sparkles/Trail/Outlines in drei 9; maath was al een drei-dep (nu expliciet in viewer-deps).
+- **Grading in de composer, niet de renderer**: Canvas `toneMapping: NoToneMapping` + `<ToneMapping ACES_FILMIC>` als pass; de QualityGovernor zet ACES terug op de renderer zodra postfx wegvalt (anders rauw-lineair).
+- **Procedurele IBL**: `<Environment frames={1}>` met 3 Lightformers → één 64px PMREM-bake, nul netwerk. `scene.environmentIntensity` volgt het dagdeel (nacht 0.12) — anders bleef de stad 's nachts daglicht-helder.
+- **stylize.ts**: shader-injectie voor koele schaduw-tint + fresnel-rim op MeshStandardMaterial (behoudt env/metalness, i.t.t. MeshToonMaterial); toegepast op de hex-platforms. wind.ts: gedeelde uWindTime-uniform, GPU-wind op boomkruinen.
+- **Camera game-feel**: alle offsets additief ná controls.update() zodat ze niet met input vechten; trauma² shake met gladde sin-ruis, idle-drift na 8s, ortho focus-pull.
+- **SwiftShader-artefact**: de reconnect-smoke kreeg een 15s-assertietimeout — de replay-feature klopt (los geverifieerd) maar software-rendering stalt op ReadPixels onder de zwaardere scene; direct op echte GPU.
+- Bewust NIET: planar reflections + echte DoF + drei <Sky>/<Cloud> (CDN-fetch / kapot onder ortho / te duur op mobiel) — allemaal geverifieerd afgewezen.
