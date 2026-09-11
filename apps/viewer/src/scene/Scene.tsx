@@ -1,6 +1,20 @@
 import { Suspense, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Bloom, EffectComposer, SMAA, TiltShift2, Vignette } from '@react-three/postprocessing';
+import {
+  Bloom,
+  BrightnessContrast,
+  ChromaticAberration,
+  EffectComposer,
+  HueSaturation,
+  N8AO,
+  Noise,
+  SMAA,
+  TiltShift2,
+  ToneMapping,
+  Vignette,
+} from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
+import { Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAra } from '../store.ts';
 import { CameraRig } from './CameraRig.tsx';
@@ -19,6 +33,9 @@ import { Props } from './Props.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
 import { Drones } from './Drones.tsx';
+
+// Subtiele lens-imperfectie; als constante zodat de prop referentie-stabiel is.
+const CHROMATIC_OFFSET = new THREE.Vector2(0.0008, 0.0008);
 
 /**
  * Adaptieve kwaliteit in twee trappen:
@@ -50,6 +67,9 @@ function QualityGovernor(): null {
         obj.receiveShadow = false;
       });
       setDpr(1);
+      // Zonder composer geen ToneMapping-pass meer → renderer neemt het over,
+      // anders oogt alles rauw-lineair uitgewassen.
+      gl.toneMapping = THREE.ACESFilmicToneMapping;
       useAra.getState().setPostFxOn(false);
       console.info(`[ara] lage framerate (${fps.toFixed(0)}fps) — schaduwen/postfx uit, dpr 1`);
     }
@@ -124,6 +144,15 @@ function SunRig({ daylight }: { daylight: Daylight }): JSX.Element {
   );
 }
 
+/** IBL volgt de dag: 's nachts dimt de studio-omgeving, anders is het nooit donker. */
+function EnvIntensity({ daylight }: { daylight: Daylight }): null {
+  const scene = useThree((s) => s.scene);
+  const target =
+    daylight.period === 'night' ? 0.12 : daylight.period === 'day' ? 1 : 0.45;
+  scene.environmentIntensity = target;
+  return null;
+}
+
 export function Scene(): JSX.Element {
   const world = useAra((s) => s.world);
   const select = useAra((s) => s.select);
@@ -137,15 +166,26 @@ export function Scene(): JSX.Element {
       shadows
       dpr={[1, 2]}
       camera={{ position: [14, 16, 14], zoom: 38, near: -100, far: 300 }}
-      gl={{ antialias: true, powerPreference: 'high-performance' }}
+      // Grading gebeurt éénmalig in de composer (ToneMapping-effect); de
+      // governor zet de renderer-tonemapping terug zodra postfx uitgaat.
+      gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.NoToneMapping }}
       onPointerMissed={() => select(null)}
       style={{ touchAction: 'none' }}
     >
       <color attach="background" args={[daylight.stops[0]]} />
       <fog attach="fog" args={[daylight.fogColor, 55, 120]} />
-      <ambientLight intensity={daylight.ambient} color="#fff1e0" />
+      <ambientLight intensity={daylight.ambient * 0.8} color="#fff1e0" />
       <SunRig daylight={daylight} />
-      <hemisphereLight args={['#9db8ff', '#e2a49a', 0.3]} />
+      <hemisphereLight args={['#9db8ff', '#e2a49a', 0.25]} />
+
+      {/* Procedurele studio-omgeving: zachte reflecties op koepels, goud en
+          water — één PMREM-bake (frames=1), nul netwerk-assets. */}
+      <EnvIntensity daylight={daylight} />
+      <Environment resolution={64} frames={1}>
+        <Lightformer form="rect" intensity={2.2} color="#ffe9c9" position={[6, 5, 3]} scale={[9, 5, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" intensity={0.9} color="#9db8ff" position={[-6, 4, -4]} scale={[7, 4, 1]} target={[0, 0, 0]} />
+        <Lightformer form="ring" intensity={0.7} color="#ffd0c0" position={[0, -3, 0]} scale={6} target={[0, 2, 0]} />
+      </Environment>
 
       <Suspense fallback={null}>
         <Backdrop />
@@ -172,10 +212,17 @@ export function Scene(): JSX.Element {
 
       {postFxOn && !perfLow && (
         <EffectComposer multisampling={0}>
+          {/* AO eerst (scene-pass), daarna beeldeffecten, grading als laatste stap vóór de garnish. */}
+          <N8AO quality="performance" halfRes aoRadius={0.9} intensity={1.15} distanceFalloff={1} />
           <SMAA />
           <Bloom intensity={0.7} luminanceThreshold={0.72} mipmapBlur radius={0.75} />
+          <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+          <HueSaturation saturation={0.14} />
+          <BrightnessContrast brightness={0.03} contrast={0.07} />
           <TiltShift2 blur={0.12} />
+          <ChromaticAberration offset={CHROMATIC_OFFSET} radialModulation={false} modulationOffset={0} />
           <Vignette eskil={false} offset={0.22} darkness={0.5} />
+          <Noise premultiply opacity={0.06} />
         </EffectComposer>
       )}
     </Canvas>
