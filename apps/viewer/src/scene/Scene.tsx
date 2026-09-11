@@ -14,8 +14,9 @@ import {
   Vignette,
 } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
-import { Environment, Lightformer } from '@react-three/drei';
+import { Environment, Lightformer, Sparkles } from '@react-three/drei';
 import * as THREE from 'three';
+import { windTime } from './wind.ts';
 import { useAra } from '../store.ts';
 import { CameraRig } from './CameraRig.tsx';
 import { HexGround } from './HexGround.tsx';
@@ -144,6 +145,14 @@ function SunRig({ daylight }: { daylight: Daylight }): JSX.Element {
   );
 }
 
+/** Tikt de gedeelde windklok — alle wind-shaders lopen op deze ene uniform. */
+function WindTicker(): null {
+  useFrame(({ clock }) => {
+    windTime.value = clock.elapsedTime;
+  });
+  return null;
+}
+
 /** IBL volgt de dag: 's nachts dimt de studio-omgeving, anders is het nooit donker. */
 function EnvIntensity({ daylight }: { daylight: Daylight }): null {
   const scene = useThree((s) => s.scene);
@@ -187,12 +196,20 @@ export function Scene(): JSX.Element {
         <Lightformer form="ring" intensity={0.7} color="#ffd0c0" position={[0, -3, 0]} scale={6} target={[0, 2, 0]} />
       </Environment>
 
+      <WindTicker />
       <Suspense fallback={null}>
         <Backdrop />
         <HexGround world={world} />
         <Landmarks world={world} />
         <AmbientLife />
         {!perfLow && <Weather />}
+        {/* Vuurvliegjes zodra het schemert/nacht is; goudstof overdag boven de hub. */}
+        {!perfLow && (daylight.period === 'night' || daylight.period === 'dusk') && (
+          <Sparkles count={90} scale={[26, 3, 26]} position={[0, 1.4, 0]} size={2.4} speed={0.25} color="#ffdf80" opacity={0.65} />
+        )}
+        {!perfLow && daylight.period === 'day' && (
+          <Sparkles count={30} scale={[6, 3, 6]} position={[0, 2, 0]} size={1.6} speed={0.15} color="#fff3d6" opacity={0.35} />
+        )}
         {world && (
           <>
             <Props world={world} />

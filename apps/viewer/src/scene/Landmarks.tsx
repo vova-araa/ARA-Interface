@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialToWorld, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
+import { FOLIAGE_MATERIAL } from './wind.ts';
 
 /** Low-poly procedural landmarks — no external assets. */
 
@@ -37,9 +38,9 @@ function ApricotTree({ seed = 0 }: { seed?: number }): JSX.Element {
         <cylinderGeometry args={[0.05, 0.08, 0.6, 6]} />
         <meshStandardMaterial color="#7a5230" />
       </mesh>
-      <mesh position={[0, 0.72, 0]} castShadow>
+      {/* kruin met GPU-wind (gedeeld materiaal, zie wind.ts) */}
+      <mesh position={[0, 0.72, 0]} castShadow material={FOLIAGE_MATERIAL}>
         <sphereGeometry args={[0.32, 8, 6]} />
-        <meshStandardMaterial color="#6aa84f" flatShading />
       </mesh>
       <mesh position={[0.15, 0.78, 0.12]}>
         <sphereGeometry args={[0.06, 6, 5]} />

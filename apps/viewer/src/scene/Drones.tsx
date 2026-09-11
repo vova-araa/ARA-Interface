@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Trail } from '@react-three/drei';
 import * as THREE from 'three';
 import { axialToWorld, stableHash, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
@@ -39,11 +40,13 @@ function Drone({ route }: { route: Route }): JSX.Element {
 
   return (
     <group ref={group} scale={0.7}>
-      {/* romp */}
-      <mesh castShadow>
-        <boxGeometry args={[0.22, 0.08, 0.22]} />
-        <meshStandardMaterial color="#e8eaf0" />
-      </mesh>
+      {/* romp — met gloeiend lint erachter (Trail volgt de wereldpositie) */}
+      <Trail width={0.6} length={5} decay={1.4} color="#7ec8ff" attenuation={(w) => w * w}>
+        <mesh castShadow>
+          <boxGeometry args={[0.22, 0.08, 0.22]} />
+          <meshStandardMaterial color="#e8eaf0" />
+        </mesh>
+      </Trail>
       {/* vier armen + rotors */}
       {[[-0.16, -0.16], [0.16, -0.16], [-0.16, 0.16], [0.16, 0.16]].map(([x, z], i) => (
         <group key={i} position={[x!, 0.03, z!]}>

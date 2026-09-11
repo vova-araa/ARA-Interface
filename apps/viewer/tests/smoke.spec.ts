@@ -37,11 +37,14 @@ test.describe('desktop 1280×800', () => {
     await expect(page.locator('canvas').first()).toBeVisible();
 
     // Time-scrubber exists in live mode; scrubbing enters replay, LIVE exits.
+    // Ruime timeouts: onder software-rendering (CI/container, geen GPU) haalt
+    // de async /history + replay-snapshot het niet altijd binnen de 5s-default
+    // terwijl de renderer op ReadPixels stalt — op echte hardware is dit direct.
     await expect(page.locator('.scrubber')).toBeVisible();
     await page.locator('.scrubber input').fill('500');
-    await expect(page.locator('.topbar-title')).toContainText('replay');
+    await expect(page.locator('.topbar-title')).toContainText('replay', { timeout: 15_000 });
     await page.locator('.scrubber .btn').click();
-    await expect(page.locator('.topbar-title')).not.toContainText('replay');
+    await expect(page.locator('.topbar-title')).not.toContainText('replay', { timeout: 15_000 });
     // Overzicht: ⊞ opent het venture-dashboard; Esc sluit.
     await page.locator('.topbar-actions .btn[title^="Overzicht"]').click();
     await expect(page.locator('.overview')).toBeVisible();
