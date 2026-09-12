@@ -2,9 +2,20 @@ import { create } from 'zustand';
 import {
   WorldState,
   type AraEvent,
+  type OfficeSnapshot,
   type WorldConfig,
   type WorldSnapshot,
 } from '@ara/shared';
+
+/** Chatbericht in een kantoorruimte (gebruiker ↔ agents/manager/chief). */
+export interface ChatMsg {
+  id: string;
+  room: string;
+  sender: string;
+  role: 'user' | 'agent' | 'manager' | 'supervisor';
+  text: string;
+  ts: number;
+}
 
 export type EffectType =
   | 'sparkle'
@@ -102,6 +113,14 @@ interface AraStore {
   liveStatus: Record<string, LiveStatus>;
   /** OTel-feed: sessionId → latency-statistiek. */
   latency: Record<string, LatencyStat>;
+  /** Open kantoor (projectnaam) of null wanneer we op de kaart staan. */
+  officeProject: string | null;
+  office: OfficeSnapshot | null;
+  officeLoading: boolean;
+  /** Geselecteerde werkplek of persoon in het kantoor. */
+  officeSelected: string | null;
+  chatRoom: string | null;
+  chatMessages: ChatMsg[];
 
   setConnected(connected: boolean): void;
   setWorld(world: WorldConfig): void;
@@ -128,6 +147,13 @@ interface AraStore {
   setAllLiveStatus(list: LiveStatus[]): void;
   setLatency(stat: LatencyStat): void;
   setAllLatency(list: LatencyStat[]): void;
+  openOffice(project: string): void;
+  closeOffice(): void;
+  setOffice(office: OfficeSnapshot | null): void;
+  selectStation(id: string | null): void;
+  setChatRoom(room: string | null): void;
+  setChatMessages(messages: ChatMsg[]): void;
+  addChatMessage(message: ChatMsg): void;
 }
 
 const worldState = new WorldState();
@@ -244,6 +270,12 @@ export const useAra = create<AraStore>((set, get) => ({
   replayTs: null,
   liveStatus: {},
   latency: {},
+  officeProject: null,
+  office: null,
+  officeLoading: false,
+  officeSelected: null,
+  chatRoom: null,
+  chatMessages: [],
 
   setConnected: (connected) => set({ connected }),
   setWorld: (world) => set({ world }),
@@ -380,6 +412,21 @@ export const useAra = create<AraStore>((set, get) => ({
     set((s) => ({ liveStatus: { ...s.liveStatus, [status.sessionId]: status } })),
   setAllLiveStatus: (list) =>
     set({ liveStatus: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),
+  openOffice: (project) =>
+    set({ officeProject: project, officeLoading: true, officeSelected: null, office: null }),
+  closeOffice: () =>
+    set({ officeProject: null, office: null, officeSelected: null, chatRoom: null, chatMessages: [] }),
+  setOffice: (office) => set({ office, officeLoading: false }),
+  selectStation: (id) => set({ officeSelected: id }),
+  setChatRoom: (room) => set({ chatRoom: room, chatMessages: [] }),
+  setChatMessages: (messages) => set({ chatMessages: messages }),
+  addChatMessage: (message) =>
+    set((s) =>
+      s.chatMessages.some((m) => m.id === message.id)
+        ? s
+        : { chatMessages: [...s.chatMessages, message].slice(-200) },
+    ),
+
   setLatency: (stat) => set((s) => ({ latency: { ...s.latency, [stat.sessionId]: stat } })),
   setAllLatency: (list) =>
     set({ latency: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),

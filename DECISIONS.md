@@ -65,3 +65,12 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - **Camera game-feel**: alle offsets additief ná controls.update() zodat ze niet met input vechten; trauma² shake met gladde sin-ruis, idle-drift na 8s, ortho focus-pull.
 - **SwiftShader-artefact**: de reconnect-smoke kreeg een 15s-assertietimeout — de replay-feature klopt (los geverifieerd) maar software-rendering stalt op ReadPixels onder de zwaardere scene; direct op echte GPU.
 - Bewust NIET: planar reflections + echte DoF + drei <Sky>/<Cloud> (CDN-fetch / kapot onder ortho / te duur op mobiel) — allemaal geverifieerd afgewezen.
+
+## Kantoren per project (2026-09-12)
+- **Eén samensteller, twee consumenten**: `buildOffice()` staat in `@ara/shared`, net als de WorldState-reducer, zodat collector en viewer nooit uit elkaar lopen.
+- **Branche bepaalt de taal**: `KIND_SPECS` geeft per tak eigen kolommen (Chauffeur/ETA bij planning, Kenteken/APK bij wagenpark, Ingang/Stop/Doel bij handel). Eén generiek kantoor zou alle takken hetzelfde laten klinken; dat was juist de vraag niet.
+- **Eerlijk over verzonnen cijfers**: zonder door agents aangeleverde werkplek-data vult `buildOffice` deterministisch in én zet `simulated: true`; de UI toont dan zichtbaar "voorbeeldcijfers". Zodra één station echt gepusht wordt, vervalt de markering. Nooit stilzwijgend nepdata tonen.
+- **Chat is echt werk**: een vraag in de kantoorchat wordt óók een bordtaak bij de aangesproken rol (`CHAT: …`), zodat de bestaande watchdog die agent wakker maakt. Antwoorden van agents maken géén taak aan — anders ontstaat een lus.
+- **Nieuwe tak `crypto`** toegevoegd (eigen district + kantoor met 18 munten); `trading` blijft de XAU/USD-bots. De entiteiten per kantoor staan in `offices` in org.json zodat de gebruiker ze zelf kan aanpassen.
+- **Twee canvassen, één actief**: zolang een kantoor open staat draait de wereld op `frameloop="never"` — geen twee 3D-scenes die tegelijk de GPU vullen.
+- **Chat-dedupe**: de POST geeft het opgeslagen bericht met server-id terug; dat wordt toegevoegd, waardoor de SSE-echo van hetzelfde bericht wegvalt tegen de id-dedupe (anders stond elke vraag dubbel).

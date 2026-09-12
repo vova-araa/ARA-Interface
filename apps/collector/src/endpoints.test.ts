@@ -166,3 +166,74 @@ test('/otel/v1/logs: tool_result → latency-statistiek per sessie', async () =>
     store.close();
   }
 });
+
+test('/office: branche-kantoor, werkplek-data van agents en chat naar het bord', async () => {
+  const { store, server, base } = boot();
+  try {
+    // Kantoor van een onbekend project valt terug op het generieke kantoor.
+    const office = (await (await fetch(`${base}/office/truck-trailers`)).json()) as {
+      kind: string;
+      stations: { id: string; status: string; value: number }[];
+      staff: { role: string }[];
+      simulated: boolean;
+    };
+    assert.ok(office.stations.length > 0, 'kantoor heeft werkplekken');
+    assert.ok(office.staff.some((s) => s.role === 'supervisor'));
+    assert.equal(office.simulated, true, 'zonder agent-data zijn het voorbeeldcijfers');
+
+    // Een agent duwt echte werkplek-data in; die wint.
+    const push = await fetch(`${base}/office/truck-trailers/station`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: office.stations[0]!.id, status: 'alert', value: 42 }),
+    });
+    assert.equal(push.status, 200);
+    const updated = (await (await fetch(`${base}/office/truck-trailers`)).json()) as typeof office;
+    assert.equal(updated.simulated, false);
+    const station = updated.stations.find((s) => s.id === office.stations[0]!.id)!;
+    assert.equal(station.status, 'alert');
+    assert.equal(station.value, 42);
+
+    // Zonder id is een push ongeldig.
+    assert.equal(
+      (await fetch(`${base}/office/truck-trailers/station`, { method: 'POST', headers: json, body: '{}' })).status,
+      400,
+    );
+
+    // Chat: het bericht wordt bewaard én landt als taak bij de aangesproken rol.
+    const room = 'office:truck-trailers';
+    const sent = (await (
+      await fetch(`${base}/chat`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ room, text: 'Staat truck 42 nog in de garage?', to: 'manager:blex', project: 'truck-trailers' }),
+      })
+    ).json()) as { ok: boolean; message: { id: string; role: string }; taskId: string };
+    assert.equal(sent.ok, true);
+    assert.equal(sent.message.role, 'user');
+    assert.ok(sent.taskId, 'chatvraag wordt echt werk op het bord');
+    assert.equal(store.getTask(sent.taskId)!.assignee, 'manager:blex');
+
+    const history = (await (await fetch(`${base}/chat?room=${encodeURIComponent(room)}`)).json()) as {
+      messages: { text: string }[];
+    };
+    assert.equal(history.messages.length, 1);
+    assert.equal(history.messages[0]!.text, 'Staat truck 42 nog in de garage?');
+
+    // Een antwoord van een agent maakt géén nieuwe taak aan (anders lus).
+    const reply = (await (
+      await fetch(`${base}/chat`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ room, role: 'manager', sender: 'Manager Truck & Trailers', text: 'Ja, remmen worden vervangen.' }),
+      })
+    ).json()) as { taskId?: string };
+    assert.equal(reply.taskId, undefined);
+
+    // room is verplicht
+    assert.equal((await fetch(`${base}/chat`, { method: 'POST', headers: json, body: '{}' })).status, 400);
+  } finally {
+    server.close();
+    store.close();
+  }
+});

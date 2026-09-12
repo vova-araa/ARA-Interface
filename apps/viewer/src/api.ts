@@ -1,5 +1,5 @@
 import type { AraEvent, WorldConfig, WorldSnapshot } from '@ara/shared';
-import { useAra, type LatencyStat, type LiveStatus } from './store.ts';
+import { useAra, type ChatMsg, type LatencyStat, type LiveStatus } from './store.ts';
 
 /**
  * Auth token for online deployments (collector started with ARA_TOKEN).
@@ -88,6 +88,17 @@ export function connectLive(): void {
     source.addEventListener('status', (msg) => {
       try {
         useAra.getState().setLiveStatus(JSON.parse((msg as MessageEvent).data) as LiveStatus);
+      } catch {
+        /* skip malformed frame */
+      }
+    });
+    source.addEventListener('chat', (msg) => {
+      try {
+        const message = JSON.parse((msg as MessageEvent).data) as ChatMsg;
+        // Alleen de ruimte die nu open staat bijwerken.
+        if (useAra.getState().officeProject && message.room === `office:${useAra.getState().officeProject}`) {
+          useAra.getState().addChatMessage(message);
+        }
       } catch {
         /* skip malformed frame */
       }

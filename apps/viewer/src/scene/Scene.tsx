@@ -169,9 +169,12 @@ export function Scene(): JSX.Element {
   const postFxOn = useAra((s) => s.postFxOn);
   const perfLow = useAra((s) => s.perfLow);
   const daylight = useDaylight();
+  // Kantoor open = wereld bevroren: geen twee scenes die tegelijk de GPU vullen.
+  const officeOpen = useAra((s) => s.officeProject !== null);
 
   return (
     <Canvas
+      frameloop={officeOpen ? 'never' : 'always'}
       orthographic
       shadows
       dpr={[1, 2]}

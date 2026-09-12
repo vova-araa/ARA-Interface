@@ -6,7 +6,9 @@
     "branchPrefix": "ara/",
     "tokenBudgetDaily": 2000000,
     "repoRoot": "~/dev",
-    "hiddenVentures": ["misc"],
+    "hiddenVentures": [
+      "misc"
+    ],
     "models": {
       "supervisor": "default",
       "manager": "default",
@@ -76,6 +78,112 @@
       "manager": "manager:vovara",
       "priority": 2,
       "focus": "Muziek: releases, site, promotie."
+    },
+    {
+      "id": "crypto",
+      "manager": "manager:crypto",
+      "priority": 1,
+      "focus": "Crypto desk: munten volgen, setups bewaken, on-chain data. STRIKT read-only op live posities; elke order-wijziging is een automatische ESCALATE."
     }
-  ]
+  ],
+  "offices": {
+    "crypto": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "ADA",
+      "XRP",
+      "DOT",
+      "LINK",
+      "UNI",
+      "AAVE",
+      "DOGE",
+      "XLM",
+      "INJ",
+      "PAXG",
+      "SUI",
+      "TAO",
+      "NEAR",
+      "ZEC",
+      "HYPE"
+    ],
+    "trading": [
+      "XAUUSD",
+      "XAGUSD",
+      "EURUSD",
+      "GBPUSD",
+      "USDJPY",
+      "US30",
+      "NAS100",
+      "SPX500",
+      "BRENT",
+      "WTI",
+      "DAX40",
+      "AUDUSD"
+    ],
+    "traject": [
+      "NL-DE Venlo",
+      "NL-BE Antwerpen",
+      "DE-PL Poznan",
+      "NL-FR Lille",
+      "BE-DE Keulen",
+      "NL-NL Randstad",
+      "DE-AT Wenen",
+      "NL-DK Aarhus",
+      "FR-ES Girona",
+      "NL-CZ Praag",
+      "DE-IT Milaan",
+      "NL-UK Dover"
+    ],
+    "blex": [
+      "Truck 41",
+      "Truck 42",
+      "Truck 47",
+      "Truck 53",
+      "Trailer T-08",
+      "Trailer T-11",
+      "Trailer T-19",
+      "Truck 61",
+      "Trailer T-24",
+      "Truck 66",
+      "Trailer T-30",
+      "Truck 72"
+    ],
+    "elevate": [
+      "Campagne Lente",
+      "Merkgids",
+      "Webshop-hero",
+      "Social pack",
+      "Verpakking",
+      "Pitch-deck",
+      "Nieuwsbrief",
+      "Billboard",
+      "Productfoto",
+      "Logo-refresh"
+    ],
+    "uprising": [
+      "Sessie A",
+      "Sessie B",
+      "Mix-room",
+      "Master",
+      "Boeking NL",
+      "Boeking DE",
+      "Site-release",
+      "Audio-tool",
+      "Podcast",
+      "Live-set"
+    ],
+    "vovara": [
+      "Single 1",
+      "Single 2",
+      "EP-track A",
+      "EP-track B",
+      "Remix",
+      "Videoclip",
+      "Promo NL",
+      "Promo DE",
+      "Playlist-pitch",
+      "Merch"
+    ]
+  }
 }

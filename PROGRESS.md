@@ -176,3 +176,12 @@
 - ✅ Stap 3: Monument-Valley-shading (koele schaduw-tint + fresnel-rim via stylize.ts) op de platforms, ink-outlines op de pods.
 - ✅ Stap 4: abrikozenbloesem-petals (1 instanced draw), crowd-kopjes die tijdens pauze rondkijken.
 - Alles achter de QualityGovernor, nul nieuwe render-deps, nul externe assets. Op je Mac (echte GPU) draait dit op 60fps met alle lagen aan.
+
+## Kantoren per project (2026-09-12)
+- ✅ Elk huisje op de kaart heeft een eigen 3D-kantoor: klik het projectlabel (of `?office=<project>`).
+- ✅ Per branche geperfectioneerd: Sharzi TMS (ritplanning), Truck & Trailers (wagenpark + garage), handelsvloer, crypto-vloer (18 munten), design/studio/muziek, generiek.
+- ✅ Bureaurijen met werkende agents, naamplaatjes, zwevend resultaat, muurscherm met portefeuille + live grafiek, feitenfeed, glazen vergaderruimte, manager én chief in beeld.
+- ✅ Klik op een bureau → detailpaneel met alle cijfers, belofte × geleverd en verloopcurve.
+- ✅ Chat met agent/manager/chief; de vraag landt als bordtaak zodat de watchdog die rol wakker maakt.
+- ✅ 36 unit tests + 4 Playwright-flows groen.
+- **Mac-stap**: niets extra's nodig. Wil je andere munten/wagens/routes in een kantoor? Pas `offices` aan in `plugins/ara/org.json`.

@@ -29,6 +29,7 @@ export const VENTURES: VentureStyle[] = [
   { id: 'elevate', label: 'Elevate Design', color: '#ff3fa4', landmark: 'billboard', match: ['elevate'] },
   { id: 'uprising', label: 'Uprising Studio', color: '#ff8a3d', landmark: 'stage', match: ['uprising', 'studio'] },
   { id: 'trading', label: 'Trading bots', color: '#e6b800', landmark: 'obelisk', match: ['trading', 'xau', 'bot'] },
+  { id: 'crypto', label: 'Crypto desk', color: '#f7931a', landmark: 'obelisk', match: ['crypto', 'coin', 'onchain', 'defi'] },
   { id: 'vovara', label: 'Vovara (music)', color: '#9b5cff', landmark: 'mic-statue', match: ['vovara', 'music'] },
   { id: 'misc', label: 'Nor Kaghak', color: '#9aa5b1', landmark: 'khachkar', match: [] },
 ];

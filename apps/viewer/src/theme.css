@@ -432,3 +432,144 @@ html, body, #root {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ── Kantoren: interieur per project ──────────────────────────────────── */
+.office-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  grid-template-rows: 56px 1fr;
+  background: #120b28;
+  color: #ece7ff;
+}
+.office-topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 14px;
+  background: rgba(24, 15, 52, 0.96);
+  border-bottom: 1px solid rgba(150, 120, 255, 0.25);
+}
+.office-title { display: flex; flex-direction: column; line-height: 1.15; }
+.office-title strong { font-size: 15px; }
+.office-title span { font-size: 12px; opacity: 0.85; }
+.office-sim {
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 176, 32, 0.16);
+  color: #ffb020;
+  border: 1px solid rgba(255, 176, 32, 0.35);
+}
+.office-headline { margin-left: auto; display: flex; align-items: baseline; gap: 10px; }
+.office-headline span { font-size: 11px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.06em; }
+.office-headline strong { font-size: 20px; }
+.office-headline em { font-style: normal; font-weight: 700; font-size: 14px; }
+.office-canvas { position: relative; min-width: 0; min-height: 0; }
+.office-canvas canvas { display: block; width: 100% !important; height: 100% !important; }
+.office-loading { display: grid; place-items: center; height: 100%; opacity: 0.6; font-size: 14px; }
+
+.office-side {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 0;
+  background: rgba(20, 13, 44, 0.97);
+  border-left: 1px solid rgba(150, 120, 255, 0.22);
+}
+.office-tabs { display: flex; gap: 6px; padding: 10px 12px 0; }
+.office-tabs button {
+  flex: 1;
+  padding: 8px;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid rgba(150, 120, 255, 0.2);
+  border-bottom: none;
+  background: transparent;
+  color: #cdc4f0;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.office-tabs button.active { background: rgba(150, 120, 255, 0.16); color: #fff; }
+.office-side-body { overflow-y: auto; padding: 12px; min-height: 0; }
+.office-note { font-size: 12px; opacity: 0.6; margin: 6px 0; }
+
+.office-list { display: flex; flex-direction: column; gap: 4px; }
+.office-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.office-row:hover, .office-row.active { background: rgba(150, 120, 255, 0.16); border-color: rgba(150, 120, 255, 0.35); }
+.office-row-label { display: flex; flex-direction: column; flex: 1; font-size: 13px; }
+.office-row-label em { font-style: normal; font-size: 11px; opacity: 0.55; }
+.office-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.office-status-working { background: #6ee7ff; }
+.office-status-idle { background: #6b6390; }
+.office-status-alert { background: #ff6b6b; }
+.office-status-done { background: #4ade80; }
+
+.office-detail h3 { margin: 0; font-size: 15px; }
+.office-detail h4 { margin: 16px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.55; }
+.office-detail p { margin: 2px 0 0; font-size: 12px; opacity: 0.65; }
+.office-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.office-status {
+  font-size: 11px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08); text-transform: uppercase; letter-spacing: 0.05em;
+}
+.office-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.office-kpi {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04);
+}
+.office-kpi span { font-size: 10px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.05em; }
+.office-kpi strong { font-size: 15px; }
+.office-metrics { display: flex; flex-direction: column; gap: 2px; }
+.office-metric { display: flex; justify-content: space-between; font-size: 12.5px; padding: 5px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.office-metric span { opacity: 0.6; }
+.office-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.office-table th { font-weight: 500; opacity: 0.5; text-align: right; font-size: 10.5px; text-transform: uppercase; }
+.office-table th:first-child { text-align: left; }
+.office-table td { padding: 5px 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); text-align: right; }
+.office-table td:first-child { text-align: left; opacity: 0.7; }
+.office-spark { width: 100%; height: 40px; }
+.office-person h3 { margin: 0 0 2px; font-size: 15px; }
+.office-person { padding: 10px; border-radius: 10px; background: rgba(150, 120, 255, 0.12); margin-bottom: 10px; }
+.office-person p { margin: 0; font-size: 12px; opacity: 0.7; }
+
+.office-chat { border-top: 1px solid rgba(150, 120, 255, 0.22); display: flex; flex-direction: column; max-height: 46vh; }
+.office-chat-head { padding: 8px 12px; font-size: 12px; opacity: 0.75; }
+.office-chat-list { flex: 1; overflow-y: auto; padding: 0 12px 8px; display: flex; flex-direction: column; gap: 6px; min-height: 70px; }
+.office-msg { padding: 7px 10px; border-radius: 12px; font-size: 12.5px; max-width: 88%; }
+.office-msg-from { display: block; font-size: 10px; opacity: 0.55; margin-bottom: 2px; }
+.office-msg-me { align-self: flex-end; background: rgba(130, 100, 230, 0.45); }
+.office-msg-them { align-self: flex-start; background: rgba(255, 255, 255, 0.07); }
+.office-chat-input { display: flex; gap: 6px; padding: 8px 12px 12px; }
+.office-chat-input input {
+  flex: 1; padding: 9px 11px; border-radius: 10px;
+  border: 1px solid rgba(150, 120, 255, 0.3); background: rgba(0, 0, 0, 0.3);
+  color: inherit; font: inherit; font-size: 13px;
+}
+.office-chat-input button {
+  padding: 9px 14px; border-radius: 10px; border: none;
+  background: #7c5cff; color: #fff; font: inherit; font-size: 13px; cursor: pointer;
+}
+.office-chat-input button:disabled { opacity: 0.5; cursor: default; }
+
+@media (max-width: 900px) {
+  .office-overlay { grid-template-columns: 1fr; grid-template-rows: 52px 42vh 1fr; }
+  .office-headline { display: none; }
+  .office-side { border-left: none; border-top: 1px solid rgba(150, 120, 255, 0.22); }
+  .office-chat { max-height: 36vh; }
+}

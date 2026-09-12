@@ -91,3 +91,36 @@ test.describe('iPhone 390×844', () => {
     expect(scrollWidth).toBeLessThanOrEqual(390);
   });
 });
+
+test.describe('kantoren 1400×900', () => {
+  test.use({ viewport: { width: 1400, height: 900 } });
+
+  test('kantoor: werkvloer, detailpaneel en chat', async ({ page }) => {
+    await page.goto('/?office=truck-trailers');
+    // Het kantoor rendert en toont de branche-naam.
+    await expect(page.locator('.office-overlay')).toBeVisible();
+    await expect(page.locator('.office-topbar')).toContainText('truck-trailers');
+    await expect(page.locator('canvas').first()).toBeVisible();
+
+    // Werkplekken staan in de lijst; klikken opent het detailpaneel.
+    const rows = page.locator('.office-row');
+    await expect(rows.first()).toBeVisible({ timeout: 15_000 });
+    await rows.first().click();
+    await expect(page.locator('.office-detail')).toBeVisible();
+    await expect(page.locator('.office-table')).toBeVisible();
+
+    // Team-tab toont de leiding: chief en manager horen er altijd te zijn.
+    await page.locator('.office-tabs button', { hasText: 'Team' }).click();
+    await expect(page.locator('.office-list')).toContainText('ARA Chief');
+
+    // Chat: een vraag verschijnt in het gesprek.
+    const before = await page.locator('.office-msg').count();
+    await page.locator('.office-chat-input input').fill('Is truck 42 al klaar?');
+    await page.locator('.office-chat-input button').click();
+    await expect(page.locator('.office-msg')).toHaveCount(before + 1, { timeout: 15_000 });
+
+    // Terug naar de kaart.
+    await page.locator('.office-topbar .btn').click();
+    await expect(page.locator('.office-overlay')).toHaveCount(0);
+  });
+});

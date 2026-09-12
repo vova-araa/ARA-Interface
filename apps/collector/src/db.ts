@@ -61,6 +61,24 @@ export interface UsageSummaryRow {
   cacheCreateTokens: number;
 }
 
+/** Door agents aangeleverde werkplek-data voor een kantoor. */
+export interface StationRow {
+  project: string;
+  stationId: string;
+  json: string;
+  updatedAt: number;
+}
+
+/** Chatbericht in een kantoor-ruimte (gebruiker ↔ agents). */
+export interface ChatMessage {
+  id: string;
+  room: string;
+  sender: string;
+  role: 'user' | 'agent' | 'manager' | 'supervisor';
+  text: string;
+  ts: number;
+}
+
 export interface TaskStore {
   createTask(task: BoardTask): void;
   updateTask(
@@ -69,6 +87,10 @@ export interface TaskStore {
   ): BoardTask | null;
   getTask(id: string): BoardTask | null;
   listTasks(filter: { status?: string; assignee?: string; project?: string; limit?: number }): BoardTask[];
+  upsertStation(row: StationRow): void;
+  listStations(project: string): StationRow[];
+  addMessage(message: ChatMessage): void;
+  listMessages(room: string, limit?: number): ChatMessage[];
   upsertUsage(usage: SessionUsage): void;
   /** Per-project totals for sessions updated since `from`. */
   usageSummary(from: number): UsageSummaryRow[];
@@ -137,6 +159,22 @@ export function openStore(dbPath = DB_PATH): EventStore {
       PRIMARY KEY (day, session_id)
     );
     CREATE INDEX IF NOT EXISTS idx_usage_days_day ON usage_days(day);
+    CREATE TABLE IF NOT EXISTS office_stations (
+      project TEXT NOT NULL,
+      station_id TEXT NOT NULL,
+      json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (project, station_id)
+    );
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      room TEXT NOT NULL,
+      sender TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'user',
+      text TEXT NOT NULL,
+      ts INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_chat_room ON chat_messages(room, ts);
   `);
 
   const insertStmt = db.prepare(
@@ -250,6 +288,32 @@ export function openStore(dbPath = DB_PATH): EventStore {
       const sql = `SELECT * FROM tasks ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY updated_at DESC LIMIT @limit`;
       return (db.prepare(sql).all(params) as TaskRow[]).map(rowToTask);
     },
+    upsertStation(row) {
+      db.prepare(`
+        INSERT INTO office_stations (project, station_id, json, updated_at)
+        VALUES (@project, @stationId, @json, @updatedAt)
+        ON CONFLICT(project, station_id) DO UPDATE SET
+          json = excluded.json,
+          updated_at = excluded.updated_at
+      `).run(row);
+    },
+    listStations(project) {
+      return db
+        .prepare('SELECT project, station_id AS stationId, json, updated_at AS updatedAt FROM office_stations WHERE project = ?')
+        .all(project) as StationRow[];
+    },
+    addMessage(message) {
+      db.prepare(
+        'INSERT OR REPLACE INTO chat_messages (id, room, sender, role, text, ts) VALUES (@id, @room, @sender, @role, @text, @ts)',
+      ).run(message);
+    },
+    listMessages(room, limit = 100) {
+      return (
+        db
+          .prepare('SELECT * FROM chat_messages WHERE room = ? ORDER BY ts DESC LIMIT ?')
+          .all(room, limit) as ChatMessage[]
+      ).reverse();
+    },
     upsertUsage(usage) {
       // Delta t.o.v. de vorige absolute stand → bijschrijven op vandaag.
       // Collector-lokale tijdzone is de enige autoriteit voor "vandaag".
@@ -317,6 +381,7 @@ export function openStore(dbPath = DB_PATH): EventStore {
       db.prepare("DELETE FROM tasks WHERE status IN ('done','failed') AND updated_at < ?").run(cutoff);
       db.prepare('DELETE FROM usage WHERE updated_at < ?').run(cutoff);
       db.prepare('DELETE FROM usage_days WHERE day < ?').run(localDay(cutoff));
+      db.prepare('DELETE FROM chat_messages WHERE ts < ?').run(cutoff);
     },
     close() {
       db.close();

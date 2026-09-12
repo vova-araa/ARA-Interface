@@ -4,10 +4,14 @@ import express, { type Response } from 'express';
 import {
   AraEventSchema,
   IncomingEventSchema,
+  buildOffice,
   capText,
+  placementForProject,
   redactValue,
+  VENTURES,
   WorldState,
   type AraEvent,
+  type StationOverride,
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
@@ -32,7 +36,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency)(\/|$)/i;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -481,6 +485,140 @@ export function createCollector(store: EventStore): CollectorApp {
   app.get('/latency', (req, res) => {
     allowOrigin(req, res);
     res.json({ latency: [...latencyStats.values()] });
+  });
+
+  // ── Kantoren: per project een branche-specifiek kantoor ────────────────
+  /** Branche-entiteiten (munten, wagens, routes) uit org.json, optioneel. */
+  function officeEntities(ventureId: string): string[] | undefined {
+    try {
+      const org = JSON.parse(fs.readFileSync(ORG_JSON_PATH, 'utf8')) as {
+        offices?: Record<string, string[]>;
+      };
+      const list = org.offices?.[ventureId];
+      return Array.isArray(list) && list.length > 0 ? list : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  app.get('/office/:project', (req, res) => {
+    allowOrigin(req, res);
+    const project = req.params.project;
+    const world = loadOrBuildWorldConfig();
+    const placement = placementForProject(world, project);
+    const venture = VENTURES.find((v) => v.id === placement.venture) ?? VENTURES[VENTURES.length - 1]!;
+    const snapshot = state.snapshot();
+    const sessions = Object.values(snapshot.sessions).filter((s) => s.project === project);
+    const tasks = store
+      .listTasks({ project, limit: 40 })
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        detail: t.detail,
+        status: t.status,
+        assignee: t.assignee,
+        createdBy: t.createdBy,
+        updatedAt: t.updatedAt,
+      }));
+    const overrides: StationOverride[] = [];
+    for (const row of store.listStations(project)) {
+      try {
+        overrides.push({ id: row.stationId, ...(JSON.parse(row.json) as Omit<StationOverride, 'id'>) });
+      } catch {
+        /* kapotte rij overslaan */
+      }
+    }
+    res.json(
+      buildOffice({
+        project,
+        venture,
+        sessions,
+        tasks,
+        entities: officeEntities(venture.id),
+        overrides,
+        now: Date.now(),
+      }),
+    );
+  });
+
+  /** Agents duwen hier echte werkplek-data in (vervangt de ingevulde cijfers). */
+  app.post('/office/:project/station', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const stationId = String(body.id ?? '');
+    if (!stationId) {
+      res.status(400).json({ ok: false, error: 'id required' });
+      return;
+    }
+    const { id: _ignored, ...rest } = body;
+    store.upsertStation({
+      project: req.params.project,
+      stationId,
+      json: JSON.stringify(rest).slice(0, 8000),
+      updatedAt: Date.now(),
+    });
+    broadcastFrame('event: office\ndata: {}\n\n');
+    res.json({ ok: true });
+  });
+
+  // ── Chat: gebruiker praat direct met agents, managers en de chief ───────
+  app.get('/chat', (req, res) => {
+    allowOrigin(req, res);
+    const room = String(req.query.room ?? '');
+    if (!room) {
+      res.status(400).json({ ok: false, error: 'room required' });
+      return;
+    }
+    res.json({ messages: store.listMessages(room, 100) });
+  });
+
+  app.post('/chat', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const room = String(body.room ?? '');
+    const text = capText(String(body.text ?? ''), 2000);
+    if (!room || !text) {
+      res.status(400).json({ ok: false, error: 'room and text required' });
+      return;
+    }
+    const roleRaw = String(body.role ?? 'user');
+    const role = (['user', 'agent', 'manager', 'supervisor'].includes(roleRaw) ? roleRaw : 'user') as
+      | 'user'
+      | 'agent'
+      | 'manager'
+      | 'supervisor';
+    const message = {
+      id: crypto.randomUUID(),
+      room,
+      sender: capText(String(body.sender ?? (role === 'user' ? 'jij' : role)), 60) ?? role,
+      role,
+      text,
+      ts: Date.now(),
+    };
+    store.addMessage(message);
+    broadcastFrame(`event: chat\ndata: ${JSON.stringify(message)}\n\n`);
+
+    // Een vraag van de gebruiker wordt echt werk: hij landt op het bord bij de
+    // aangesproken rol, zodat de watchdog die agent wakker maakt.
+    if (role === 'user') {
+      const to = capText(String(body.to ?? 'supervisor'), 80) ?? 'supervisor';
+      const task = {
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        title: capText(`CHAT: ${text}`, 200) ?? 'CHAT',
+        detail: `Kantoorchat uit "${room}".\nAntwoord met POST /chat {"room":"${room}","role":"agent","sender":"<jouw naam>","text":"…"}\n\nVraag:\n${text}`,
+        project: capText(String(body.project ?? ''), 120) ?? '',
+        assignee: to,
+        createdBy: 'user',
+        parentId: null,
+        status: 'open' as const,
+        result: '',
+      };
+      store.createTask(task);
+      notifyTasks();
+      res.json({ ok: true, message, taskId: task.id });
+      return;
+    }
+    res.json({ ok: true, message });
   });
 
   app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));

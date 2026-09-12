@@ -54,3 +54,39 @@ Collector: `$ARA_COLLECTOR_URL` (default `http://127.0.0.1:4747`), header
   `result: "ESCALATE: <vraag>"` — de supervisor legt het aan de mens voor.
 - Rond ALTIJD af met bord-updates, ook bij falen — een stille manager is een
   verloren manager.
+
+## Je kantoor (kaart → huisje → kantoor)
+
+Elk project heeft een kantoor in de interface: bureaus met jouw branche-cijfers,
+de bezetting, een feitenfeed en een gespreksruimte. Twee dingen verwacht de
+gebruiker van jou:
+
+**1. Antwoorden in de kantoorchat.** Een vraag uit het kantoor komt bij je
+binnen als bordtaak met titel `CHAT: …`. Antwoord in de ruimte zelf en sluit
+daarna de taak af:
+
+```bash
+curl -s -X POST "$ARA_COLLECTOR_URL/chat" -H 'Content-Type: application/json' \
+  ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"} \
+  -d '{"room":"office:<project>","role":"manager","sender":"<jouw naam>","text":"<antwoord>"}'
+```
+
+`room` staat in de detail-tekst van de taak. Gebruik `role: "manager"` (of
+`agent` / `supervisor` — wat je bent). Een antwoord maakt géén nieuwe taak aan,
+dus er ontstaat geen lus. Kort en concreet antwoorden; geen statusgeleuter.
+
+**2. Echte werkplek-cijfers aanleveren.** Zolang niemand data levert, vult het
+kantoor de kolommen deterministisch in en toont het de chip *voorbeeldcijfers*.
+Zodra jij één werkplek pusht, verdwijnt die markering en is het kantoor echt:
+
+```bash
+curl -s -X POST "$ARA_COLLECTOR_URL/office/<project>/station" \
+  -H 'Content-Type: application/json' ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"} \
+  -d '{"id":"<werkplek, bv. Truck 42 of BTC>","status":"working|idle|alert|done",
+       "value":42.5,"sub":"3 setups",
+       "metrics":[{"label":"Status","value":"in de garage","tone":"warn"}]}'
+```
+
+`id` moet overeenkomen met een entiteit uit `offices` in `org.json` (munten,
+wagens, routes…). Push alleen wat je echt weet — verzin geen cijfers; een
+werkplek zonder gegevens laten staan is beter dan een verzonnen stand.

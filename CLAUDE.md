@@ -26,8 +26,10 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 33 unit tests (shared + collector, node:test via tsx)
-pnpm --filter @ara/viewer exec playwright test   # 3 smoke-flows (desktop + iPhone)
+pnpm test                    # 36 unit tests (shared + collector, node:test via tsx)
+pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhone, kantoor)
+#   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
+#   anders test je een oude build (CI bouwt wél eerst).
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
@@ -53,6 +55,25 @@ Container/CI-bijzonderheden:
 - Hooks (`plugins/ara/hooks/emit.sh`) zijn fire-and-forget: curl met `--max-time`,
   gebackgroundend, altijd exit 0 — een kapotte collector mag Claude Code nooit blokkeren.
 - Commit-berichten: gewone beschrijvende Engelse messages (bestaande stijl volgen).
+
+## Kantoren (per project een interieur)
+
+- Klik op een projectlabel in de wereld → `OfficeOverlay` opent het 3D-kantoor;
+  `?office=<project>` is de diep-link (ook vanaf de telefoon).
+- Samenstelling gebeurt in `packages/shared/src/office.ts` (`buildOffice`) zodat
+  collector én viewer exact hetzelfde kantoor zien — dezelfde symmetrie-regel
+  als de WorldState-reducer.
+- De branche bepaalt layout en woordenschat (`OFFICE_KIND_BY_VENTURE`):
+  tms = ritplanning, fleet = wagenpark/garage, trading + crypto = handelsvloer,
+  design/studio/music = productie, generic = de rest.
+- Entiteiten per branche (munten, wagens, routes) staan in `offices` in
+  `plugins/ara/org.json` — dat is de plek om ze aan te passen.
+- Agents leveren echte cijfers via `POST /office/:project/station`; zolang dat
+  niet gebeurt vult `buildOffice` deterministisch in en staat `simulated: true`
+  (de UI toont dan "voorbeeldcijfers" — nooit stilzwijgend nepdata).
+- Kantoorchat: `GET/POST /chat` met `room: "office:<project>"`. Een vraag van de
+  gebruiker wordt óók een bordtaak bij de aangesproken rol, zodat de watchdog
+  die agent wakker maakt en er echt antwoord komt.
 
 ## Auth & toegang
 

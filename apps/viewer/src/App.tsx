@@ -10,6 +10,7 @@ import { BoardPanel } from './ui/BoardPanel.tsx';
 import { OverviewPanel } from './ui/OverviewPanel.tsx';
 import { Ticker } from './ui/Ticker.tsx';
 import { SoundPlayer } from './ui/Sound.tsx';
+import { OfficeOverlay } from './office/OfficeOverlay.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
 import { runDemo } from './demo.ts';
@@ -28,6 +29,10 @@ export function App(): JSX.Element {
     wired = true;
     if (demo) void runDemo();
     else connectLive();
+    // Diep-link: ?office=<project> opent dat kantoor meteen (handig op de
+    // telefoon en om een kantoor te delen).
+    const office = new URLSearchParams(location.search).get('office');
+    if (office) useAra.getState().openOffice(office);
     // Wiring is app-lifetime; never torn down.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -71,6 +76,7 @@ export function App(): JSX.Element {
       <ReconnectBanner />
       <NudgePulse />
       <SoundPlayer />
+      <OfficeOverlay />
       {/* Mobiel: veeg omhoog vanaf de onderrand om de threadlijst te openen */}
       {!panelOpen && (
         <div

@@ -155,3 +155,90 @@ test('nieuwe hook-kinds: model, permissie, compaction, worktree in de reducer', 
   state.apply(ev('permission.deny', 70));
   assert.equal(state.snapshot().sessions['sm']!.needsHuman, false);
 });
+
+test('buildOffice: elke branche krijgt zijn eigen werkplekken en taal', async () => {
+  const { buildOffice, officeKindForVenture } = await import('./office.ts');
+  const { VENTURES } = await import('./world.ts');
+  const venture = (id: string) => VENTURES.find((v) => v.id === id)!;
+  const base = { sessions: [], tasks: [], now: 1_700_000_000_000 };
+
+  const fleet = buildOffice({ ...base, project: 'truck-trailers', venture: venture('blex') });
+  assert.equal(fleet.kind, 'fleet');
+  assert.ok(fleet.stations.length > 0);
+  assert.ok(fleet.stations[0]!.metrics.some((m) => m.label === 'Kenteken'), 'wagenpark kent kentekens');
+
+  const tms = buildOffice({ ...base, project: 'sharzi-tms', venture: venture('traject') });
+  assert.equal(tms.kind, 'tms');
+  assert.ok(tms.stations[0]!.metrics.some((m) => m.label === 'Chauffeur'), 'planning kent chauffeurs');
+
+  const crypto = buildOffice({ ...base, project: 'crypto-desk', venture: venture('crypto') });
+  assert.equal(crypto.kind, 'crypto');
+  assert.equal(crypto.valueKind, 'money');
+  assert.ok(crypto.stations[0]!.metrics.some((m) => m.label === 'Stop'), 'crypto kent stops');
+
+  // Deterministisch: hetzelfde project levert exact hetzelfde kantoor.
+  const again = buildOffice({ ...base, project: 'crypto-desk', venture: venture('crypto') });
+  assert.deepEqual(
+    crypto.stations.map((s) => s.value),
+    again.stations.map((s) => s.value),
+  );
+  assert.equal(officeKindForVenture('onbekend'), 'generic');
+});
+
+test('buildOffice: echte data van agents wint van ingevulde cijfers', async () => {
+  const { buildOffice } = await import('./office.ts');
+  const { VENTURES } = await import('./world.ts');
+  const office = buildOffice({
+    project: 'crypto-desk',
+    venture: VENTURES.find((v) => v.id === 'crypto')!,
+    sessions: [],
+    tasks: [],
+    overrides: [{ id: 'BTC', status: 'alert', value: 123.45, sub: '9 setups' }],
+    now: Date.now(),
+  });
+  assert.equal(office.simulated, false, 'met echte data vervalt de voorbeeld-markering');
+  const btc = office.stations.find((s) => s.id === 'BTC')!;
+  assert.equal(btc.status, 'alert');
+  assert.equal(btc.value, 123.45);
+  assert.equal(btc.sub, '9 setups');
+});
+
+test('buildOffice: live agents bemannen de werkplekken en staan in het team', async () => {
+  const { buildOffice } = await import('./office.ts');
+  const { VENTURES } = await import('./world.ts');
+  const now = Date.now();
+  const office = buildOffice({
+    project: 'crypto-desk',
+    venture: VENTURES.find((v) => v.id === 'crypto')!,
+    sessions: [
+      {
+        sessionId: 's1',
+        project: 'crypto-desk',
+        cwd: '/x',
+        startedAt: now,
+        lastSeenAt: now,
+        status: 'working',
+        needsHuman: false,
+        toolCount: 3,
+        errorCount: 0,
+        agents: {
+          a1: {
+            agentId: 'a1',
+            agentType: 'ara-web-scout',
+            sessionId: 's1',
+            startedAt: now,
+            lastSeenAt: now,
+            stopped: false,
+            lastToolSummary: 'grep orderbook',
+          },
+        },
+      },
+    ],
+    tasks: [],
+    now,
+  });
+  assert.equal(office.stations[0]!.agentName, 'ara-web-scout');
+  assert.ok(office.staff.some((s) => s.role === 'scout' && s.busyWith === 'grep orderbook'));
+  assert.ok(office.staff.some((s) => s.role === 'supervisor'), 'de chief staat altijd in het kantoor');
+  assert.ok(office.staff.some((s) => s.role === 'manager'), 'elke tak heeft een manager');
+});

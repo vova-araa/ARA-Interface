@@ -51,15 +51,23 @@ function Label({
   accent,
   position,
   height,
+  onClick,
 }: {
   text: string;
   accent: string;
   position: [number, number, number];
   height: number;
+  onClick?: () => void;
 }): JSX.Element {
   const { texture, aspect } = useMemo(() => textTexture(text, accent), [text, accent]);
   return (
-    <sprite position={position} scale={[aspect * height, height, 1]}>
+    <sprite
+      position={position}
+      scale={[aspect * height, height, 1]}
+      onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      onPointerOver={onClick ? () => (document.body.style.cursor = 'pointer') : undefined}
+      onPointerOut={onClick ? () => (document.body.style.cursor = 'default') : undefined}
+    >
       <spriteMaterial map={texture} transparent depthWrite={false} />
     </sprite>
   );
@@ -69,8 +77,16 @@ function Label({
  *  LOD: projectlabels verdwijnen wanneer ver uitgezoomd (venture-labels blijven). */
 export function Labels({ world }: { world: WorldConfig }): JSX.Element {
   const lodFar = useAra((s) => s.lodFar);
+  const openOffice = useAra((s) => s.openOffice);
   const labels = useMemo(() => {
-    const out: { key: string; text: string; accent: string; pos: [number, number, number]; h: number }[] = [];
+    const out: {
+      key: string;
+      text: string;
+      accent: string;
+      pos: [number, number, number];
+      h: number;
+      project?: string;
+    }[] = [];
     for (const district of world.districts) {
       const c = axialToWorld(district.center);
       out.push({
@@ -85,9 +101,10 @@ export function Labels({ world }: { world: WorldConfig }): JSX.Element {
         out.push({
           key: `p-${project.name}`,
           text: project.name,
-          accent: 'rgba(139, 149, 165, 0.6)',
+          accent: district.venture.color,
           pos: [p.x * HEX_SPACING, 1.7, p.z * HEX_SPACING],
           h: 0.4,
+          project: project.name,
         });
       }
     }
@@ -99,7 +116,14 @@ export function Labels({ world }: { world: WorldConfig }): JSX.Element {
       {labels
         .filter((label) => !lodFar || label.key.startsWith('v-'))
         .map((label) => (
-          <Label key={label.key} text={label.text} accent={label.accent} position={label.pos} height={label.h} />
+          <Label
+            key={label.key}
+            text={label.text}
+            accent={label.accent}
+            position={label.pos}
+            height={label.h}
+            onClick={label.project ? () => openOffice(label.project!) : undefined}
+          />
         ))}
     </group>
   );
