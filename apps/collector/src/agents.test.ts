@@ -94,6 +94,33 @@ test('agents: read-only rollen hebben geen schrijfgereedschap', () => {
   for (const forbidden of ['Edit', 'Write']) {
     assert.ok(!reporter.tools.includes(forbidden), `ara-reporter mag ${forbidden} niet hebben`);
   }
+
+  // Ritplanner en facturatie-controleur leveren voorstellen en bevindingen.
+  // Zonder Edit/Write kan geen van beiden een rit of factuur aanraken.
+  for (const name of ['ara-planner', 'ara-invoice-auditor']) {
+    const agent = agents.get(name)!;
+    assert.ok(agent, `${name} ontbreekt`);
+    for (const forbidden of ['Edit', 'Write']) {
+      assert.ok(
+        !agent.tools.includes(forbidden),
+        `${name} mag ${forbidden} niet hebben — alleen voorstellen is een eigenschap, geen belofte`,
+      );
+    }
+  }
+});
+
+test('agents: de communicatierol kan het netwerk niet op', () => {
+  // Een rol die klantberichten schrijft én kan versturen, kan per ongeluk
+  // versturen. Zonder Bash en WebFetch is "verstuurt nooit zelf" een feit.
+  const comms = loadAgents().find((a) => a.name === 'ara-dispatch-comms')!;
+  assert.ok(comms, 'ara-dispatch-comms ontbreekt');
+  for (const forbidden of ['Bash', 'WebFetch', 'WebSearch', 'Agent']) {
+    assert.ok(
+      !comms.tools.includes(forbidden),
+      `ara-dispatch-comms mag ${forbidden} niet hebben — anders kan hij een bericht daadwerkelijk versturen`,
+    );
+  }
+  assert.ok(comms.tools.includes('Write'), 'hij moet wel concepten kunnen wegschrijven');
 });
 
 test('agents: alleen de rollen die zelf mogen spawnen hebben de Agent-tool', () => {

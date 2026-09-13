@@ -76,19 +76,24 @@ const reporter: Specialist = {
 const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
   tms: {
     specialists: [
-      { agent: 'ara-planner', name: 'Ritplanner', does: 'ritten indelen, ETA-afwijkingen signaleren', model: 'default' },
-      worker('Integratie-engineer', 'TMS-koppelingen, facturatie, exports'),
+      { agent: 'ara-planner', name: 'Ritplanner', does: 'ritten indelen en ETA-afwijkingen signaleren — levert voorstellen, wijzigt nooit', model: 'default' },
+      { agent: 'ara-invoice-auditor', name: 'Facturatie-controleur', does: 'facturen naast de uitgevoerde ritten leggen en afwijkingen markeren', model: 'default' },
+      { agent: 'ara-dispatch-comms', name: 'Chauffeur- en klantcontact', does: 'concepten schrijven bij vertraging of wijziging — verstuurt nooit zelf', model: 'default' },
+      worker('Integratie-engineer', 'TMS-koppelingen en exports'),
       reporter,
     ],
     duties: [
       'Ritten van vandaag en morgen nalopen op gaten en dubbelboekingen',
       'ETA-afwijkingen en niet-gemelde vertragingen opsporen',
-      'Facturatieregels controleren tegen de uitgevoerde ritten',
+      'Facturen naast de uitgevoerde ritten leggen: niet gefactureerd, dubbel, verkeerd tarief',
+      'Bij elke vertraging een concept klaarzetten voor chauffeur en klant',
     ],
     escalate: [
       'Databasemigraties op productie',
       'Wijzigingen aan een externe transport-API of koppelingssleutel',
       'Alles wat een rit of factuur bij een klant verandert',
+      'Een bericht daadwerkelijk versturen naar een chauffeur of klant',
+      'Crediteren of een tarief aanpassen',
     ],
     checks: ['planningstests', 'typecheck'],
     dataSources: [
