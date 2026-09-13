@@ -103,24 +103,32 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
   },
   fleet: {
     specialists: [
-      { agent: 'ara-fleet-tech', name: 'Wagenparkbeheer', does: 'APK, onderhoud, banden en schades bewaken', model: 'default' },
+      { agent: 'ara-fleet-tech', name: 'Wagenparkbeheer', does: 'onderhoud, schades en garagepunten per voertuig bewaken', model: 'default' },
+      { agent: 'ara-compliance-watch', name: 'Keuringsbewaking', does: 'wettelijke termijnen (APK, tachograaf, ADR, code 95) — alarmeert vóór de vervaldatum', model: 'default' },
+      { agent: 'ara-fleet-cost', name: 'Kosten- en bandenanalist', does: 'kosten per kilometer per voertuig en uitschieters eruit halen', model: 'default' },
+      { agent: 'ara-trailer-manager', name: 'Trailerbeheer', does: 'beschikbaarheid, stilstand en scheefstand van trailers', model: 'default' },
       worker('Data-engineer', 'Supabase-sync en data-integriteit'),
       reporter,
     ],
     duties: [
-      'APK- en onderhoudsdata per voertuig bijhouden',
-      'Openstaande garagepunten volgen tot ze afgemeld zijn',
-      'Voorraad trailers en beschikbaarheid controleren',
+      'Wettelijke termijnen per voertuig en chauffeur bewaken — verlopen, 14, 30 en 60 dagen',
+      'Onderhoudsinterval tegen de kilometerstand houden en garagepunten volgen tot afmelding',
+      'Kosten per kilometer per voertuig volgen en uitschieters markeren',
+      'Beschikbaarheid van trailers bewaken: tekorten, stilstand en scheefstand tussen locaties',
     ],
     escalate: [
       'Schrijfacties op de productie-database',
       'Een voertuig administratief uit dienst nemen',
-      'Alles wat de wettelijke keuringsstatus raakt',
+      'Alles wat de wettelijke keuringsstatus raakt, inclusief afspraken bij een keuringsstation',
+      'Een voertuig of trailer huren, kopen of afstoten',
     ],
     checks: ['typecheck', 'data-integriteitscheck'],
     dataSources: [
       { label: 'Kenteken, APK-datum, kilometerstand', how: 'VUL-IN: Supabase-tabel of export', configured: false },
       { label: 'Openstaande garagepunten', how: 'VUL-IN: werkplaatssysteem of lijst', configured: false },
+      { label: 'Chauffeurstermijnen (rijbewijs, code 95, chauffeurskaart)', how: 'VUL-IN: personeelslijst of export', configured: false },
+      { label: 'Kosten per voertuig (brandstof, banden, reparatie)', how: 'VUL-IN: boekhouding- of tankpas-export', configured: false },
+      { label: 'Trailerlijst met standplaats en koppeling', how: 'VUL-IN: eigen lijst of werkplaatssysteem', configured: false },
     ],
   },
   trading: {

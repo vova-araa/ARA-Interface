@@ -97,7 +97,16 @@ test('agents: read-only rollen hebben geen schrijfgereedschap', () => {
 
   // Ritplanner en facturatie-controleur leveren voorstellen en bevindingen.
   // Zonder Edit/Write kan geen van beiden een rit of factuur aanraken.
-  for (const name of ['ara-planner', 'ara-invoice-auditor']) {
+  // De hele fleet-vloer leest productie en schrijft er niet in. Eén rol met
+  // schrijfrechten ertussen maakt de belofte van de andere vier waardeloos.
+  for (const name of [
+    'ara-planner',
+    'ara-invoice-auditor',
+    'ara-fleet-tech',
+    'ara-compliance-watch',
+    'ara-fleet-cost',
+    'ara-trailer-manager',
+  ]) {
     const agent = agents.get(name)!;
     assert.ok(agent, `${name} ontbreekt`);
     for (const forbidden of ['Edit', 'Write']) {
