@@ -220,7 +220,18 @@ function spawnClaude(name, prompt, { agent, tools } = {}) {
   // "volg je instructies" — die werden nooit geladen). --allowedTools geeft de
   // agent de gereedschappen die hij nodig heeft; acceptEdits dekt alléén edits,
   // dus zonder deze lijst kon een headless agent geen enkel commando draaien.
-  const args = ['-p', prompt, '--permission-mode', 'acceptEdits'];
+  // --plugin-dir laadt plugins/ara voor déze sessie. Zonder dat hangt --agent
+  // aan de marketplace-installatie: is die niet gedaan (of stuk na een update),
+  // dan bestaat de rol niet en valt de sessie meteen om. Geverifieerd met
+  // scripts/verify-agents.mjs.
+  const args = [
+    '-p',
+    prompt,
+    '--permission-mode',
+    'acceptEdits',
+    '--plugin-dir',
+    path.join(REPO, 'plugins/ara'),
+  ];
   if (agent) args.push('--agent', agent);
   if (tools) args.push('--allowedTools', tools);
   const child = spawn('claude', args, {

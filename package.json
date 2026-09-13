@@ -2,7 +2,7 @@
   "name": "ara-world",
   "version": "0.1.0",
   "private": true,
-  "description": "ARA World — real-time isometric 3D world visualizing Claude Code sessions, agents and tool-calls",
+  "description": "ARA World \u2014 real-time isometric 3D world visualizing Claude Code sessions, agents and tool-calls",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -17,6 +17,7 @@
     "fixture": "pnpm --filter @ara/collector fixture",
     "soak": "pnpm --filter @ara/collector soak",
     "browse": "node apps/viewer/scripts/browse.mjs",
-    "map": "pnpm --filter @ara/collector map"
+    "map": "pnpm --filter @ara/collector map",
+    "verify:agents": "node scripts/verify-agents.mjs"
   }
 }

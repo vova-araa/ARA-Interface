@@ -16,7 +16,7 @@ import {
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
-import { ARA_TOKEN, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
+import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
 export interface CollectorApp {
@@ -600,6 +600,33 @@ export function createCollector(store: EventStore): CollectorApp {
     res.json({ messages: store.listMessages(room, 100) });
   });
 
+  /**
+   * Wat een headless agent nodig heeft om deze vraag écht te beantwoorden:
+   * twee commando's die hij letterlijk kan plakken. Een beschrijving als
+   * "antwoord met POST /chat" was te weinig — zonder host, zonder token en
+   * zonder taak-id kwam er niets terug in het kantoor.
+   */
+  const chatTaskDetail = (room: string, text: string, taskId: string): string => {
+    const base = `http://127.0.0.1:${COLLECTOR_PORT}`;
+    const auth = ARA_TOKEN ? ` \\\n    -H 'X-ARA-Token: ${ARA_TOKEN}'` : '';
+    return [
+      `Kantoorchat uit "${room}". De gebruiker wacht op antwoord in dat kantoor.`,
+      '',
+      'Vraag:',
+      text,
+      '',
+      '1) Zet je antwoord in dezelfde ruimte:',
+      `  curl -sS -X POST ${base}/chat \\`,
+      `    -H 'Content-Type: application/json'${auth} \\`,
+      `    -d '{"room":"${room}","role":"agent","sender":"<jouw rol>","text":"<je antwoord>"}'`,
+      '',
+      '2) Sluit daarna deze taak:',
+      `  curl -sS -X PATCH ${base}/tasks/${taskId} \\`,
+      `    -H 'Content-Type: application/json'${auth} \\`,
+      `    -d '{"status":"done","result":"beantwoord in ${room}"}'`,
+    ].join('\n');
+  };
+
   app.post('/chat', (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const room = String(body.room ?? '');
@@ -629,12 +656,13 @@ export function createCollector(store: EventStore): CollectorApp {
     // aangesproken rol, zodat de watchdog die agent wakker maakt.
     if (role === 'user') {
       const to = capText(String(body.to ?? 'supervisor'), 80) ?? 'supervisor';
+      const taskId = crypto.randomUUID();
       const task = {
-        id: crypto.randomUUID(),
+        id: taskId,
         createdAt: Date.now(),
         updatedAt: Date.now(),
         title: capText(`CHAT: ${text}`, 200) ?? 'CHAT',
-        detail: `Kantoorchat uit "${room}".\nAntwoord met POST /chat {"room":"${room}","role":"agent","sender":"<jouw naam>","text":"…"}\n\nVraag:\n${text}`,
+        detail: chatTaskDetail(room, text, taskId),
         project: capText(String(body.project ?? ''), 120) ?? '',
         assignee: to,
         createdBy: 'user',
