@@ -48,3 +48,25 @@ export function capText(text: string | undefined, max = 200): string | undefined
   const clean = redactString(text);
   return clean.length > max ? clean.slice(0, max - 1) + '…' : clean;
 }
+
+/**
+ * Kapt een (al geredigeerde) tool-invoer af op grootte. Zonder dit belandt de
+ * volledige inhoud van elke Write/Edit in SQLite én in de SSE-stroom naar elke
+ * kijker — inclusief klantdata en secrets die geen enkel patroon matchen.
+ * De vorm blijft herkenbaar: je ziet dát er iets was en hoe groot.
+ */
+export function capValue(value: unknown, maxChars = 2000): unknown {
+  if (value === undefined || value === null) return value;
+  let json: string;
+  try {
+    json = JSON.stringify(value) ?? '';
+  } catch {
+    return { truncated: true, reason: 'niet serialiseerbaar' };
+  }
+  if (json.length <= maxChars) return value;
+  return {
+    truncated: true,
+    chars: json.length,
+    preview: json.slice(0, Math.min(400, maxChars)),
+  };
+}

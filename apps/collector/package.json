@@ -10,7 +10,8 @@
     "map": "tsx src/map.ts",
     "soak": "tsx src/soak.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/*.test.ts"
+    "test": "tsx --test src/*.test.ts",
+    "backup": "tsx src/backup.ts"
   },
   "dependencies": {
     "@ara/shared": "workspace:*",

@@ -6,6 +6,7 @@ import {
   IncomingEventSchema,
   buildOffice,
   capText,
+  capValue,
   placementForProject,
   redactValue,
   VENTURES,
@@ -47,7 +48,11 @@ export function createCollector(store: EventStore): CollectorApp {
       (header.startsWith('Bearer ') ? header.slice(7) : header) ||
       req.get('x-ara-token') ||
       String(req.query.token ?? '');
-    if (presented === ARA_TOKEN) next();
+    // Timing-safe vergelijking: een gewone === lekt via responstijd hoeveel
+    // tekens van het token kloppen.
+    const a = Buffer.from(presented);
+    const b = Buffer.from(ARA_TOKEN);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) next();
     else res.status(401).json({ ok: false, error: 'unauthorized' });
   });
 
@@ -81,7 +86,10 @@ export function createCollector(store: EventStore): CollectorApp {
         incoming.project && incoming.project !== 'unknown'
           ? incoming.project
           : projectForCwd(incoming.cwd ?? ''),
-      toolInput: incoming.toolInput === undefined ? undefined : redactValue(incoming.toolInput),
+      // Redigeren én afkappen: een Write van een heel bestand hoort niet in de
+      // database of over de SSE-stroom.
+      toolInput:
+        incoming.toolInput === undefined ? undefined : capValue(redactValue(incoming.toolInput)),
       toolSummary: capText(incoming.toolSummary, 200),
       message: capText(incoming.message, 500),
     });
@@ -108,8 +116,13 @@ export function createCollector(store: EventStore): CollectorApp {
     broadcastFrame(`event: ara\ndata: ${JSON.stringify(event)}\n\n`);
   }
 
+  // Laatste binnengekomen event — maakt "de hooks zijn stilgevallen" meetbaar.
+  let lastEventAt = 0;
+  for (const event of store.all(1)) lastEventAt = Math.max(lastEventAt, event.ts);
+
   function ingest(raw: unknown): AraEvent {
     const event = normalize(raw);
+    lastEventAt = Math.max(lastEventAt, event.ts);
     store.insert(event);
     state.apply(event);
     broadcast(event);
@@ -129,17 +142,29 @@ export function createCollector(store: EventStore): CollectorApp {
 
   // Live-remap the world when the project list changes (edits via
   // dev-project-manager, /ara-map writes, etc.). Debounced; best-effort.
-  try {
-    if (fs.existsSync(PROJECTS_JSON_PATH)) {
-      let timer: NodeJS.Timeout | null = null;
-      fs.watch(PROJECTS_JSON_PATH, () => {
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(rebuildWorld, 500);
+  // Een atomaire herschrijving (schrijf-temp + rename) maakt de oude watcher
+  // dood; daarom hangen we er opnieuw aan zodra dat gebeurt.
+  let watchTimer: NodeJS.Timeout | null = null;
+  function watchProjects(): void {
+    try {
+      if (!fs.existsSync(PROJECTS_JSON_PATH)) return;
+      const watcher = fs.watch(PROJECTS_JSON_PATH, (eventType) => {
+        if (watchTimer) clearTimeout(watchTimer);
+        watchTimer = setTimeout(rebuildWorld, 500);
+        if (eventType === 'rename') {
+          watcher.close();
+          setTimeout(watchProjects, 1000);
+        }
       });
+      watcher.on('error', () => {
+        watcher.close();
+        setTimeout(watchProjects, 5000);
+      });
+    } catch {
+      /* watching is optional */
     }
-  } catch {
-    /* watching is optional */
   }
+  watchProjects();
 
   // Raw Claude Code hook payloads from plugins/ara/hooks/emit.sh.
   app.post('/hook/:name', (req, res) => {
@@ -625,7 +650,16 @@ export function createCollector(store: EventStore): CollectorApp {
     res.json({ ok: true, message });
   });
 
-  app.get('/health', (_req, res) => res.json({ ok: true, uptime: process.uptime() }));
+  app.get('/health', (_req, res) =>
+    res.json({
+      ok: true,
+      uptime: process.uptime(),
+      // Seconden sinds het laatste hook-event. Loopt dit op terwijl er gewerkt
+      // wordt, dan zijn de hooks stuk — anders merkt niemand dat ooit.
+      lastEventAgeSec: lastEventAt ? Math.round((Date.now() - lastEventAt) / 1000) : null,
+      sessions: Object.keys(state.snapshot().sessions).length,
+    }),
+  );
 
   // Serve the built viewer when present → collector is a single deployable
   // service (Render, or just one port on the Mac).

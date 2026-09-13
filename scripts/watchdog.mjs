@@ -319,6 +319,41 @@ try {
   /* stond niet aan */
 }
 
+// ── 1b. Schijfruimte en stilgevallen hooks ────────────────────────────────
+// Een volle schijf laat inserts falen en de wereld bevriezen zonder foutmelding;
+// stilgevallen hooks (bv. na een Claude Code-update die namen wijzigt) zien er
+// precies zo uit als "de baas werkt even niet". Beide horen gemeld te worden.
+try {
+  const stat = fs.statfsSync(REPO);
+  const freeGb = (stat.bavail * stat.bsize) / 1024 ** 3;
+  if (freeGb < 2) {
+    log(`weinig schijfruimte: ${freeGb.toFixed(1)} GB vrij`);
+    await alertOnce(
+      'disk-low',
+      12 * 60 * 60 * 1000,
+      `🟠 ARA World — schijf raakt vol\nNog ${freeGb.toFixed(1)} GB vrij. Bij een volle schijf stopt de collector met opslaan zonder dat er iets zichtbaar misgaat.`,
+    );
+  }
+} catch {
+  /* statfs niet beschikbaar — geen reden om te stoppen */
+}
+try {
+  const health = await api('/health');
+  const ageHours = (health.lastEventAgeSec ?? 0) / 3600;
+  // 24 uur zonder één hook-event terwijl de collector draait: dan is de
+  // koppeling met Claude Code stuk, niet de agenda van de eigenaar.
+  if (health.lastEventAgeSec !== null && ageHours > 24) {
+    log(`geen hook-events in ${ageHours.toFixed(0)} uur`);
+    await alertOnce(
+      'hooks-stil',
+      24 * 60 * 60 * 1000,
+      `🟠 ARA World — geen activiteit meer binnengekomen\nAl ${ageHours.toFixed(0)} uur geen enkel hook-event. Waarschijnlijk is de plugin-koppeling stuk (bijvoorbeeld na een Claude Code-update).`,
+    );
+  }
+} catch (error) {
+  log(`health-check overgeslagen: ${String(error).slice(0, 80)}`);
+}
+
 // ── 2+3. Monitors ─────────────────────────────────────────────────────────
 let monitors = { checks: [] };
 try {

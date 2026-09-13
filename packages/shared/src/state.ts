@@ -4,6 +4,12 @@ const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // hide sessions idle > 6h from "runn
 // Sessies die zó lang niets deden verdwijnen ook uit het geheugen en /state.
 const SESSION_RETENTION_MS = 48 * 60 * 60 * 1000;
 const PRUNE_THRESHOLD = 400;
+/**
+ * Gestopte subagents blijven anders voor altijd in hun sessie hangen: een
+ * supervisor die maanden leeft verzamelt elke subagent die hij ooit startte,
+ * en die lijst gaat mee in /state én in elk kantoor.
+ */
+const AGENT_RETENTION_MS = 60 * 60 * 1000;
 const startOfDay = (ts: number): number => {
   const d = new Date(ts);
   d.setHours(0, 0, 0, 0);
@@ -34,6 +40,14 @@ export class WorldState {
     const session = this.getOrCreate(event);
     session.lastSeenAt = event.ts;
     if (event.model) session.model = event.model;
+
+    // Lang gestopte agents opruimen zodat een langlevende sessie niet blijft
+    // groeien. De viewer toont ze toch al niet meer.
+    for (const [id, agent] of Object.entries(session.agents)) {
+      if (agent.stopped && event.ts - agent.lastSeenAt > AGENT_RETENTION_MS) {
+        delete session.agents[id];
+      }
+    }
 
     switch (event.kind) {
       case 'session.start':

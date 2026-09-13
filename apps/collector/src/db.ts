@@ -104,6 +104,15 @@ function localDay(ts: number): string {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
+/**
+ * Usage-rijen zijn de basis voor de dag-delta's: gooi je ze na 7 dagen weg,
+ * dan boekt een sessie die daarna weer iets post haar hele levensduur op één
+ * dag. Ze mogen dus veel langer blijven staan dan de event-ringbuffer.
+ */
+const USAGE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+/** Hooguit één keer per dag compacteren; VACUUM herschrijft het hele bestand. */
+const VACUUM_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 export function openStore(dbPath = DB_PATH): EventStore {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
@@ -200,6 +209,8 @@ export function openStore(dbPath = DB_PATH): EventStore {
     GROUP BY project, hour
     ORDER BY project, hour
   `);
+
+  let lastVacuum = Date.now();
 
   const parse = (rows: unknown[]): AraEvent[] =>
     (rows as { json: string }[]).map((r) => JSON.parse(r.json) as AraEvent);
@@ -379,9 +390,20 @@ export function openStore(dbPath = DB_PATH): EventStore {
       // Afgeronde taken en oude usage-rijen mogen ook weg (anders groeit de
       // db onbegrensd, en die groei is via de API van buitenaf aan te sturen).
       db.prepare("DELETE FROM tasks WHERE status IN ('done','failed') AND updated_at < ?").run(cutoff);
-      db.prepare('DELETE FROM usage WHERE updated_at < ?').run(cutoff);
-      db.prepare('DELETE FROM usage_days WHERE day < ?').run(localDay(cutoff));
+      db.prepare('DELETE FROM usage WHERE updated_at < ?').run(Date.now() - USAGE_RETENTION_MS);
+      db.prepare('DELETE FROM usage_days WHERE day < ?').run(localDay(Date.now() - USAGE_RETENTION_MS));
       db.prepare('DELETE FROM chat_messages WHERE ts < ?').run(cutoff);
+      // Verwijderde rijen geven pas ruimte terug ná een checkpoint + VACUUM;
+      // zonder dit groeit het bestand (en de WAL ernaast) alleen maar door.
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+        if (Date.now() - lastVacuum > VACUUM_INTERVAL_MS) {
+          db.exec('VACUUM');
+          lastVacuum = Date.now();
+        }
+      } catch {
+        /* compacteren is onderhoud, nooit reden om te falen */
+      }
     },
     close() {
       db.close();
