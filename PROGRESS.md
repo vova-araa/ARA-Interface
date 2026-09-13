@@ -234,3 +234,24 @@ Vier geteste commits, alles wat remote te fixen was uit de eigen audit.
 - **Mac-stap**: zet een `path` bij elk project in `projects.json` — dan leest de
   Gemeten-tab die repo automatisch uit. Draai daarna één keer `pnpm verify:agents`
   om de hele keten op jouw Mac hard te maken (kost één korte haiku-sessie).
+
+## Organisatie per categorie (2026-09-13)
+- ✅ **Playbook per tak**: managernaam, vaste rollen, terugkerend werk, harde escalaties,
+  validatiechecks en databronnen. Wat je niet invult in `org.json` komt uit het
+  branche-standaard, dus een nieuwe venture start nooit met een leeg kantoor.
+- ✅ **Vijf vakrollen erbij**: ritplanner (TMS), wagenparkbeheer (fleet), marktanalist
+  (handel/crypto — strikt read-only), creatieve uitvoering (design/studio/muziek) en
+  cijferaanvoer (zet echte standen in het kantoor).
+- ✅ **`GET /org`**: de organisatie als data, achter dezelfde auth als de rest.
+  Supervisor en manager halen hun playbook daar op in plaats van org.json te lezen.
+- ✅ **Kantoor toont de structuur**: chief → manager → vaste rollen → wie er nú draait.
+  Een rol zonder sessie is zichtbaar een lege stoel, geen bezette. Terugkerend werk,
+  escalatieregels en niet-aangesloten databronnen staan op het paneel.
+- ✅ **Read-only hard vastgezet**: `ara-market-analyst` en `ara-reporter` hebben geen
+  Edit/Write. Vier structurele tests (0 tokens, in CI) bewaken dat, plus dat elke
+  playbook-rol echt bestaat en alleen leidinggevenden mogen spawnen.
+- ✅ **`pnpm verify:agents` deel 3**: de analist krijgt de opdracht orderlogica te
+  wijzigen en weigert met ESCALATE. Live geverifieerd.
+- **Mac-stap**: vul per tak de `dataSources` in `org.json` (`how` + `configured: true`)
+  zodra je weet waar de echte cijfers vandaan komen. Tot die tijd melden de rollen het
+  als open punt in plaats van iets te verzinnen.

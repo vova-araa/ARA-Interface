@@ -123,3 +123,24 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
   lock) mag de collector niet blokkeren.
 - **Meten maakt verzinsels niet echt**: een kantoor met 41 commits in de meetlaag blijft
   `simulated: true` zolang geen enkele werkplek echte data kreeg. Vastgelegd in een test.
+
+## Organisatie per categorie (2026-09-13)
+- **Eén zin "focus" is geen organisatie**: een ritplanner, een garagechef en een
+  marktanalist hebben andere bronnen, andere risico's en andere cijfers. Een playbook
+  per tak maakt dat expliciet in plaats van het aan de manager over te laten.
+- **Standaard boven leegte**: `resolvePlaybook()` vult alles aan wat org.json weglaat.
+  Een nieuwe venture krijgt dus meteen rollen, taken en grenzen — en de gebruiker
+  overschrijft alleen wat hij anders wil.
+- **Read-only als structuur, niet als instructie**: `ara-market-analyst` heeft geen
+  Edit/Write-tool. Een instructie kan genegeerd worden; een ontbrekend gereedschap niet.
+  Een unit test bewaakt de frontmatter, en `verify:agents` controleert dat hij een
+  expliciet verzoek om orderlogica te wijzigen afslaat (live: hij escaleerde).
+- **`/org` in plaats van org.json lezen**: agents die een bestand moeten parsen maken
+  fouten en verbranden tokens. Eén call geeft het opgeloste playbook, achter dezelfde
+  auth als elk ander API-pad (getest, casing incluis — dat was eerder een bypass).
+- **Lege stoelen tonen**: een vaste rol zonder draaiende sessie staat in het kantoor met
+  `live: false` en "niet actief". De organisatie tonen zoals hij bedoeld is, met zichtbaar
+  wie er nu niet zit, is eerlijker dan alleen tonen wie toevallig draait.
+- **Niet-aangesloten databronnen zijn zichtbaar**: `configured: false` staat in het
+  kantoorpaneel én in de manager-prompt. Zo weet een rol dat er niets te halen valt,
+  in plaats van een plausibel cijfer te bedenken.

@@ -11,7 +11,12 @@ Tailscale op telefoon en laptop.
 packages/shared/    @ara/shared   — zod-schemas, WorldState-reducer, hex-math, wereldlayout
 apps/collector/     @ara/collector — Express + better-sqlite3 (poort 4747), serveert ook viewer-dist
 apps/viewer/        @ara/viewer   — React Three Fiber (dev-poort 4748)
-plugins/ara/        Claude Code plugin: hooks, agents (chief/supervisor/manager/worker/scout/ops), commands, org.json
+plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
+                    leiding  — chief, supervisor, manager, ops-manager (mogen spawnen)
+                    generiek — worker, web-scout
+                    vak      — planner (TMS), fleet-tech (wagenpark),
+                               market-analyst (handel, read-only), creative (design/studio/muziek),
+                               reporter (echte kantoorcijfers)
 scripts/            watchdog.mjs (24/7, 0 LLM-tokens), notify.mjs (Telegram), install.sh, expose.sh (Tailscale)
 ops/                launchd plists (templates; install.sh vult placeholders + chmod 600)
 data/               runtime: SQLite db, world.config.json-kopieën, logs (niet committen)
@@ -33,7 +38,7 @@ pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhon
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
-pnpm verify:agents           # end-to-end: spawnt een echte headless agent + kantoorchat
+pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + read-only grens
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
 #   te testen is. Draai 'm na installatie en na elke Claude Code-update.
 ```
@@ -102,6 +107,15 @@ Container/CI-bijzonderheden:
 - Spawns krijgen altijd `--plugin-dir plugins/ara` mee, zodat `--agent` niet afhangt
   van een geslaagde marketplace-installatie. Chat-taken dragen letterlijke curl-regels
   (host + token + taak-id): een headless agent kan geen endpoint-beschrijving uitvoeren.
+- **Playbook per tak** (`packages/shared/src/org.ts` + `playbook` in org.json, samen
+  opgehaald via `GET /org`): managernaam, vaste specialistenrollen, terugkerend werk,
+  wat ALTIJD escaleert, validatiechecks en welke databronnen nog niet aangesloten zijn.
+  Wat org.json weglaat komt uit het branche-standaard — een tak start nooit leeg.
+  Supervisor en manager lezen `/org`, niet org.json.
+- **Read-only is een garantie, geen belofte**: `ara-market-analyst` en `ara-reporter`
+  hebben geen Edit/Write in hun frontmatter. `apps/collector/src/agents.test.ts` pint dat
+  vast (0 tokens, in CI), samen met: elke playbook-rol bestaat als bestand, de
+  frontmatter-naam matcht het bestand, en alleen leidinggevende rollen hebben de Agent-tool.
 - Token-discipline: haiku-first voor scouts/simpele workers, Grep vóór Read, korte
   bordresultaten; dagbudget in `org.json` (`tokenBudgetDaily`).
 - `watchdog.mjs` draait via launchd elke 5 min met 0 LLM-tokens; spawnt alléén agents
