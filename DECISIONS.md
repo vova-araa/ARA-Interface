@@ -74,3 +74,33 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - **Nieuwe tak `crypto`** toegevoegd (eigen district + kantoor met 18 munten); `trading` blijft de XAU/USD-bots. De entiteiten per kantoor staan in `offices` in org.json zodat de gebruiker ze zelf kan aanpassen.
 - **Twee canvassen, één actief**: zolang een kantoor open staat draait de wereld op `frameloop="never"` — geen twee 3D-scenes die tegelijk de GPU vullen.
 - **Chat-dedupe**: de POST geeft het opgeslagen bericht met server-id terug; dat wordt toegevoegd, waardoor de SSE-echo van hetzelfde bericht wegvalt tegen de id-dedupe (anders stond elke vraag dubbel).
+
+## Hardening (2026-09-13)
+- **Alarm boven automatiek**: de watchdog probeert nog steeds eerst zelf te herstellen,
+  maar elke situatie die hij níét oplost gaat nu naar Telegram met dedupe op inhoud
+  (`alertOnce`). Markeren gebeurt pas ná een geslaagde verzending, anders slokt één
+  netwerkstoring de melding voorgoed op.
+- **Spawns hebben een rem**: twee mislukte pogingen op dezelfde signature binnen 6 uur
+  → stoppen en de mens vragen; dagbudget bereikt → niets meer starten. Zonder deze rem
+  kan één kapotte monitor een nacht lang elke 5 minuten een LLM-sessie starten.
+- **Eerlijkheid per bureau, niet per kantoor**: één `simulated`-vlag voor een heel kantoor
+  liet 17 verzonnen bureaus meeliften op één echte push. Nu draagt elk station en elke
+  metriek zijn eigen markering, en de balk zegt hardop `1/18 op echte data`.
+- **Verlopen is niet hetzelfde als verzonnen**: een station dat ooit echt gepusht werd maar
+  al >30 min stilstaat blijft "echt", maar krijgt een eigen stale-markering. Anders ziet
+  een dode feed eruit als een levende.
+- **Eén poort, één build**: de losse `vite preview` op :4748 was een tweede server op
+  dezelfde `dist/`. De collector serveert die map al, dus de extra launchd-agent gaf geen
+  functie — alleen een tweede kans om verouderde code te serveren. Verwijderd; install.sh
+  ruimt een bestaande installatie op.
+- **De watchdog bouwt de viewer zelf**: na een `git pull` draaide de browser de reducer van
+  gisteren terwijl de collector de nieuwe draaide — precies de asymmetrie die CLAUDE.md
+  heilig verklaart. Een rebuild kost 0 tokens, dus dat doet de watchdog gewoon; faalt hij,
+  dan is dát het alarm.
+- **`caffeinate -s` in de collector-plist**: launchd `KeepAlive` houdt een proces in leven,
+  maar niet wakker. Een dichtgeklapte Mac zette de hele 24/7-wereld stil en dat zag er van
+  buiten uit als "er gebeurt gewoon niets".
+- **Plists zijn geheimhouders**: er staan `ARA_TOKEN` en de Telegram-bot-sleutel in, en `sed`
+  schreef ze als 0644 weg. Nu `chmod 600` direct na het genereren.
+- **Usage-retentie los van de event-ring**: usage-rijen leven 30 dagen, events 7. De
+  dag-over-dag basislijn voor het tokenbudget viel anders elke week om.

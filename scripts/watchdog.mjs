@@ -354,6 +354,76 @@ try {
   log(`health-check overgeslagen: ${String(error).slice(0, 80)}`);
 }
 
+// ── 1c. Verouderde viewer-build en volgelopen launchd-logs ────────────────
+// De collector serveert apps/viewer/dist van schijf. Na een `git pull` staat
+// daar nog de build van gisteren: de viewer draait dan een andere reducer dan
+// de collector — precies de asymmetrie die de hele wereld verkeerd laat tellen.
+// Herbouwen kost 0 tokens, dus dat doet de watchdog gewoon zelf.
+function newestMtime(dir) {
+  let newest = 0;
+  const walk = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else newest = Math.max(newest, fs.statSync(full).mtimeMs);
+    }
+  };
+  try {
+    walk(dir);
+  } catch {
+    /* map bestaat niet in deze checkout */
+  }
+  return newest;
+}
+
+if (!NO_SPAWN) {
+  try {
+    const distIndex = path.join(REPO, 'apps/viewer/dist/index.html');
+    const built = fs.existsSync(distIndex) ? fs.statSync(distIndex).mtimeMs : 0;
+    const source = Math.max(
+      newestMtime(path.join(REPO, 'apps/viewer/src')),
+      newestMtime(path.join(REPO, 'packages/shared/src')),
+    );
+    if (source > built) {
+      log(built ? 'viewer-build is ouder dan de broncode — herbouwen' : 'viewer-build ontbreekt — bouwen');
+      try {
+        execFileSync('pnpm', ['--filter', '@ara/viewer', 'build'], {
+          cwd: REPO,
+          timeout: 10 * 60 * 1000,
+          stdio: 'ignore',
+        });
+        log('viewer herbouwd');
+      } catch (error) {
+        // Een mislukte build laat de oude dist staan: de wereld blijft draaien,
+        // maar op verouderde code. Dat moet een mens weten.
+        await alertOnce(
+          'viewer-build-faalt',
+          6 * 60 * 60 * 1000,
+          `🟠 ARA World — viewer herbouwen mislukt\nDe browser draait nog de vorige build. Draai handmatig: pnpm --filter @ara/viewer build\n${String(error).slice(0, 160)}`,
+        );
+      }
+    }
+  } catch (error) {
+    log(`build-check overgeslagen: ${String(error).slice(0, 80)}`);
+  }
+}
+
+// launchd schrijft stdout/stderr naar één bestand dat nooit roteert; na maanden
+// is dat het grootste bestand op de schijf.
+try {
+  const logDir = process.env.ARA_LOGS ?? path.join(os.homedir(), 'Library/Logs/ara-world');
+  for (const name of fs.readdirSync(logDir)) {
+    if (!name.endsWith('.log')) continue;
+    const full = path.join(logDir, name);
+    if (fs.statSync(full).size > 20 * 1024 * 1024) {
+      fs.renameSync(full, `${full}.1`);
+      log(`logbestand geroteerd: ${name}`);
+    }
+  }
+} catch {
+  /* geen logmap (bv. in de container) — niets te roteren */
+}
+
 // ── 2+3. Monitors ─────────────────────────────────────────────────────────
 let monitors = { checks: [] };
 try {

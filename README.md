@@ -14,18 +14,19 @@ Sevan-blue lake.
 ```
 
 That's everything: installs deps, builds the viewer, installs two launchd
-agents (collector + viewer, restart on reboot), registers the `ara` Claude Code
-plugin and prints your URLs.
+agents (collector + watchdog, restart on reboot), registers the `ara` Claude
+Code plugin and prints your URLs. One port serves everything — the collector
+hands out the built viewer itself.
 
 | URL | What |
 |---|---|
-| `http://localhost:4748` | Live world |
-| `http://<tailnet-ip>:4748` | Same, on your iPhone over Tailscale |
-| `http://localhost:4748/?demo=1` | 2-minute animated demo story (no live sessions needed) |
+| `http://localhost:4747` | Live world |
+| `http://<tailnet-ip>:4747` | Same, on your iPhone over Tailscale |
+| `http://localhost:4747/?demo=1` | 2-minute animated demo story (no live sessions needed) |
 
 ### iPhone
 1. Make sure Tailscale is connected on both Mac and iPhone.
-2. Open `http://<tailnet-ip>:4748` in Safari (`tailscale ip -4` on the Mac, or see the collector log — it prints the URL on start).
+2. Open `http://<tailnet-ip>:4747` in Safari (`tailscale ip -4` on the Mac, or see the collector log — it prints the URL on start).
 3. Pinch to zoom, drag to pan, two fingers to rotate. Tap a pod → detail drawer. ☰ opens the thread bottom-sheet.
 
 ## How it works
@@ -37,7 +38,8 @@ Claude Code session (any repo)
 apps/collector  :4747   POST /hook/:name · POST /event · GET /events (SSE) · GET /state
   │    SQLite 7-day ring buffer · secret redaction · cwd→project resolution
   ▼
-apps/viewer     :4748   React Three Fiber isometric hex world + thread UI
+apps/viewer     :4748   React Three Fiber isometric hex world + thread UI (dev only;
+                        in production the collector serves apps/viewer/dist)
 packages/shared         event schema (zod) · WorldState reducer · hex math · world layout
 plugins/ara             hooks + ara-status skill + /ara-open + /ara-map + ara-orchestrator
 ```
@@ -117,7 +119,13 @@ watchdog (launchd, elke 5 min, 0 tokens)
 
 ## Ops
 
-- launchd agents `com.ara.collector` / `com.ara.viewer` (`~/Library/LaunchAgents`), `KeepAlive` — survive reboots, logs in `~/Library/Logs/ara-world/`.
+- launchd agents `com.ara.collector` (`KeepAlive`, wrapped in `caffeinate -s` so a
+  sleeping Mac can't stop the world) and `com.ara.watchdog` (every 5 min, 0 tokens),
+  both in `~/Library/LaunchAgents` with logs in `~/Library/Logs/ara-world/`. The
+  plists carry `ARA_TOKEN`, so the installer writes them `chmod 600`.
+- The watchdog rebuilds `apps/viewer/dist` whenever it's older than the source —
+  after a `git pull` the browser would otherwise run a different reducer than the
+  collector — and rotates any launchd log past 20 MB.
 - The plugin's `SessionStart` hook health-checks the collector and kickstarts it via launchd if it's down, so the world is alive the moment a session starts.
 - Restart manually: `launchctl kickstart -k gui/$(id -u)/com.ara.collector`.
 

@@ -25,7 +25,7 @@ Give a one-screen status of the ARA World (all Claude Code sessions across proje
 ```
 
 4. Keep it to one screen: max 5 lines per bucket, collapse the rest to "…and X more".
-5. End with the viewer URLs: `http://localhost:4748` and the tailnet URL if known (collector log prints it; or run `tailscale ip -4`).
+5. End with the viewer URLs: `http://localhost:4747` and the tailnet URL if known (collector log prints it; or run `tailscale ip -4`).
 
 ## Rules
 

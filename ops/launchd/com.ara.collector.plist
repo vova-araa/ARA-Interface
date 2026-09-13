@@ -4,8 +4,13 @@
 <dict>
   <key>Label</key>
   <string>com.ara.collector</string>
+  <!-- caffeinate -s houdt de Mac wakker zolang de collector draait; anders
+       valt de hele wereld stil zodra het deksel dicht gaat of de energiestand
+       toeslaat, en dat ziet er van buiten uit als "er gebeurt niets". -->
   <key>ProgramArguments</key>
   <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-s</string>
     <string>__PNPM__</string>
     <string>--filter</string>
     <string>@ara/collector</string>

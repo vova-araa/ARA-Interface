@@ -185,3 +185,33 @@
 - ✅ Chat met agent/manager/chief; de vraag landt als bordtaak zodat de watchdog die rol wakker maakt.
 - ✅ 36 unit tests + 4 Playwright-flows groen.
 - **Mac-stap**: niets extra's nodig. Wil je andere munten/wagens/routes in een kantoor? Pas `offices` aan in `plugins/ara/org.json`.
+
+## Hardening-batch (2026-09-13)
+Vier geteste commits, alles wat remote te fixen was uit de eigen audit.
+
+- ✅ **Watchdog ziet wat hij eerst miste**: collector-down gaat nu ook naar Telegram
+  (met dedupe op inhoud); een headless agent die binnen 30s omvalt meldt zichzelf;
+  na twee mislukte pogingen op dezelfde situatie stopt het spawnen; het dagbudget
+  uit org.json blokkeert nieuwe spawns; kantoorchat-vragen (`CHAT: …`) worden nu
+  écht opgepakt — die stonden op `manager:<venture>` en werden nooit uitgelezen;
+  één keer per dag een levensteken, zodat stilte zelf het alarm is.
+- ✅ **Kantoren zijn per bureau eerlijk**: `simulated` was een vlag per kantoor, nu
+  telt elk bureau apart (`X/Y op echte data` in de balk). Cijfers zonder push
+  krijgen `≈` en een gedempte kleur, een station waar >30 min niets binnenkwam
+  wordt als verlopen gemarkeerd.
+- ✅ **Dataveiligheid**: tool-input wordt afgekapt (`capValue`), gestopte subagents
+  verdwijnen na een uur uit `/state`, usage-rijen blijven 30 dagen (de 7-daagse
+  event-ring wiste de dag-basislijn), WAL-checkpoint + dagelijkse VACUUM,
+  timing-safe tokenvergelijking, `/health` meldt `lastEventAgeSec`, en
+  `pnpm --filter @ara/collector backup` maakt een consistente kopie (14 bewaard).
+- ✅ **Ops**: de losse viewer-agent op :4748 is weg — de collector serveert dezelfde
+  `dist/` al op :4747, en twee servers op één build betekende alleen maar twee
+  kansen op verouderde code. De collector draait nu onder `caffeinate -s` (een
+  slapende Mac stopte de hele wereld), de plists worden `chmod 600` geschreven
+  (er staan `ARA_TOKEN` en de Telegram-sleutel in), de watchdog herbouwt
+  `apps/viewer/dist` zodra die ouder is dan de broncode (anders draait de browser
+  na een `git pull` een andere reducer dan de collector) en roteert launchd-logs
+  boven 20 MB.
+- **Mac-stap**: draai `./scripts/install.sh` opnieuw — die bootout't de oude
+  `com.ara.viewer` zelf en zet de nieuwe plists goed. Daarna is `http://localhost:4747`
+  het enige adres dat je nodig hebt.

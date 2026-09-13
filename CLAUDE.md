@@ -13,7 +13,7 @@ apps/collector/     @ara/collector — Express + better-sqlite3 (poort 4747), se
 apps/viewer/        @ara/viewer   — React Three Fiber (dev-poort 4748)
 plugins/ara/        Claude Code plugin: hooks, agents (chief/supervisor/manager/worker/scout/ops), commands, org.json
 scripts/            watchdog.mjs (24/7, 0 LLM-tokens), notify.mjs (Telegram), install.sh, expose.sh (Tailscale)
-ops/                launchd plists (templates; install.sh vult placeholders)
+ops/                launchd plists (templates; install.sh vult placeholders + chmod 600)
 data/               runtime: SQLite db, world.config.json-kopieën, logs (niet committen)
 ```
 
@@ -79,6 +79,11 @@ Container/CI-bijzonderheden:
 
 - `ARA_TOKEN` gezet ⇒ collector eist Bearer/X-ARA-Token/?token= op alle API-paden; `/health` blijft open.
 - `scripts/expose.sh tailnet|public|off|status`; `public` (funnel) weigert zonder `ARA_TOKEN`.
+- Eén poort in productie: **:4747** serveert API én de gebouwde viewer. :4748 is
+  alleen de vite dev-server (`pnpm dev`) — er draait geen launchd-agent meer voor.
+- De watchdog herbouwt `apps/viewer/dist` zodra die ouder is dan `apps/viewer/src`
+  of `packages/shared/src`; een verouderde build betekent een andere reducer in de
+  browser dan in de collector.
 
 ## Agent-org (plugins/ara)
 

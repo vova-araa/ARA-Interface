@@ -9,11 +9,12 @@
       "launchdService": "com.ara.collector"
     },
     {
+      "_": "De collector serveert de viewer zelf; deze check bewaakt dat de gebouwde wereld ook echt uitgeleverd wordt, niet alleen de API.",
       "name": "ara-viewer",
-      "url": "http://127.0.0.1:4748/",
+      "url": "http://127.0.0.1:4747/",
       "enabled": true,
       "critical": true,
-      "launchdService": "com.ara.viewer"
+      "launchdService": "com.ara.collector"
     },
     {
       "name": "sharzi-site",

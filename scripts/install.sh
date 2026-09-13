@@ -40,6 +40,9 @@ install_agent() {
       -e "s|__TG_TOKEN__|${ARA_TELEGRAM_BOT_TOKEN:-}|g" \
       -e "s|__TG_CHAT__|${ARA_TELEGRAM_CHAT_ID:-}|g" \
       "$REPO/ops/launchd/$name.plist" > "$plist"
+  # De plist bevat ARA_TOKEN en de Telegram-sleutel. Standaard schrijft sed 'm
+  # als 0644 weg — leesbaar voor elke andere gebruiker en elk proces op de Mac.
+  chmod 600 "$plist"
   launchctl bootout "gui/$UID_NUM/$name" 2>/dev/null || true
   launchctl bootstrap "gui/$UID_NUM" "$plist"
   launchctl enable "gui/$UID_NUM/$name"
@@ -48,8 +51,15 @@ install_agent() {
 }
 
 install_agent com.ara.collector
-install_agent com.ara.viewer
 install_agent com.ara.watchdog
+
+# De losse viewer op :4748 is vervallen: de collector serveert dezelfde
+# dist/ al op :4747. Een eerdere installatie draait 'm nog wel door.
+if launchctl print "gui/$UID_NUM/com.ara.viewer" >/dev/null 2>&1; then
+  launchctl bootout "gui/$UID_NUM/com.ara.viewer" 2>/dev/null || true
+  rm -f "$AGENTS/com.ara.viewer.plist"
+  echo "▸ oude losse viewer-agent (:4748) verwijderd — :4747 serveert de wereld"
+fi
 
 # ── Plugin ──────────────────────────────────────────────────────────────
 if command -v claude >/dev/null 2>&1; then

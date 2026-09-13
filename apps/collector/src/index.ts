@@ -34,10 +34,13 @@ const BIND = process.env.ARA_BIND ?? (process.env.ARA_TOKEN ? '0.0.0.0' : '127.0
 app.listen(COLLECTOR_PORT, BIND, () => {
   const ip = tailnetIp();
   console.log(`[ara-collector] listening on http://${BIND}:${COLLECTOR_PORT}`);
-  console.log(`[ara-collector] local viewer:   http://localhost:${VIEWER_PORT}`);
+  // Deze poort serveert de gebouwde viewer ook. Het oude :4748 is alleen nog
+  // de vite dev-server; die URL hier noemen stuurde mensen naar een poort die
+  // in productie niet eens draait.
+  console.log(`[ara-collector] local viewer:   http://localhost:${COLLECTOR_PORT}`);
+  console.log(`[ara-collector] dev viewer:     http://localhost:${VIEWER_PORT} (alleen bij pnpm dev)`);
   if (ip) {
-    console.log(`[ara-collector] tailnet viewer: http://${ip}:${VIEWER_PORT}`);
-    console.log(`[ara-collector] tailnet API:    http://${ip}:${COLLECTOR_PORT}`);
+    console.log(`[ara-collector] tailnet viewer: http://${ip}:${COLLECTOR_PORT}`);
   } else {
     console.log('[ara-collector] no tailnet IP found (is Tailscale up?)');
   }
