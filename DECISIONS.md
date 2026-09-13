@@ -104,3 +104,22 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
   schreef ze als 0644 weg. Nu `chmod 600` direct na het genereren.
 - **Usage-retentie los van de event-ring**: usage-rijen leven 30 dagen, events 7. De
   dag-over-dag basislijn voor het tokenbudget viel anders elke week om.
+
+## Bewezen keten + meetlaag (2026-09-13)
+- **Aannames zijn geen bewijs**: de watchdog zag alleen "proces gestart". `verify-agents.mjs`
+  gebruikt een verse nonce per run, zodat een agent die het commando níét draait de check
+  onmogelijk kan halen — ook niet door een plausibel antwoord te verzinnen.
+- **Een agent kan geen endpoint-beschrijving uitvoeren**: "Antwoord met POST /chat {…}" mist
+  host, token en taak-id. De bordtaak bevat nu de letterlijke curl-regels. Dit was de laatste
+  schakel waardoor een kantoorvraag kon weggaan zonder ooit terug te komen.
+- **`--plugin-dir` in plaats van vertrouwen op de installatie**: een plugin die niet (meer)
+  geïnstalleerd is, laat `--agent` falen met een sessie die binnen seconden omvalt. De
+  watchdog laadt de map nu zelf; de installatie blijft nuttig maar is geen voorwaarde meer.
+- **Meten of zwijgen**: de Gemeten-tab vult nooit iets in. Een project zonder `path` levert
+  geen branch-regel op — en dus ook geen "onbekend". Een lege `git status` is wél een meting
+  (0 wijzigingen) en hoort er dus wel te staan; dat onderscheid staat in een test.
+- **Git-aanroepen gecached (60s) met 4s timeout**: een kantoor dat elke paar seconden
+  ververst mag geen `git log` per verzoek afvuren, en een hangende repo (netwerk-mount,
+  lock) mag de collector niet blokkeren.
+- **Meten maakt verzinsels niet echt**: een kantoor met 41 commits in de meetlaag blijft
+  `simulated: true` zolang geen enkele werkplek echte data kreeg. Vastgelegd in een test.

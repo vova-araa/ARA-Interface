@@ -215,3 +215,22 @@ Vier geteste commits, alles wat remote te fixen was uit de eigen audit.
 - **Mac-stap**: draai `./scripts/install.sh` opnieuw — die bootout't de oude
   `com.ara.viewer` zelf en zet de nieuwe plists goed. Daarna is `http://localhost:4747`
   het enige adres dat je nodig hebt.
+
+## Uitbouw: bewezen keten + gemeten cijfers (2026-09-13)
+- ✅ **De spawn-keten is nu bewezen, niet aangenomen**: `pnpm verify:agents` maakt een
+  bordtaak, start een echte headless `claude -p --agent ara-worker`, laat die een
+  commando draaien en controleert dat de échte uitvoer op het bord staat — met een
+  verse nonce die hij onmogelijk kan verzinnen. Deel 2 doet hetzelfde voor de
+  kantoorchat: vraag → bordtaak → `ara-manager` → antwoord terug in dezelfde ruimte →
+  taak gesloten. Beide delen PASS.
+- ✅ **Chat-taken zijn nu uitvoerbaar**: de bordtaak bevat twee plakbare curl-commando's
+  (host, token en taak-id ingevuld) in plaats van een beschrijving. Zonder dat kon een
+  headless agent een vraag simpelweg niet beantwoorden.
+- ✅ **`--plugin-dir` bij elke spawn**: `--agent` hing aan de marketplace-installatie;
+  was die niet gedaan of stuk, dan bestond de rol niet en viel de sessie meteen om.
+- ✅ **Gemeten-tab in elk kantoor**: git leest de repo (branch, commits vandaag/7 dagen,
+  laatste commit, onopgeslagen wijzigingen), het bord telt taken, de usage-tabel telt
+  tokens. Niet meetbaar = regel staat er niet. Geverifieerd tegen deze repo.
+- **Mac-stap**: zet een `path` bij elk project in `projects.json` — dan leest de
+  Gemeten-tab die repo automatisch uit. Draai daarna één keer `pnpm verify:agents`
+  om de hele keten op jouw Mac hard te maken (kost één korte haiku-sessie).

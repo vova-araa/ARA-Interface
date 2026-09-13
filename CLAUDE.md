@@ -33,6 +33,9 @@ pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhon
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
+pnpm verify:agents           # end-to-end: spawnt een echte headless agent + kantoorchat
+#   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
+#   te testen is. Draai 'm na installatie en na elke Claude Code-update.
 ```
 
 Container/CI-bijzonderheden:
@@ -71,6 +74,11 @@ Container/CI-bijzonderheden:
 - Agents leveren echte cijfers via `POST /office/:project/station`; zolang dat
   niet gebeurt vult `buildOffice` deterministisch in en staat `simulated: true`
   (de UI toont dan "voorbeeldcijfers" — nooit stilzwijgend nepdata).
+- De **Gemeten-tab** is het tegendeel: `apps/collector/src/pulse.ts` leest git
+  (branch, commits, laatste commit, dirty files — 60s cache), het bord telt taken
+  en de usage-tabel telt tokens. Niet meetbaar ⇒ de regel ontbreekt; er wordt
+  daar nooit iets ingevuld. Een project krijgt git-cijfers zodra het een `path`
+  heeft in `projects.json`.
 - Kantoorchat: `GET/POST /chat` met `room: "office:<project>"`. Een vraag van de
   gebruiker wordt óók een bordtaak bij de aangesproken rol, zodat de watchdog
   die agent wakker maakt en er echt antwoord komt.
@@ -91,6 +99,9 @@ Container/CI-bijzonderheden:
   **managers** per venture (on-demand) → workers/scouts; vaste **ops-manager** voor storingen.
 - Communicatie loopt uitsluitend via het takenbord (collector `/tasks`); spawning via
   SPAWN-REQUEST of headless `claude -p` (subagents hebben zelf géén Agent-tool — bewezen).
+- Spawns krijgen altijd `--plugin-dir plugins/ara` mee, zodat `--agent` niet afhangt
+  van een geslaagde marketplace-installatie. Chat-taken dragen letterlijke curl-regels
+  (host + token + taak-id): een headless agent kan geen endpoint-beschrijving uitvoeren.
 - Token-discipline: haiku-first voor scouts/simpele workers, Grep vóór Read, korte
   bordresultaten; dagbudget in `org.json` (`tokenBudgetDaily`).
 - `watchdog.mjs` draait via launchd elke 5 min met 0 LLM-tokens; spawnt alléén agents
