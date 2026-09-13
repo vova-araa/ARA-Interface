@@ -597,3 +597,17 @@ html, body, #root {
 }
 .office-row-static { cursor: default; }
 .office-row-static:hover { background: rgba(255, 255, 255, 0.03); border-color: transparent; }
+
+/* Team-tab: de organisatie zoals hij is, inclusief lege stoelen. */
+.office-row-vacant { opacity: 0.55; }
+.office-sub-head {
+  margin: 16px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.55;
+}
+.office-bullets { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+.office-bullets li { margin-bottom: 3px; }
+.office-bullets-warn li { color: #ffce7a; }
+.office-bullet-open { color: #ffce7a; }

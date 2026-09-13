@@ -310,3 +310,77 @@ test('buildOffice: de meetlaag vult nooit iets in', async () => {
   assert.equal(met.simulated, true);
   assert.equal(met.realStations, 0);
 });
+
+test('playbook: elke tak krijgt eigen rollen, grenzen en databronnen', async () => {
+  const { resolvePlaybook, playbookPrompt } = await import('./org.ts');
+
+  // Zonder org.json-invoer valt een tak terug op het branche-standaard —
+  // nooit op een leeg playbook.
+  const tms = resolvePlaybook('traject', 'Sharzi TMS');
+  assert.equal(tms.managerName, 'Manager Sharzi TMS');
+  assert.ok(tms.specialists.some((s) => s.agent === 'ara-planner'), 'planning krijgt een ritplanner');
+  assert.ok(tms.duties.length > 0 && tms.escalate.length > 0);
+
+  const fleet = resolvePlaybook('blex', 'Truck & Trailers');
+  assert.ok(fleet.specialists.some((s) => s.agent === 'ara-fleet-tech'), 'wagenpark krijgt een monteur');
+  assert.ok(!fleet.specialists.some((s) => s.agent === 'ara-planner'), 'en geen ritplanner');
+
+  // De read-only grens van de handel staat in het playbook zelf, niet alleen
+  // in een promptregel die iemand kan vergeten mee te sturen.
+  for (const id of ['trading', 'crypto']) {
+    const book = resolvePlaybook(id, id);
+    assert.ok(book.specialists.some((s) => s.agent === 'ara-market-analyst'));
+    assert.ok(
+      book.escalate.some((e) => /orderlogica/i.test(e)) && book.escalate.some((e) => /sleutel/i.test(e)),
+      `${id}: orderlogica én sleutels horen hard te escaleren`,
+    );
+  }
+
+  // Elke tak heeft de cijferaanvoer, anders blijft het kantoor op voorbeelden draaien.
+  for (const id of ['traject', 'blex', 'trading', 'crypto', 'elevate', 'uprising', 'vovara']) {
+    assert.ok(
+      resolvePlaybook(id, id).specialists.some((s) => s.agent === 'ara-reporter'),
+      `${id} mist de cijferaanvoer`,
+    );
+  }
+
+  // Wat de gebruiker invult wint; wat hij weglaat komt uit het standaard.
+  const eigen = resolvePlaybook('traject', 'Sharzi TMS', { managerName: 'Manager Ritplanning' });
+  assert.equal(eigen.managerName, 'Manager Ritplanning');
+  assert.deepEqual(eigen.specialists, tms.specialists);
+
+  // De promptvorm noemt de niet-aangesloten bronnen expliciet, zodat een
+  // manager weet dat daar niets te halen valt in plaats van iets te verzinnen.
+  const prompt = playbookPrompt(tms);
+  assert.match(prompt, /ALTIJD escaleren/);
+  assert.match(prompt, /Nog niet aangesloten databronnen/);
+});
+
+test('buildOffice: het kantoor toont de vaste rollen, ook als er niemand draait', async () => {
+  const { buildOffice } = await import('./office.ts');
+  const { resolvePlaybook } = await import('./org.ts');
+  const { VENTURES } = await import('./world.ts');
+  const venture = VENTURES.find((v) => v.id === 'blex')!;
+  const playbook = resolvePlaybook('blex', venture.label, { managerName: 'Manager Wagenpark' });
+
+  const office = buildOffice({
+    project: 'truck-trailers',
+    venture,
+    sessions: [],
+    tasks: [],
+    playbook,
+    now: 1_700_000_000_000,
+  });
+
+  const manager = office.staff.find((s) => s.role === 'manager')!;
+  assert.equal(manager.name, 'Manager Wagenpark');
+  assert.equal(manager.live, false, 'zonder sessie is de manager niet live');
+
+  const tech = office.staff.find((s) => s.agent === 'ara-fleet-tech')!;
+  assert.ok(tech, 'de vaste rol staat in het kantoor');
+  assert.equal(tech.live, false);
+  assert.match(tech.status, /niet actief/, 'een lege stoel is zichtbaar leeg');
+  assert.ok(tech.does && tech.does.length > 0);
+
+  assert.equal(office.playbook?.managerName, 'Manager Wagenpark');
+});

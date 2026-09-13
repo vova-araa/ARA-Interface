@@ -295,3 +295,55 @@ test('/office: de meetlaag bevat alleen gemeten cijfers', async () => {
     store.close();
   }
 });
+
+test('/org: de organisatie is data, compleet per tak', async () => {
+  const { store, server, base } = boot();
+  try {
+    const org = (await (await fetch(`${base}/org`)).json()) as {
+      ventures: {
+        id: string;
+        label: string;
+        manager: string;
+        playbook: {
+          managerName: string;
+          specialists: { agent: string; name: string; does: string }[];
+          duties: string[];
+          escalate: string[];
+          dataSources: { label: string; configured: boolean }[];
+        };
+      }[];
+    };
+
+    const byId = new Map(org.ventures.map((v) => [v.id, v]));
+    // De namen uit org.json winnen van het branche-standaard.
+    assert.equal(byId.get('traject')!.playbook.managerName, 'Manager Ritplanning');
+    assert.equal(byId.get('blex')!.playbook.managerName, 'Manager Wagenpark');
+
+    // Elke tak is compleet: nooit een lege rollenlijst of lege grenzen.
+    for (const v of org.ventures) {
+      assert.ok(v.playbook.specialists.length > 0, `${v.id} zonder rollen`);
+      assert.ok(v.playbook.duties.length > 0, `${v.id} zonder werk`);
+      assert.ok(v.playbook.escalate.length > 0, `${v.id} zonder grenzen`);
+      assert.equal(v.manager, `manager:${v.id}`);
+    }
+
+    // De handel houdt zijn read-only grens, ook via de API.
+    const trading = byId.get('trading')!.playbook;
+    assert.ok(trading.escalate.some((e) => /orderlogica/i.test(e)));
+    assert.ok(trading.specialists.some((s) => s.agent === 'ara-market-analyst'));
+
+    // Het kantoor gebruikt hetzelfde playbook als /org zegt.
+    const office = (await (await fetch(`${base}/office/truck-trailers`)).json()) as {
+      staff: { agent?: string; live?: boolean; name: string; role: string }[];
+      playbook?: { managerName: string };
+    };
+    assert.equal(office.playbook?.managerName, 'Manager Wagenpark');
+    assert.ok(
+      office.staff.some((s) => s.agent === 'ara-fleet-tech' && s.live === false),
+      'de vaste rol staat in het kantoor en is zichtbaar onbezet',
+    );
+  } finally {
+    server.close();
+    store.close();
+  }
+});

@@ -1,3 +1,4 @@
+import type { Playbook } from './org.ts';
 /**
  * Kantoor-model: elk project (huisje op de kaart) heeft een eigen kantoor,
  * geperfectioneerd voor zijn branche. Een kantoor bestaat uit werkplekken
@@ -107,6 +108,15 @@ export interface StaffMember {
   status: string;
   busyWith?: string;
   sessionId?: string;
+  /**
+   * false = vaste rol uit het playbook die nu niet draait. Een lege stoel is
+   * eerlijker dan een rol die er actief uitziet zonder sessie erachter.
+   */
+  live?: boolean;
+  /** Agent-definitie achter deze rol (alleen bij playbook-rollen). */
+  agent?: string;
+  /** Eén regel: wat deze rol hier doet. */
+  does?: string;
 }
 
 export interface RoomMessage {
@@ -140,6 +150,8 @@ export interface OfficeSnapshot {
   staleStations: number;
   /** Gemeten projectcijfers; ontbreekt als er niets te meten viel. */
   pulse?: ProjectPulse;
+  /** De organisatie van deze tak zoals die in het kantoor getekend wordt. */
+  playbook?: Playbook;
   /** Afgeleid uit pulse: rijen die je zonder voorbehoud mag geloven. */
   measured: Metric[];
   /** true = de grafiek op de muur is een ingevuld verloop, geen meting. */
@@ -318,6 +330,8 @@ export interface OfficeInput {
   overrides?: StationOverride[];
   /** Gemeten projectcijfers (git/bord/tokens) — nooit ingevuld. */
   pulse?: ProjectPulse;
+  /** Organisatie van deze tak (manager, vaste rollen, escalaties). */
+  playbook?: Playbook;
   now: number;
 }
 
@@ -414,18 +428,41 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
     };
   });
 
-  // ── Bezetting: supervisor + manager + agents ───────────────────────────
+  // ── Bezetting: chief → manager → vaste rollen → wie er nú draait ───────
+  // De vaste rollen komen uit het playbook van de tak en staan er altijd, ook
+  // als er niemand draait (live: false). Zo zie je de organisatie, niet alleen
+  // het toeval van dit moment.
+  const playbook = input.playbook;
+  const liveNames = new Set(liveAgents.map((a) => a.name.toLowerCase()));
   const staff: StaffMember[] = [
-    { id: 'chief', name: 'ARA Chief', role: 'supervisor', status: 'houdt de hele organisatie in de gaten' },
+    {
+      id: 'chief',
+      name: 'ARA Chief',
+      role: 'supervisor',
+      status: 'houdt de hele organisatie in de gaten',
+      live: true,
+    },
     {
       id: `manager:${venture.id}`,
-      name: `Manager ${venture.label}`,
+      name: playbook?.managerName ?? `Manager ${venture.label}`,
       role: 'manager',
       status: activeSessions.length > 0 ? 'stuurt het team aan' : 'wacht op werk',
       busyWith: tasks.find((t) => t.assignee === `manager:${venture.id}` && t.status !== 'done')?.title,
+      live: activeSessions.length > 0,
     },
+    ...(playbook?.specialists ?? []).map((spec) => ({
+      id: `rol:${spec.agent}:${spec.name}`,
+      name: spec.name,
+      role: (spec.agent === 'ara-web-scout' ? 'scout' : 'agent') as StaffMember['role'],
+      // Een vaste rol met een draaiende agent van hetzelfde type telt als bezet.
+      status: liveNames.has(spec.agent) ? 'aan het werk' : 'vaste rol · niet actief',
+      live: liveNames.has(spec.agent),
+      agent: spec.agent,
+      does: spec.does,
+    })),
     ...liveAgents.slice(0, 12).map((a) => ({
       id: a.id,
+      live: true,
       name: a.name,
       role: (a.name.toLowerCase().includes('scout') || a.name.toLowerCase().includes('explore')
         ? 'scout'
@@ -574,6 +611,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       messages: messages.slice(0, 8),
     },
     pulse,
+    playbook,
     measured,
     valueKind: spec.valueKind,
     simulated: realStations === 0,

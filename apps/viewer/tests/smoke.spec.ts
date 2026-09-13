@@ -109,9 +109,14 @@ test.describe('kantoren 1400×900', () => {
     await expect(page.locator('.office-detail')).toBeVisible();
     await expect(page.locator('.office-table')).toBeVisible();
 
-    // Team-tab toont de leiding: chief en manager horen er altijd te zijn.
+    // Team-tab toont de héle organisatie van deze tak: leiding, vaste rollen
+    // (ook onbezet) en de grenzen die voor die tak gelden.
     await page.locator('.office-tabs button', { hasText: 'Team' }).click();
     await expect(page.locator('.office-list')).toContainText('ARA Chief');
+    await expect(page.locator('.office-list')).toContainText('Manager Wagenpark');
+    await expect(page.locator('.office-list')).toContainText('Wagenparkbeheer');
+    await expect(page.locator('.office-row-vacant').first()).toBeVisible();
+    await expect(page.locator('.office-bullets-warn')).toContainText('productie');
 
     // Gemeten-tab: alleen echte cijfers, met de belofte er zichtbaar boven.
     await page.locator('.office-tabs button', { hasText: 'Gemeten' }).click();

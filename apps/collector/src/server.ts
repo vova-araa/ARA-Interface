@@ -9,9 +9,11 @@ import {
   capValue,
   placementForProject,
   redactValue,
+  resolvePlaybook,
   VENTURES,
   WorldState,
   type AraEvent,
+  type RawPlaybook,
   type StationOverride,
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
@@ -38,7 +40,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat)(\/|$)/i;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -515,17 +517,58 @@ export function createCollector(store: EventStore): CollectorApp {
 
   // ── Kantoren: per project een branche-specifiek kantoor ────────────────
   /** Branche-entiteiten (munten, wagens, routes) uit org.json, optioneel. */
-  function officeEntities(ventureId: string): string[] | undefined {
+  interface OrgFile {
+    offices?: Record<string, string[]>;
+    ventures?: { id: string; manager?: string; priority?: number; focus?: string; playbook?: RawPlaybook }[];
+    chief?: unknown;
+    ops?: unknown;
+    policy?: unknown;
+  }
+
+  function readOrg(): OrgFile {
     try {
-      const org = JSON.parse(fs.readFileSync(ORG_JSON_PATH, 'utf8')) as {
-        offices?: Record<string, string[]>;
-      };
-      const list = org.offices?.[ventureId];
-      return Array.isArray(list) && list.length > 0 ? list : undefined;
+      return JSON.parse(fs.readFileSync(ORG_JSON_PATH, 'utf8')) as OrgFile;
     } catch {
-      return undefined;
+      return {};
     }
   }
+
+  function officeEntities(ventureId: string): string[] | undefined {
+    const list = readOrg().offices?.[ventureId];
+    return Array.isArray(list) && list.length > 0 ? list : undefined;
+  }
+
+  function playbookFor(ventureId: string, ventureLabel: string) {
+    const raw = readOrg().ventures?.find((v) => v.id === ventureId)?.playbook;
+    return resolvePlaybook(ventureId, ventureLabel, raw);
+  }
+
+  /**
+   * De organisatie als data, niet als bestand. De viewer tekent hiermee de
+   * echte hiërarchie per tak, en een agent kan zijn eigen playbook opvragen
+   * zonder org.json te hoeven lezen en interpreteren.
+   */
+  app.get('/org', (req, res) => {
+    allowOrigin(req, res);
+    const org = readOrg();
+    res.json({
+      chief: org.chief ?? null,
+      ops: org.ops ?? null,
+      policy: org.policy ?? null,
+      ventures: VENTURES.filter((v) => v.id !== 'misc').map((v) => {
+        const entry = org.ventures?.find((o) => o.id === v.id);
+        return {
+          id: v.id,
+          label: v.label,
+          color: v.color,
+          manager: entry?.manager ?? `manager:${v.id}`,
+          priority: entry?.priority ?? 2,
+          focus: entry?.focus ?? '',
+          playbook: resolvePlaybook(v.id, v.label, entry?.playbook),
+        };
+      }),
+    });
+  });
 
   app.get('/office/:project', async (req, res) => {
     allowOrigin(req, res);
@@ -586,6 +629,7 @@ export function createCollector(store: EventStore): CollectorApp {
         entities: officeEntities(venture.id),
         overrides,
         pulse,
+        playbook: playbookFor(venture.id, venture.label),
         now: Date.now(),
       }),
     );

@@ -47,43 +47,64 @@
       "id": "traject",
       "manager": "manager:traject",
       "priority": 1,
-      "focus": "Sharzi TMS: ritten plannen, facturatie, transport-integraties. Productie-gevoelig: migraties en externe API's altijd escaleren."
+      "focus": "Sharzi TMS: ritten plannen, facturatie, transport-integraties. Productie-gevoelig: migraties en externe API's altijd escaleren.",
+      "playbook": {
+        "managerName": "Manager Ritplanning"
+      }
     },
     {
       "id": "blex",
       "manager": "manager:blex",
       "priority": 1,
-      "focus": "Truck & Trailers: wagenparkbeheer, voorraad/trailers, Supabase-sync. Data-integriteit boven snelheid."
+      "focus": "Truck & Trailers: wagenparkbeheer, voorraad/trailers, Supabase-sync. Data-integriteit boven snelheid.",
+      "playbook": {
+        "managerName": "Manager Wagenpark"
+      }
     },
     {
       "id": "uprising",
       "manager": "manager:uprising",
       "priority": 1,
-      "focus": "Studio: site, boekingen, audio-tooling. Visueel werk graag met screenshot in het taakresultaat."
+      "focus": "Studio: site, boekingen, audio-tooling. Visueel werk graag met screenshot in het taakresultaat.",
+      "playbook": {
+        "managerName": "Manager Studio"
+      }
     },
     {
       "id": "trading",
       "manager": "manager:trading",
       "priority": 1,
-      "focus": "XAU/USD bots: STRIKT read-only op live trading; elke wijziging aan order-logica of keys is een automatische ESCALATE."
+      "focus": "XAU/USD bots: STRIKT read-only op live trading; elke wijziging aan order-logica of keys is een automatische ESCALATE.",
+      "playbook": {
+        "managerName": "Manager Handelsvloer"
+      }
     },
     {
       "id": "elevate",
       "manager": "manager:elevate",
       "priority": 2,
-      "focus": "Design: campagnes, assets, sites."
+      "focus": "Design: campagnes, assets, sites.",
+      "playbook": {
+        "managerName": "Manager Design"
+      }
     },
     {
       "id": "vovara",
       "manager": "manager:vovara",
       "priority": 2,
-      "focus": "Muziek: releases, site, promotie."
+      "focus": "Muziek: releases, site, promotie.",
+      "playbook": {
+        "managerName": "Manager Releases"
+      }
     },
     {
       "id": "crypto",
       "manager": "manager:crypto",
       "priority": 1,
-      "focus": "Crypto desk: munten volgen, setups bewaken, on-chain data. STRIKT read-only op live posities; elke order-wijziging is een automatische ESCALATE."
+      "focus": "Crypto desk: munten volgen, setups bewaken, on-chain data. STRIKT read-only op live posities; elke order-wijziging is een automatische ESCALATE.",
+      "playbook": {
+        "managerName": "Manager Crypto-desk"
+      }
     }
   ],
   "offices": {
@@ -185,5 +206,6 @@
       "Playlist-pitch",
       "Merch"
     ]
-  }
+  },
+  "_playbooks": "Elke venture krijgt een playbook: managerName, specialists, duties, escalate, checks en dataSources. Wat je hier niet invult komt uit het branche-standaard in packages/shared/src/org.ts (resolvePlaybook). Zie GET /org voor het resultaat. dataSources met \"configured\": false zijn de plekken waar nog geen echte cijfers vandaan komen — vul \"how\" in en zet configured op true zodra het werkt."
 }

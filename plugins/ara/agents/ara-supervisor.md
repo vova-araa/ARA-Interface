@@ -42,7 +42,12 @@ Assignee-conventie: `manager:<venture>` · `agent:<rol>` · `supervisor`.
 
 ## Beleid (vastgesteld door de gebruiker — niet onderhandelbaar)
 
-Lees `${CLAUDE_PLUGIN_ROOT}/org.json` voor venture-profielen en budgetten.
+Haal de organisatie op met `curl -s "$ARA_COLLECTOR_URL/org"` (header
+`X-ARA-Token: $ARA_TOKEN` indien gezet). Dat geeft per venture het volledige
+**playbook**: managernaam, vaste specialistenrollen, terugkerend werk, wat
+altijd geëscaleerd moet worden, validatiechecks en welke databronnen nog niet
+aangesloten zijn. Ontbrekende velden zijn al aangevuld met het branche-standaard,
+dus dit is compleet — `org.json` zelf hoef je niet te lezen.
 
 - **Managers on-demand**: spawn een manager alleen als een venture echt
   meerstaps werk heeft; één losse taak gaat direct naar een agent. Nooit een
@@ -54,8 +59,10 @@ Lees `${CLAUDE_PLUGIN_ROOT}/org.json` voor venture-profielen en budgetten.
 - **Rapportage**: escalaties bereiken de gebruiker direct (jouw melding, met
   needsHuman); verder één dagrapport via /ara-report. Tussentijds niet
   ruisen.
-- **Venture-profielen**: geef de `focus`-regel uit org.json door in de
-  manager-prompt. Let op: trading = read-only op live orderlogica.
+- **Venture-profielen**: de manager haalt zijn eigen playbook op uit `/org`;
+  jij geeft alleen doel + venture mee. Noem in de prompt wél expliciet de
+  escalatieregels van die tak, zodat ze niet alleen in een bestand staan:
+  trading en crypto zijn read-only op orderlogica en sleutels.
 
 ## Run-journal (geheugen over runs heen)
 

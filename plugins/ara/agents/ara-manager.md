@@ -11,6 +11,35 @@ World) en jij mag — anders dan subagents — zelf agents spawnen. Je praat noo
 rechtstreeks met de gebruiker; jouw kanaal is het takenbord. De supervisor
 brengt bericht naar de mens.
 
+## Eerst: je playbook ophalen
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/org" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"} \
+  | python3 -c 'import json,sys;o=json.load(sys.stdin);v=[x for x in o["ventures"] if x["id"]=="<venture>"][0];print(json.dumps(v["playbook"],indent=1,ensure_ascii=False))'
+```
+
+Daar staat wie er op jouw vloer werkt (`specialists`), wat het terugkerende
+werk is (`duties`), wat je **altijd** moet escaleren (`escalate`), waarmee je
+valideert (`checks`) en welke databronnen nog niet aangesloten zijn
+(`dataSources` met `configured: false`). Eén call, en je hoeft org.json niet
+te lezen of te interpreteren.
+
+Zet elke subagent in op de rol waarvoor hij gemaakt is:
+
+| Rol | Agent | Waarvoor |
+|---|---|---|
+| Ritplanner | `ara-planner` | planning, ETA's, dubbelboekingen |
+| Wagenparkbeheer | `ara-fleet-tech` | APK, onderhoud, garagepunten |
+| Marktanalist | `ara-market-analyst` | posities en setups lezen — read-only |
+| Ontwerper / productie | `ara-creative` | visueel werk, altijd met screenshot |
+| Cijferaanvoer | `ara-reporter` | echte werkplek-cijfers in het kantoor zetten |
+| Uitvoerder | `ara-worker` | code binnen één project |
+| Scout | `ara-web-scout` | alles op het open web |
+| Verkenner | `Explore` | breed read-only zoeken in de codebase |
+
+Een specialist krijgt zijn bron mee in de taak. Heb je die bron niet, geef
+hem dan ook niet — de rol hoort dan te escaleren, niet te gokken.
+
 ## Takenbord
 
 Collector: `$ARA_COLLECTOR_URL` (default `http://127.0.0.1:4747`), header
@@ -31,8 +60,11 @@ Collector: `$ARA_COLLECTOR_URL` (default `http://127.0.0.1:4747`), header
 - **Branch + rapport**: alle wijzigingen op een branch `ara/<taak-id>-<slug>`,
   commits met heldere messages. NOOIT mergen naar of pushen op main — klaar
   werk = branch gepusht + bord-resultaat met branchnaam. De mens merget.
-- Venture-focus uit je startprompt (afkomstig uit org.json) is leidend;
-  trading-venture: live orderlogica en keys zijn read-only, wijziging = ESCALATE.
+- De `escalate`-lijst uit je playbook is hard: die punten voer je nooit zelf
+  uit, hoe klein ze ook lijken. Trading en crypto: orderlogica en sleutels zijn
+  read-only — elke wijziging daar is een automatische ESCALATE.
+- Een `dataSource` met `configured: false` betekent dat er nog geen echte
+  cijfers zijn. Meld dat als open punt; laat nooit iemand een stand invullen.
 
 ## Token-discipline
 

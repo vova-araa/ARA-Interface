@@ -362,6 +362,7 @@ export function OfficeOverlay(): JSX.Element | null {
                   <p>
                     {ROLE_LABEL[person.role]} · {person.status}
                   </p>
+                  {person.does && <p className="office-note">{person.does}</p>}
                   {person.busyWith && <p className="office-note">Bezig met: {person.busyWith}</p>}
                 </div>
               )}
@@ -369,16 +370,57 @@ export function OfficeOverlay(): JSX.Element | null {
                 <button
                   key={s.id}
                   type="button"
-                  className={`office-row ${selected === s.id ? 'active' : ''}`}
+                  className={`office-row ${selected === s.id ? 'active' : ''} ${
+                    s.live === false ? 'office-row-vacant' : ''
+                  }`}
                   onClick={() => selectStation(s.id)}
                 >
-                  <span className={`office-dot ${s.busyWith ? 'office-status-working' : 'office-status-idle'}`} />
+                  <span
+                    className={`office-dot ${
+                      s.busyWith || s.live ? 'office-status-working' : 'office-status-idle'
+                    }`}
+                  />
                   <span className="office-row-label">
                     {s.name}
-                    <em>{ROLE_LABEL[s.role]} · {s.status}</em>
+                    <em>
+                      {ROLE_LABEL[s.role]} · {s.status}
+                    </em>
                   </span>
                 </button>
               ))}
+
+              {/* De grenzen van deze tak horen zichtbaar te zijn, niet alleen
+                  in een promptregel die alleen de manager leest. */}
+              {office?.playbook && (
+                <>
+                  <h4 className="office-sub-head">Terugkerend werk</h4>
+                  <ul className="office-bullets">
+                    {office.playbook.duties.map((d) => (
+                      <li key={d}>{d}</li>
+                    ))}
+                  </ul>
+
+                  <h4 className="office-sub-head">Altijd escaleren</h4>
+                  <ul className="office-bullets office-bullets-warn">
+                    {office.playbook.escalate.map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
+
+                  {office.playbook.dataSources.length > 0 && (
+                    <>
+                      <h4 className="office-sub-head">Databronnen</h4>
+                      <ul className="office-bullets">
+                        {office.playbook.dataSources.map((d) => (
+                          <li key={d.label} className={d.configured ? undefined : 'office-bullet-open'}>
+                            <strong>{d.label}</strong> — {d.configured ? d.how : `nog niet aangesloten: ${d.how}`}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
 
