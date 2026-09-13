@@ -213,6 +213,11 @@ test('/office: branche-kantoor, werkplek-data van agents en chat naar het bord',
     assert.equal(sent.message.role, 'user');
     assert.ok(sent.taskId, 'chatvraag wordt echt werk op het bord');
     assert.equal(store.getTask(sent.taskId)!.assignee, 'manager:blex');
+    // Het detail moet een agent kúnnen uitvoeren: host, taak-id en twee curls.
+    const detail = store.getTask(sent.taskId)!.detail;
+    assert.ok(detail.includes('curl'), 'chattaak bevat een uitvoerbaar antwoord-commando');
+    assert.ok(detail.includes(room), 'het antwoord-commando wijst naar dezelfde ruimte');
+    assert.ok(detail.includes(sent.taskId), 'de agent kan de taak zelf afsluiten');
 
     const history = (await (await fetch(`${base}/chat?room=${encodeURIComponent(room)}`)).json()) as {
       messages: { text: string }[];
@@ -232,6 +237,59 @@ test('/office: branche-kantoor, werkplek-data van agents en chat naar het bord',
 
     // room is verplicht
     assert.equal((await fetch(`${base}/chat`, { method: 'POST', headers: json, body: '{}' })).status, 400);
+  } finally {
+    server.close();
+    store.close();
+  }
+});
+
+test('/office: de meetlaag bevat alleen gemeten cijfers', async () => {
+  const { store, server, base } = boot();
+  try {
+    // Een echte sessie + een afgeronde taak: dat zijn dingen die de collector
+    // zelf kan tellen, dus die horen als gemeten door te komen.
+    await fetch(`${base}/event`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        kind: 'tool.pre',
+        sessionId: 'meet-1',
+        project: 'truck-trailers',
+        tool: 'Bash',
+      }),
+    });
+    const { task } = (await (
+      await fetch(`${base}/tasks`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ title: 'gemeten taak', project: 'truck-trailers' }),
+      })
+    ).json()) as { task: { id: string } };
+    await fetch(`${base}/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ status: 'done', result: 'af' }),
+    });
+
+    const office = (await (await fetch(`${base}/office/truck-trailers`)).json()) as {
+      measured: { label: string; value: string; estimated: boolean }[];
+      pulse?: { toolCallsToday?: number; measuredAt: number };
+      simulated: boolean;
+    };
+    const find = (label: string) => office.measured.find((m) => m.label === label);
+
+    assert.equal(find('Tool-calls vandaag')?.value, '1');
+    assert.equal(find('Taken afgerond vandaag')?.value, '1');
+    assert.equal(find('Taken open')?.value, '0');
+    assert.ok(
+      office.measured.every((m) => m.estimated === false),
+      'de meetlaag bevat per definitie geen schattingen',
+    );
+    // Zonder pad in projects.json valt er niets uit git te lezen — dan hoort
+    // die regel te ontbreken, niet op "onbekend" te staan.
+    assert.equal(find('Branch'), undefined);
+    // En meten verandert niets aan het oordeel over de werkplekken zelf.
+    assert.equal(office.simulated, true);
   } finally {
     server.close();
     store.close();

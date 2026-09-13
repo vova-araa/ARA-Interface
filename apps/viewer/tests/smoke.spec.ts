@@ -113,6 +113,12 @@ test.describe('kantoren 1400×900', () => {
     await page.locator('.office-tabs button', { hasText: 'Team' }).click();
     await expect(page.locator('.office-list')).toContainText('ARA Chief');
 
+    // Gemeten-tab: alleen echte cijfers, met de belofte er zichtbaar boven.
+    await page.locator('.office-tabs button', { hasText: 'Gemeten' }).click();
+    await expect(page.locator('.office-note-real')).toContainText('gemeten');
+
+    await page.locator('.office-tabs button', { hasText: 'Werkvloer' }).click();
+
     // Chat: een vraag verschijnt in het gesprek.
     const before = await page.locator('.office-msg').count();
     await page.locator('.office-chat-input input').fill('Is truck 42 al klaar?');

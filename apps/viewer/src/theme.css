@@ -584,3 +584,16 @@ html, body, #root {
   font-size: 11px; padding: 3px 8px; border-radius: 999px;
   background: rgba(255, 107, 107, 0.16); color: #ff9b9b; border: 1px solid rgba(255, 107, 107, 0.35);
 }
+
+/* Gemeten-tab: visueel het tegendeel van de ≈-cijfers — groen, niet gedempt. */
+.office-note-real {
+  opacity: 1;
+  color: #7ee2a8;
+  background: rgba(78, 222, 145, 0.09);
+  border: 1px solid rgba(78, 222, 145, 0.25);
+  border-radius: 9px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+}
+.office-row-static { cursor: default; }
+.office-row-static:hover { background: rgba(255, 255, 255, 0.03); border-color: transparent; }

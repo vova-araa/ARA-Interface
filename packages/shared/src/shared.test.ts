@@ -268,3 +268,45 @@ test('buildOffice: live agents bemannen de werkplekken en staan in het team', as
   assert.ok(office.staff.some((s) => s.role === 'supervisor'), 'de chief staat altijd in het kantoor');
   assert.ok(office.staff.some((s) => s.role === 'manager'), 'elke tak heeft een manager');
 });
+
+test('buildOffice: de meetlaag vult nooit iets in', async () => {
+  const { buildOffice } = await import('./office.ts');
+  const { VENTURES } = await import('./world.ts');
+  const venture = VENTURES.find((v) => v.id === 'crypto')!;
+  const now = 1_700_000_000_000;
+  const base = { project: 'crypto-desk', venture, sessions: [], tasks: [], now };
+
+  // Zonder meting hoort er geen enkele regel te staan — geen nul, geen streepje.
+  const zonder = buildOffice(base);
+  assert.equal(zonder.measured.length, 0, 'geen pulse ⇒ geen gemeten regels');
+  assert.equal(zonder.pulse, undefined);
+
+  // Met meting: alleen de velden die er écht zijn, en nooit als schatting.
+  const met = buildOffice({
+    ...base,
+    pulse: {
+      branch: 'main',
+      commitsToday: 3,
+      dirtyFiles: 0,
+      lastCommitAt: now - 5 * 60 * 1000,
+      measuredAt: now,
+      // commits7d, tokensToday, openTasks ontbreken bewust
+    },
+  });
+  const labels = met.measured.map((m) => m.label);
+  assert.ok(labels.includes('Branch'));
+  assert.ok(labels.includes('Commits vandaag'));
+  assert.ok(labels.includes('Onopgeslagen wijzigingen'), '0 wijzigingen is een meting, geen gat');
+  assert.ok(!labels.includes('Commits 7 dagen'), 'niet gemeten ⇒ niet getoond');
+  assert.ok(!labels.includes('Tokens vandaag'), 'niet gemeten ⇒ niet getoond');
+  assert.ok(
+    met.measured.every((m) => m.estimated === false),
+    'geen enkele gemeten regel mag als schatting gemarkeerd staan',
+  );
+  assert.equal(met.measured.find((m) => m.label === 'Laatste commit')!.value, '5 min geleden');
+
+  // De meetlaag verandert niets aan de eerlijkheid van de werkplekken zelf:
+  // git-commits maken een verzonnen muntkoers niet echt.
+  assert.equal(met.simulated, true);
+  assert.equal(met.realStations, 0);
+});

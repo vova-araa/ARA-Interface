@@ -206,7 +206,7 @@ export function OfficeOverlay(): JSX.Element | null {
   const selectStation = useAra((s) => s.selectStation);
   const closeOffice = useAra((s) => s.closeOffice);
   const tasksVersion = useAra((s) => s.tasksVersion);
-  const [tab, setTab] = useState<'werk' | 'team'>('werk');
+  const [tab, setTab] = useState<'werk' | 'team' | 'meting'>('werk');
 
   // Kantoor ophalen en live bijhouden zolang het open staat.
   useEffect(() => {
@@ -321,6 +321,9 @@ export function OfficeOverlay(): JSX.Element | null {
           <button type="button" className={tab === 'team' ? 'active' : ''} onClick={() => setTab('team')}>
             Team
           </button>
+          <button type="button" className={tab === 'meting' ? 'active' : ''} onClick={() => setTab('meting')}>
+            Gemeten
+          </button>
         </div>
 
         <div className="office-side-body">
@@ -376,6 +379,33 @@ export function OfficeOverlay(): JSX.Element | null {
                   </span>
                 </button>
               ))}
+            </div>
+          )}
+
+          {tab === 'meting' && (
+            <div className="office-list">
+              {/* Het enige paneel zonder voorbeeldcijfers: wat hier staat is
+                  gemeten (git op schijf, het bord, de usage-tabel). Meet iets
+                  niet, dan staat de regel er niet — nooit een invulling. */}
+              <p className="office-note office-note-real">
+                Alles hieronder is gemeten. Geen voorbeeldcijfers.
+              </p>
+              {office?.measured?.length ? (
+                office.measured.map((m) => (
+                  <div key={m.label} className="office-row office-row-static">
+                    <span className="office-row-label">{m.label}</span>
+                    <strong style={{ color: TONE_COLORS[m.tone ?? 'info'] }}>{m.value}</strong>
+                  </div>
+                ))
+              ) : (
+                <p className="office-note">
+                  Nog niets te meten voor dit project. Zet een <code>path</code> bij dit project in
+                  projects.json, dan leest ARA de repo zelf uit.
+                </p>
+              )}
+              {office?.pulse?.lastCommitSubject && (
+                <p className="office-note">Laatste commit: “{office.pulse.lastCommitSubject}”</p>
+              )}
             </div>
           )}
         </div>

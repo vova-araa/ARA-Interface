@@ -74,6 +74,32 @@ export interface OfficeFact {
   tone: Tone;
 }
 
+/**
+ * Gemeten projectcijfers. Alles hierin is écht: git leest de repo, het bord
+ * telt taken, de usage-tabel telt tokens. Wat niet gemeten kan worden ontbreekt
+ * gewoon — er wordt hier nooit iets ingevuld. Daarmee heeft elk kantoor altijd
+ * minstens één paneel dat geen voorbeeldcijfers toont.
+ */
+export interface ProjectPulse {
+  /** Ontbreekt als het project geen pad in projects.json heeft. */
+  branch?: string;
+  commitsToday?: number;
+  commits7d?: number;
+  lastCommitAt?: number;
+  lastCommitSubject?: string;
+  /** Aantal gewijzigde/ongetrackte bestanden in de working tree. */
+  dirtyFiles?: number;
+  /** Uit de WorldState: tool-calls en fouten van vandaag in dit project. */
+  toolCallsToday?: number;
+  errorsToday?: number;
+  /** Uit de usage-tabel. */
+  tokensToday?: number;
+  openTasks?: number;
+  doneTasksToday?: number;
+  /** Wanneer deze meting gedaan is. */
+  measuredAt: number;
+}
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -112,6 +138,10 @@ export interface OfficeSnapshot {
   realStations: number;
   /** Aantal werkplekken waarvan de koppeling stil is gevallen. */
   staleStations: number;
+  /** Gemeten projectcijfers; ontbreekt als er niets te meten viel. */
+  pulse?: ProjectPulse;
+  /** Afgeleid uit pulse: rijen die je zonder voorbehoud mag geloven. */
+  measured: Metric[];
   /** true = de grafiek op de muur is een ingevuld verloop, geen meting. */
   chartEstimated: boolean;
   now: number;
@@ -286,12 +316,25 @@ export interface OfficeInput {
   entities?: string[];
   /** Echte, door agents aangeleverde werkplek-data. */
   overrides?: StationOverride[];
+  /** Gemeten projectcijfers (git/bord/tokens) — nooit ingevuld. */
+  pulse?: ProjectPulse;
   now: number;
 }
 
 /** Deterministische pseudo-waarde in [0,1) voor een sleutel. */
 function rnd(key: string): number {
   return (stableHash(key) % 10_000) / 10_000;
+}
+
+/** "3 min geleden" — leesbaar zonder een datum-bibliotheek. */
+function ago(ts: number, now: number): string {
+  const secs = Math.max(0, Math.round((now - ts) / 1000));
+  if (secs < 60) return `${secs}s geleden`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min geleden`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} uur geleden`;
+  return `${Math.round(hours / 24)} dag(en) geleden`;
 }
 
 function money(n: number): string {
@@ -460,6 +503,48 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
         { from: 'Team', text: 'Geen open taken — we staan klaar.', side: 'left' },
       ];
 
+  // ── Gemeten laag: alles hieronder is echt of staat er niet ─────────────
+  // Dit is het enige paneel in het kantoor dat nooit een invulling bevat.
+  const pulse = input.pulse;
+  const measured: Metric[] = [];
+  const add = (label: string, value: string | undefined, tone: Tone = 'info'): void => {
+    if (value !== undefined) measured.push({ label, value, tone, estimated: false });
+  };
+  if (pulse) {
+    add('Branch', pulse.branch);
+    add(
+      'Commits vandaag',
+      pulse.commitsToday === undefined ? undefined : String(pulse.commitsToday),
+      pulse.commitsToday ? 'good' : 'muted',
+    );
+    add('Commits 7 dagen', pulse.commits7d === undefined ? undefined : String(pulse.commits7d));
+    add('Laatste commit', pulse.lastCommitAt === undefined ? undefined : ago(pulse.lastCommitAt, now));
+    add(
+      'Onopgeslagen wijzigingen',
+      pulse.dirtyFiles === undefined ? undefined : `${pulse.dirtyFiles} bestand(en)`,
+      pulse.dirtyFiles ? 'warn' : 'muted',
+    );
+    add(
+      'Tool-calls vandaag',
+      pulse.toolCallsToday === undefined ? undefined : String(pulse.toolCallsToday),
+    );
+    add(
+      'Fouten vandaag',
+      pulse.errorsToday === undefined ? undefined : String(pulse.errorsToday),
+      pulse.errorsToday ? 'bad' : 'muted',
+    );
+    add(
+      'Tokens vandaag',
+      pulse.tokensToday === undefined ? undefined : pulse.tokensToday.toLocaleString('nl-NL'),
+    );
+    add('Taken open', pulse.openTasks === undefined ? undefined : String(pulse.openTasks));
+    add(
+      'Taken afgerond vandaag',
+      pulse.doneTasksToday === undefined ? undefined : String(pulse.doneTasksToday),
+      pulse.doneTasksToday ? 'good' : 'muted',
+    );
+  }
+
   return {
     project,
     venture: venture.id,
@@ -488,6 +573,8 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       status: `${activeSessions.length} sessie(s) in de lucht · ${doneTasks} afgerond`,
       messages: messages.slice(0, 8),
     },
+    pulse,
+    measured,
     valueKind: spec.valueKind,
     simulated: realStations === 0,
     realStations,

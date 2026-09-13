@@ -16,6 +16,7 @@ import {
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
+import { projectPulse } from './pulse.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
@@ -526,7 +527,7 @@ export function createCollector(store: EventStore): CollectorApp {
     }
   }
 
-  app.get('/office/:project', (req, res) => {
+  app.get('/office/:project', async (req, res) => {
     allowOrigin(req, res);
     const project = req.params.project;
     const world = loadOrBuildWorldConfig();
@@ -557,6 +558,25 @@ export function createCollector(store: EventStore): CollectorApp {
         /* kapotte rij overslaan */
       }
     }
+    // Meetlaag: de enige cijfers in een kantoor die nergens op geraden zijn.
+    // Sessies leveren tool-calls en fouten van vandaag, het bord de taken,
+    // de usage-tabel de tokens; git doet de rest in pulse.ts.
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const todaySessions = sessions.filter((s) => s.lastSeenAt >= dayStart.getTime());
+    const tokensRow = store
+      .usageSummary(dayStart.getTime())
+      .find((row) => row.project === project);
+    const pulse = await projectPulse(project, {
+      toolCallsToday: todaySessions.reduce((sum, s) => sum + s.toolCount, 0),
+      errorsToday: todaySessions.reduce((sum, s) => sum + s.errorCount, 0),
+      tokensToday: tokensRow
+        ? tokensRow.inputTokens + tokensRow.outputTokens + tokensRow.cacheCreateTokens
+        : undefined,
+      openTasks: tasks.filter((t) => t.status !== 'done' && t.status !== 'failed').length,
+      doneTasksToday: tasks.filter((t) => t.status === 'done' && t.updatedAt >= dayStart.getTime())
+        .length,
+    });
     res.json(
       buildOffice({
         project,
@@ -565,6 +585,7 @@ export function createCollector(store: EventStore): CollectorApp {
         tasks,
         entities: officeEntities(venture.id),
         overrides,
+        pulse,
         now: Date.now(),
       }),
     );
