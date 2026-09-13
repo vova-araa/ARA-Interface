@@ -133,32 +133,43 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
   },
   trading: {
     specialists: [
-      { agent: 'ara-market-analyst', name: 'Marktanalist', does: 'setups en risico lezen — strikt read-only', model: 'default' },
-      worker('Bot-onderhoud', 'logging, backtests en infrastructuur rond de bot — nooit de orderlogica'),
+      { agent: 'ara-market-analyst', name: 'Marktanalist', does: 'setups en risico lezen en signaleren — strikt read-only, voorstel nooit order', model: 'default' },
+      { agent: 'ara-risk-guard', name: 'Risicobewaker', does: 'blootstelling, drawdown en positiegrootte tegen de limieten houden — alarmeert, grijpt nooit in', model: 'default' },
+      { agent: 'ara-trade-journal', name: 'Handelsjournaal', does: 'elke afgesloten trade vastleggen met aanleiding en uitkomst, en periodiek evalueren', model: 'default' },
+      { agent: 'ara-event-scout', name: 'Eventscout', does: 'agenda die het instrument raakt volgen en vóór het event waarschuwen', model: 'haiku' },
+      { agent: 'ara-bot-maintainer', name: 'Bot-onderhoud', does: 'logging, backtests en infrastructuur rond de bot — nooit de orderlogica', model: 'default' },
       reporter,
     ],
     duties: [
       'Openstaande posities en risico aflezen uit wat de bot zelf wegschrijft',
-      'Afwijkingen tussen backtest en live signaleren',
-      'Logging en storingen van de bot bewaken',
+      'Blootstelling, drawdown en posities zonder stop toetsen aan de limieten',
+      'Elke afgesloten trade in het journaal zetten en periodiek evalueren',
+      'De agenda voor de komende dagen nalopen op events die XAU/USD raken',
+      'Afwijkingen tussen backtest en live signaleren; logging en storingen bewaken',
     ],
     escalate: [
       'ELKE wijziging aan orderlogica, positiegrootte of stops',
       'ELKE aanraking van API-sleutels of broker-instellingen',
       'Alles wat een order kan plaatsen, wijzigen of annuleren',
+      'Een positie sluiten of verkleinen, ook bij een overschreden risicolimiet',
     ],
-    checks: ['backtest draait', 'typecheck'],
+    checks: ['backtest draait met uitkomst vóór/ná', 'typecheck'],
     dataSources: [
       {
         label: 'Posities, P&L, stops',
         how: 'VUL-IN: het statusbestand dat de bot zélf schrijft — ARA leest, nooit de broker',
         configured: false,
       },
+      { label: 'Risicolimieten (max inzet per trade, drawdown)', how: 'VUL-IN: jouw grenzen, bv. een limits.json naast de bot', configured: false },
+      { label: 'Handelslogboek van afgesloten trades', how: 'VUL-IN: exportfile of logboek van de bot', configured: false },
     ],
   },
   crypto: {
     specialists: [
-      { agent: 'ara-market-analyst', name: 'Marktanalist', does: 'munten en setups volgen — strikt read-only', model: 'default' },
+      { agent: 'ara-market-analyst', name: 'Marktanalist', does: 'munten en setups volgen — strikt read-only, voorstel nooit order', model: 'default' },
+      { agent: 'ara-risk-guard', name: 'Risicobewaker', does: 'blootstelling en drawdown tegen de limieten houden — alarmeert, grijpt nooit in', model: 'default' },
+      { agent: 'ara-trade-journal', name: 'Handelsjournaal', does: 'afgesloten posities vastleggen met aanleiding en uitkomst', model: 'default' },
+      { agent: 'ara-event-scout', name: 'Eventscout', does: 'unlocks, listings en netwerkupgrades volgen en vooraf waarschuwen', model: 'haiku' },
       scout('On-chain scout', 'publieke koersen en on-chain data ophalen'),
       reporter,
     ],
@@ -171,6 +182,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       'ELKE wijziging aan orderlogica of positiegrootte',
       'ELKE aanraking van exchange-sleutels',
       'Elke handeling die geld verplaatst',
+      'Een positie sluiten of verkleinen, ook bij een overschreden risicolimiet',
     ],
     checks: ['typecheck'],
     dataSources: [

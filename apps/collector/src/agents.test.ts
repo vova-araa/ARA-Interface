@@ -118,6 +118,34 @@ test('agents: read-only rollen hebben geen schrijfgereedschap', () => {
   }
 });
 
+test('agents: op de handelsvloer mag alleen het bot-onderhoud schrijven', () => {
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+
+  // Analist, risicobewaker en eventscout lezen en melden. Geen van drieën mag
+  // een positie, een limiet of een strategie kunnen aanraken.
+  for (const name of ['ara-market-analyst', 'ara-risk-guard', 'ara-event-scout']) {
+    const agent = agents.get(name)!;
+    assert.ok(agent, `${name} ontbreekt`);
+    for (const forbidden of ['Edit', 'Write']) {
+      assert.ok(!agent.tools.includes(forbidden), `${name} mag ${forbidden} niet hebben`);
+    }
+  }
+
+  // Het journaal schrijft wél — maar uitsluitend in journal/, en dat moet in
+  // zijn instructies staan, anders is Write een open deur naar de strategie.
+  const journal = agents.get('ara-trade-journal')!;
+  assert.ok(journal.tools.includes('Write'), 'het journaal moet kunnen schrijven');
+  assert.match(journal.body, /journal\//, 'het journaal moet zijn schrijfpad expliciet benoemen');
+
+  // Bot-onderhoud is de enige met volledige schrijfrechten; zijn verboden
+  // gebied moet daarom letterlijk in zijn instructies staan.
+  const maintainer = agents.get('ara-bot-maintainer')!;
+  assert.ok(maintainer.tools.includes('Edit') && maintainer.tools.includes('Write'));
+  assert.match(maintainer.body, /orderlogica/i);
+  assert.match(maintainer.body, /sleutel/i);
+  assert.match(maintainer.body, /ESCALATE/);
+});
+
 test('agents: de communicatierol kan het netwerk niet op', () => {
   // Een rol die klantberichten schrijft én kan versturen, kan per ongeluk
   // versturen. Zonder Bash en WebFetch is "verstuurt nooit zelf" een feit.
