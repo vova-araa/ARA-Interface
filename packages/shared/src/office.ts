@@ -29,6 +29,8 @@ export interface Metric {
   label: string;
   value: string;
   tone?: Tone;
+  /** true = ingevuld cijfer, niet door een agent aangeleverd. */
+  estimated?: boolean;
 }
 
 /** Uitgebreid paneel dat opent als je op een werkplek klikt. */
@@ -40,6 +42,8 @@ export interface StationDetail {
   plannedVsActual: { label: string; planned: string; actual: string }[];
   curve: number[];
   note?: string;
+  /** true = belofte×geleverd en de curve zijn invullingen, geen metingen. */
+  estimated: boolean;
 }
 
 /** Eén werkplek: een bureau met een scherm en (soms) een agent erachter. */
@@ -56,6 +60,12 @@ export interface Station {
   agentName?: string;
   agentId?: string;
   sessionId?: string;
+  /** true = niemand leverde data voor deze werkplek; cijfers zijn ingevuld. */
+  simulated: boolean;
+  /** true = wél echte data, maar te lang niet ververst (dode koppeling). */
+  stale: boolean;
+  /** Wanneer een agent deze werkplek voor het laatst bijwerkte. */
+  updatedAt?: number;
 }
 
 export interface OfficeFact {
@@ -87,7 +97,7 @@ export interface OfficeSnapshot {
   kind: OfficeKind;
   /** Bordtekst boven in het kantoor, bv. "HANDELSVLOER — LIVE". */
   title: string;
-  headline: { label: string; value: string; delta?: string; tone?: Tone };
+  headline: { label: string; value: string; delta?: string; tone?: Tone; estimated: boolean };
   kpis: Metric[];
   chart: number[];
   facts: OfficeFact[];
@@ -96,11 +106,14 @@ export interface OfficeSnapshot {
   room: { name: string; status: string; messages: RoomMessage[] };
   /** Eenheid van het zwevende cijfer boven de bureaus. */
   valueKind: 'money' | 'count' | 'time' | 'none';
-  /**
-   * true = de branche-cijfers zijn nog niet door agents aangeleverd en worden
-   * deterministisch ingevuld zodat het kantoor leesbaar is. De UI toont dit.
-   */
+  /** true = géén enkele werkplek heeft echte data (alles ingevuld). */
   simulated: boolean;
+  /** Aantal werkplekken met echte, door een agent aangeleverde cijfers. */
+  realStations: number;
+  /** Aantal werkplekken waarvan de koppeling stil is gevallen. */
+  staleStations: number;
+  /** true = de grafiek op de muur is een ingevuld verloop, geen meting. */
+  chartEstimated: boolean;
   now: number;
 }
 
@@ -257,7 +270,12 @@ export interface StationOverride {
   status?: StationStatus;
   value?: number;
   metrics?: Metric[];
+  /** Tijdstip van de push; bepaalt of de koppeling nog leeft. */
+  updatedAt?: number;
 }
+
+/** Een koppeling die hier langer dan dit niets stuurde, geldt als stilgevallen. */
+export const STATION_STALE_MS = 30 * 60 * 1000;
 
 export interface OfficeInput {
   project: string;
@@ -300,7 +318,6 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
   const spec = KIND_SPECS[kind];
   const entities = input.entities?.length ? input.entities : spec.entities;
   const overrides = new Map((input.overrides ?? []).map((o) => [o.id, o]));
-  const simulated = overrides.size === 0;
   const seed = stableHash(project);
 
   // ── Live bezetting: echte agents uit echte sessies van dit project ──────
@@ -323,13 +340,20 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
   // ── Werkplekken ────────────────────────────────────────────────────────
   const stations: Station[] = entities.map((label, i) => {
     const key = `${project}-${label}`;
-    const override = overrides.get(label) ?? overrides.get(`${label}`);
+    const override = overrides.get(label);
+    // Eerlijk per werkplek: deze is alleen "echt" als er voor díe werkplek
+    // data is gepusht. Eén echte werkplek maakt de rest niet echt.
+    const isReal = override !== undefined;
+    const stale =
+      isReal && override.updatedAt !== undefined && now - override.updatedAt > STATION_STALE_MS;
     const status = override?.status ?? statusFor(i, working, key);
     const magnitude = kind === 'trading' || kind === 'crypto' ? 120 : 40;
     const raw = (rnd(`${key}-v`) - 0.42) * magnitude;
     const value = override?.value ?? Number(raw.toFixed(2));
     const agent = liveAgents[i];
-    const metrics: Metric[] = override?.metrics ?? buildMetrics(kind, spec, key, value, status);
+    const baseMetrics: Metric[] = override?.metrics ?? buildMetrics(kind, spec, key, value, status);
+    // Zonder echte bron is élk cijfer op deze werkplek een invulling.
+    const metrics = isReal ? baseMetrics : baseMetrics.map((m) => ({ ...m, estimated: true }));
     return {
       id: label,
       label,
@@ -340,7 +364,10 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       agentName: agent?.name,
       agentId: agent?.id,
       sessionId: agent?.sessionId,
-      detail: buildDetail(kind, spec, label, project, key, value, metrics),
+      simulated: !isReal,
+      stale,
+      updatedAt: override?.updatedAt,
+      detail: buildDetail(kind, spec, label, project, key, value, metrics, !isReal),
     };
   });
 
@@ -388,11 +415,25 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
   const busy = stations.filter((s) => s.status === 'working').length;
   const alerts = stations.filter((s) => s.status === 'alert').length;
   const doneTasks = tasks.filter((t) => t.status === 'done').length;
+  const realStations = stations.filter((s) => !s.simulated).length;
+  const staleStations = stations.filter((s) => s.stale).length;
+  const allReal = realStations === stations.length && stations.length > 0;
   const kpis: Metric[] = [
-    { label: spec.kpiLabels[0], value: `${busy}/${stations.length}`, tone: busy > 0 ? 'good' : 'muted' },
-    { label: spec.kpiLabels[1], value: `${(52 + Math.round(rnd(`${project}-adh`) * 36))}%`, tone: 'info' },
-    { label: spec.kpiLabels[2], value: `${30 + Math.round(rnd(`${project}-hit`) * 40)}%`, tone: 'info' },
-    { label: spec.kpiLabels[3], value: alerts > 0 ? `${alerts} let op` : 'rustig', tone: alerts > 0 ? 'warn' : 'muted' },
+    {
+      label: spec.kpiLabels[0],
+      value: `${busy}/${stations.length}`,
+      tone: busy > 0 ? 'good' : 'muted',
+      estimated: !allReal,
+    },
+    // Deze twee heeft nog niemand aangeleverd — altijd een invulling.
+    { label: spec.kpiLabels[1], value: `${(52 + Math.round(rnd(`${project}-adh`) * 36))}%`, tone: 'info', estimated: true },
+    { label: spec.kpiLabels[2], value: `${30 + Math.round(rnd(`${project}-hit`) * 40)}%`, tone: 'info', estimated: true },
+    {
+      label: spec.kpiLabels[3],
+      value: alerts > 0 ? `${alerts} let op` : 'rustig',
+      tone: alerts > 0 ? 'warn' : 'muted',
+      estimated: !allReal,
+    },
   ];
 
   // ── Grafiek: 60 punten, deterministische wandeling rond de totaalwaarde ─
@@ -433,6 +474,9 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
           : `${stations.length}`,
       delta: spec.valueKind === 'money' ? money(totalValue) : `${busy} bezig`,
       tone: totalValue >= 0 ? 'good' : 'bad',
+      // De portefeuillestand wordt door niets gevoed; het verschil is de som
+      // van de werkplekken en is dus pas echt als die allemaal echt zijn.
+      estimated: spec.valueKind === 'money' ? true : !allReal,
     },
     kpis,
     chart,
@@ -445,7 +489,10 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       messages: messages.slice(0, 8),
     },
     valueKind: spec.valueKind,
-    simulated,
+    simulated: realStations === 0,
+    realStations,
+    staleStations,
+    chartEstimated: true, // het verloop is een invulling zolang niets het voedt
     now,
   };
 }
@@ -526,6 +573,7 @@ function buildDetail(
   key: string,
   value: number,
   metrics: Metric[],
+  estimated: boolean,
 ): StationDetail {
   const curve: number[] = [];
   let walk = 0;
@@ -542,16 +590,28 @@ function buildDetail(
         label: 'Resultaat vandaag',
         value: moneyKind ? money(value) : `${Math.abs(Math.round(value))} ${spec.entityWord}`,
         tone: value >= 0 ? 'good' : 'bad',
+        estimated,
       },
-      { label: 'Nu open', value: moneyKind ? money(value * 0.7) : `${Math.max(0, Math.round(value / 3))}`, tone: 'info' },
-      { label: 'Aanhechting', value: rnd(`${key}-ad`) > 0.5 ? 'opwarmend' : 'stabiel', tone: 'info' },
-      { label: 'Laatste update', value: 'live', tone: 'muted' },
+      {
+        label: 'Nu open',
+        value: moneyKind ? money(value * 0.7) : `${Math.max(0, Math.round(value / 3))}`,
+        tone: 'info',
+        estimated,
+      },
+      { label: 'Aanhechting', value: rnd(`${key}-ad`) > 0.5 ? 'opwarmend' : 'stabiel', tone: 'info', estimated: true },
+      {
+        label: 'Laatste update',
+        value: estimated ? 'geen bron' : 'live',
+        tone: 'muted',
+      },
     ],
+    // Plan-versus-echt is nog nergens op gebaseerd; altijd als invulling tonen.
     plannedVsActual: spec.planLabels.map((planLabel, i) => ({
       label: planLabel,
       planned: `${1 + Math.round(rnd(`${key}-p${i}`) * 40)}`,
       actual: `${Math.round(rnd(`${key}-a${i}`) * 40)}`,
     })),
+    estimated: true,
     curve,
     note: metrics[0]?.value,
   };

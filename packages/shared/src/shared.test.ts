@@ -185,22 +185,48 @@ test('buildOffice: elke branche krijgt zijn eigen werkplekken en taal', async ()
   assert.equal(officeKindForVenture('onbekend'), 'generic');
 });
 
-test('buildOffice: echte data van agents wint van ingevulde cijfers', async () => {
-  const { buildOffice } = await import('./office.ts');
+test('buildOffice: echte data wint, maar maakt de rest niet stiekem echt', async () => {
+  const { buildOffice, STATION_STALE_MS } = await import('./office.ts');
   const { VENTURES } = await import('./world.ts');
+  const now = Date.now();
   const office = buildOffice({
     project: 'crypto-desk',
     venture: VENTURES.find((v) => v.id === 'crypto')!,
     sessions: [],
     tasks: [],
-    overrides: [{ id: 'BTC', status: 'alert', value: 123.45, sub: '9 setups' }],
-    now: Date.now(),
+    overrides: [{ id: 'BTC', status: 'alert', value: 123.45, sub: '9 setups', updatedAt: now }],
+    now,
   });
-  assert.equal(office.simulated, false, 'met echte data vervalt de voorbeeld-markering');
   const btc = office.stations.find((s) => s.id === 'BTC')!;
   assert.equal(btc.status, 'alert');
   assert.equal(btc.value, 123.45);
-  assert.equal(btc.sub, '9 setups');
+  assert.equal(btc.simulated, false, 'deze werkplek heeft een bron');
+  assert.equal(btc.stale, false);
+
+  // De kern: één echte werkplek mag de andere niet als echt laten doorgaan.
+  const eth = office.stations.find((s) => s.id === 'ETH')!;
+  assert.equal(eth.simulated, true, 'zonder eigen bron blijft een werkplek voorbeeld');
+  assert.ok(eth.metrics.every((m) => m.estimated), 'al zijn cijfers zijn gemarkeerd');
+  assert.equal(office.realStations, 1);
+  assert.equal(office.simulated, false, 'er is íets echt');
+  assert.ok(office.headline.estimated, 'de portefeuillestand wordt door niets gevoed');
+  assert.ok(office.chartEstimated, 'de grafiek is een invulling');
+  assert.ok(
+    office.kpis.filter((k) => k.estimated).length >= 2,
+    'niet-gevoede KPI\'s staan als voorbeeld gemarkeerd',
+  );
+
+  // Een koppeling die te lang niets stuurde, mag niet als live doorgaan.
+  const dead = buildOffice({
+    project: 'crypto-desk',
+    venture: VENTURES.find((v) => v.id === 'crypto')!,
+    sessions: [],
+    tasks: [],
+    overrides: [{ id: 'BTC', value: 1, updatedAt: now - STATION_STALE_MS - 1000 }],
+    now,
+  });
+  assert.equal(dead.stations.find((s) => s.id === 'BTC')!.stale, true);
+  assert.equal(dead.staleStations, 1);
 });
 
 test('buildOffice: live agents bemannen de werkplekken en staan in het team', async () => {

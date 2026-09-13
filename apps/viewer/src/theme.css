@@ -573,3 +573,14 @@ html, body, #root {
   .office-side { border-left: none; border-top: 1px solid rgba(150, 120, 255, 0.22); }
   .office-chat { max-height: 36vh; }
 }
+
+/* Voorbeeldcijfers en verouderde koppelingen — nooit even zwaar als echte data */
+.office-est { color: rgba(200, 190, 245, 0.62) !important; font-weight: 500; }
+.office-warn {
+  margin: 10px 0 0; padding: 8px 10px; border-radius: 9px; font-size: 12px;
+  background: rgba(255, 176, 32, 0.12); color: #ffce7a; border: 1px solid rgba(255, 176, 32, 0.28);
+}
+.office-stale {
+  font-size: 11px; padding: 3px 8px; border-radius: 999px;
+  background: rgba(255, 107, 107, 0.16); color: #ff9b9b; border: 1px solid rgba(255, 107, 107, 0.35);
+}

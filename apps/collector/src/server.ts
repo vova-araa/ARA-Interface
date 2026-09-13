@@ -523,7 +523,11 @@ export function createCollector(store: EventStore): CollectorApp {
     const overrides: StationOverride[] = [];
     for (const row of store.listStations(project)) {
       try {
-        overrides.push({ id: row.stationId, ...(JSON.parse(row.json) as Omit<StationOverride, 'id'>) });
+        overrides.push({
+          id: row.stationId,
+          ...(JSON.parse(row.json) as Omit<StationOverride, 'id'>),
+          updatedAt: row.updatedAt,
+        });
       } catch {
         /* kapotte rij overslaan */
       }

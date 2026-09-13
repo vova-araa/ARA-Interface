@@ -63,14 +63,14 @@ function panelBg(ctx: CanvasRenderingContext2D, w: number, h: number, accent: st
 }
 
 /** Naamplaatje boven een bureau: "BTC" + "4 setups". */
-export function chipTexture(label: string, sub: string, accent: string) {
+export function chipTexture(label: string, sub: string, accent: string, mark: '' | '~' | '!' = '') {
   const measure = document.createElement('canvas').getContext('2d')!;
   measure.font = `700 38px ${FONT}`;
   const labelWidth = measure.measureText(label).width;
   measure.font = `500 24px ${FONT}`;
   const subWidth = measure.measureText(sub).width;
   const width = Math.max(200, Math.ceil(Math.max(labelWidth, subWidth)) + 56);
-  return make(`chip|${label}|${sub}|${accent}`, width, 96, (ctx, w, h) => {
+  return make(`chip|${label}|${sub}|${accent}|${mark}`, width, 96, (ctx, w, h) => {
     ctx.beginPath();
     ctx.roundRect(3, 3, w - 6, h - 6, 16);
     ctx.fillStyle = 'rgba(18, 12, 38, 0.88)';
@@ -82,22 +82,23 @@ export function chipTexture(label: string, sub: string, accent: string) {
     ctx.fillStyle = '#f2eeff';
     ctx.font = `700 38px ${FONT}`;
     ctx.fillText(label, w / 2, 46);
-    ctx.fillStyle = 'rgba(215, 205, 255, 0.75)';
+    ctx.fillStyle = mark === '!' ? TONE_COLORS.warn : 'rgba(215, 205, 255, 0.75)';
     ctx.font = `500 24px ${FONT}`;
-    ctx.fillText(sub, w / 2, 78);
+    const suffix = mark === '~' ? ' ≈' : mark === '!' ? ' · verouderd' : '';
+    ctx.fillText(`${sub}${suffix}`, w / 2, 78);
   });
 }
 
 /** Zwevend resultaat boven een bureau (+$55,30 / 3 ritten). */
-export function valueTexture(text: string, tone: Tone) {
-  return make(`val|${text}|${tone}`, 220, 64, (ctx, w, h) => {
+export function valueTexture(text: string, tone: Tone, estimated = false) {
+  return make(`val|${text}|${tone}|${estimated}`, 220, 64, (ctx, w, h) => {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `700 40px ${FONT}`;
     ctx.lineWidth = 6;
     ctx.strokeStyle = 'rgba(10, 6, 24, 0.85)';
     ctx.strokeText(text, w / 2, h / 2);
-    ctx.fillStyle = TONE_COLORS[tone];
+    ctx.fillStyle = estimated ? 'rgba(200, 190, 245, 0.62)' : TONE_COLORS[tone];
     ctx.fillText(text, w / 2, h / 2);
   });
 }
@@ -105,8 +106,8 @@ export function valueTexture(text: string, tone: Tone) {
 /** Groot muurscherm: titel, hoofdcijfer, KPI's en de live grafiek. */
 export function headlineTexture(office: OfficeSnapshot) {
   const key = `head|${office.project}|${office.headline.value}|${office.headline.delta}|${office.kpis
-    .map((k) => k.value)
-    .join(',')}|${office.chart.length}|${office.chart[office.chart.length - 1]}`;
+    .map((k) => `${k.value}${k.estimated ? '~' : ''}`)
+    .join(',')}|${office.headline.estimated}|${office.realStations}|${office.chart.length}|${office.chart[office.chart.length - 1]}`;
   return make(key, 1100, 300, (ctx, w, h) => {
     panelBg(ctx, w, h, 'rgba(150, 120, 255, 0.55)');
     ctx.textAlign = 'left';
@@ -117,13 +118,17 @@ export function headlineTexture(office: OfficeSnapshot) {
     ctx.fillStyle = 'rgba(190, 180, 250, 0.65)';
     ctx.font = `600 20px ${FONT}`;
     ctx.fillText(office.headline.label, 34, 86);
-    ctx.fillStyle = '#ffffff';
+    // Een geschat cijfer krijgt ≈ en een gedempte kleur — nooit hetzelfde
+    // gewicht als een gemeten cijfer.
+    ctx.fillStyle = office.headline.estimated ? 'rgba(215, 205, 255, 0.6)' : '#ffffff';
     ctx.font = `700 66px ${FONT}`;
-    ctx.fillText(office.headline.value, 34, 146);
+    ctx.fillText(`${office.headline.estimated ? '≈' : ''}${office.headline.value}`, 34, 146);
     if (office.headline.delta) {
-      ctx.fillStyle = TONE_COLORS[office.headline.tone ?? 'info'];
+      ctx.fillStyle = office.headline.estimated
+        ? 'rgba(190, 180, 250, 0.55)'
+        : TONE_COLORS[office.headline.tone ?? 'info'];
       ctx.font = `700 30px ${FONT}`;
-      ctx.fillText(office.headline.delta, 36, 186);
+      ctx.fillText(`${office.headline.estimated ? '≈' : ''}${office.headline.delta}`, 36, 186);
     }
 
     // KPI-kolom
@@ -132,9 +137,9 @@ export function headlineTexture(office: OfficeSnapshot) {
       ctx.fillStyle = 'rgba(190, 180, 250, 0.62)';
       ctx.font = `500 19px ${FONT}`;
       ctx.fillText(kpi.label, 400, y);
-      ctx.fillStyle = TONE_COLORS[kpi.tone ?? 'info'];
+      ctx.fillStyle = kpi.estimated ? 'rgba(190, 180, 250, 0.55)' : TONE_COLORS[kpi.tone ?? 'info'];
       ctx.font = `700 25px ${FONT}`;
-      ctx.fillText(kpi.value, 400, y + 28);
+      ctx.fillText(`${kpi.estimated ? '≈' : ''}${kpi.value}`, 400, y + 28);
       y += 60;
     }
 
@@ -164,7 +169,16 @@ export function headlineTexture(office: OfficeSnapshot) {
     ctx.fill();
     ctx.fillStyle = 'rgba(190, 180, 250, 0.6)';
     ctx.font = `500 18px ${FONT}`;
-    ctx.fillText('laatste metingen', cx, h - 22);
+    ctx.fillText(office.chartEstimated ? '≈ voorbeeldverloop' : 'laatste metingen', cx, h - 22);
+
+    // Voetnoot links: hoeveel van deze vloer op echte bronnen draait.
+    ctx.fillStyle = 'rgba(190, 180, 250, 0.5)';
+    ctx.font = `500 17px ${FONT}`;
+    const note =
+      office.realStations === 0
+        ? '≈ = voorbeeldcijfer · nog geen enkele bron gekoppeld'
+        : `≈ = voorbeeldcijfer · ${office.realStations}/${office.stations.length} werkplekken op echte data`;
+    ctx.fillText(note, 34, h - 22);
   });
 }
 

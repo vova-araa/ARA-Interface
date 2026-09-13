@@ -123,16 +123,20 @@ function Desk({
   // Elk bureau heeft iemand zitten; alleen de werkenden typen echt.
   const manned = station.status !== 'idle' || index % 5 !== 4;
 
+  const mark = station.stale ? '!' : station.simulated ? '~' : '';
   const chip = useMemo(
-    () => chipTexture(station.label, station.sub, accent),
-    [station.label, station.sub, accent],
+    () => chipTexture(station.label, station.sub, accent, mark),
+    [station.label, station.sub, accent, mark],
   );
   const valueText =
     valueKind === 'money'
       ? `${station.value >= 0 ? '+' : '-'}$${Math.abs(station.value).toFixed(2)}`
       : `${station.value >= 0 ? '+' : ''}${Math.round(station.value)}`;
   const tone = station.value >= 0 ? 'good' : 'bad';
-  const value = useMemo(() => valueTexture(valueText, tone), [valueText, tone]);
+  const value = useMemo(
+    () => valueTexture(valueText, tone, station.simulated),
+    [valueText, tone, station.simulated],
+  );
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime + index * 0.7;
@@ -237,7 +241,10 @@ function Leader({
   onSelect: (id: string) => void;
   selected: boolean;
 }): JSX.Element {
-  const chip = useMemo(() => chipTexture(member.name, member.status, color), [member.name, member.status, color]);
+  const chip = useMemo(
+    () => chipTexture(member.name, member.status, color),
+    [member.name, member.status, color],
+  );
   return (
     <group position={position} onClick={(e) => { e.stopPropagation(); onSelect(member.id); }}>
       <mesh position={[0, 0.16, 0]} receiveShadow>

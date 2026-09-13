@@ -37,7 +37,14 @@ function MetricRow({ metric }: { metric: Metric }): JSX.Element {
   return (
     <div className="office-metric">
       <span>{metric.label}</span>
-      <strong style={metric.tone ? { color: TONE_COLORS[metric.tone] } : undefined}>{metric.value}</strong>
+      <strong
+        className={metric.estimated ? 'office-est' : undefined}
+        title={metric.estimated ? 'Voorbeeldcijfer — geen bron gekoppeld' : undefined}
+        style={metric.tone && !metric.estimated ? { color: TONE_COLORS[metric.tone] } : undefined}
+      >
+        {metric.estimated ? '≈ ' : ''}
+        {metric.value}
+      </strong>
     </div>
   );
 }
@@ -55,11 +62,29 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
         <span className={`office-status office-status-${station.status}`}>{station.status}</span>
       </div>
 
+      {station.simulated && (
+        <p className="office-warn">
+          Voorbeeldcijfers — geen agent levert data voor deze werkplek. Alles met ≈ is ingevuld.
+        </p>
+      )}
+      {station.stale && (
+        <p className="office-warn">
+          Verouderd — de koppeling stuurde voor het laatst iets om{' '}
+          {new Date(station.updatedAt ?? 0).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}.
+        </p>
+      )}
+
       <div className="office-kpis">
         {d.kpis.map((k) => (
           <div key={k.label} className="office-kpi">
             <span>{k.label}</span>
-            <strong style={k.tone ? { color: TONE_COLORS[k.tone] } : undefined}>{k.value}</strong>
+            <strong
+              className={k.estimated ? 'office-est' : undefined}
+              style={k.tone && !k.estimated ? { color: TONE_COLORS[k.tone] } : undefined}
+            >
+              {k.estimated ? '≈ ' : ''}
+              {k.value}
+            </strong>
           </div>
         ))}
       </div>
@@ -71,7 +96,7 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
         ))}
       </div>
 
-      <h4>Belofte × geleverd</h4>
+      <h4>Belofte × geleverd {d.estimated && <span className="office-est">≈ voorbeeld</span>}</h4>
       <table className="office-table">
         <thead>
           <tr>
@@ -91,7 +116,7 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
         </tbody>
       </table>
 
-      <h4>Verloop</h4>
+      <h4>Verloop {d.estimated && <span className="office-est">≈ voorbeeld</span>}</h4>
       <Sparkline values={d.curve} color={valueKind === 'money' ? '#6ee7ff' : '#c07cff'} />
       {station.agentName && (
         <p className="office-note">
@@ -228,9 +253,19 @@ export function OfficeOverlay(): JSX.Element | null {
           <strong>{project}</strong>
           <span style={{ color: accent }}>{office?.ventureLabel ?? '…'}</span>
         </div>
-        {office?.simulated && (
-          <span className="office-sim" title="Agents hebben nog geen echte werkplek-data aangeleverd; deze cijfers zijn ingevuld.">
-            voorbeeldcijfers
+        {office && office.realStations < office.stations.length && (
+          <span
+            className="office-sim"
+            title="Cijfers met ≈ zijn ingevuld omdat er nog geen bron aan gekoppeld is."
+          >
+            {office.realStations === 0
+              ? 'voorbeeldcijfers'
+              : `${office.realStations}/${office.stations.length} op echte data`}
+          </span>
+        )}
+        {office && office.staleStations > 0 && (
+          <span className="office-stale" title="Deze koppelingen stuurden al een tijd niets meer.">
+            {office.staleStations} verouderd
           </span>
         )}
         <div className="office-headline">
@@ -298,9 +333,15 @@ export function OfficeOverlay(): JSX.Element | null {
                   <span className={`office-dot office-status-${s.status}`} />
                   <span className="office-row-label">
                     {s.label}
-                    <em>{s.sub}</em>
+                    <em>
+                      {s.sub}
+                      {s.stale ? ' · verouderd' : s.simulated ? ' · ≈' : ''}
+                    </em>
                   </span>
-                  <strong style={{ color: s.value >= 0 ? TONE_COLORS.good : TONE_COLORS.bad }}>
+                  <strong
+                    className={s.simulated ? 'office-est' : undefined}
+                    style={s.simulated ? undefined : { color: s.value >= 0 ? TONE_COLORS.good : TONE_COLORS.bad }}
+                  >
                     {office.valueKind === 'money'
                       ? `${s.value >= 0 ? '+' : '-'}$${Math.abs(s.value).toFixed(2)}`
                       : Math.round(s.value)}
