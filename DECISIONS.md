@@ -305,3 +305,20 @@ Drie keuzes die het rapport bruikbaar maken in plaats van vleiend:
 Onderscheid dat nergens anders zichtbaar was: afwijzingen op **vorm** (bron, reden, stop)
 tellen apart van afwijzingen op de **markt** (risico, blootstelling). Het eerste is een
 ontbrekende databron, het tweede is de risicomotor die zijn werk doet.
+
+## Het weekbericht komt uit dezelfde functie als de cijfers (2026-09-14)
+De verleiding was om de watchdog zelf een samenvatting te laten opmaken — dat is plain JS
+en scheelt een endpoint. Maar dan telt er onderweg iets, en dan kan het bericht afwijken van
+het rapport zonder dat iemand het merkt. `formatReviewMessage()` staat daarom in
+`tradereview.ts`, naast de berekening, en de collector geeft 'm mee in `/trade/review`. De
+watchdog stuurt letterlijk wat hij krijgt.
+
+Twee keuzes in dat bericht:
+- **Wachtende voorstellen staan in hoofdletters** (`1 WACHT OP JOU`). Alles in dat bericht is
+  informatie behalve dat ene: daar wordt iets van de lezer verwacht.
+- **Een lege week wordt wél gemeld**, zolang de modus niet `off` is. Zwijgen bij nul
+  voorstellen zou betekenen dat een kapotte koppeling er precies zo uitziet als een rustige
+  week — en dat is het verschil dat je juist wilt zien.
+
+`ARA_TRADE_WEEKLY=now` is bewust zowel testhaak als knop: een schakelaar die alleen voor
+tests bestaat, wordt niet onderhouden.

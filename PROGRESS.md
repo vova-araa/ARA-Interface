@@ -379,3 +379,15 @@ Bewust alleen rollen die **vandaag** werken — zonder dat er eerst een databron
   opdracht niets na te tellen en geen handelsadvies te geven.
 - Live geverifieerd tegen een gevuld spoor: 4 voorstellen, 1 door, blokkades correct
   geteld, +2,00R op een winst van 400 bij 200 risico.
+
+## Weekrapport via Telegram (2026-09-14)
+- ✅ **Maandagochtend één bericht** met wat de week deed: voorstellen, waarop het stukliep,
+  papieren uitkomst in R, herhaalpogingen, en welke drempels nog open staan. 0 LLM-tokens.
+- ✅ **De tekst komt uit `formatReviewMessage()`** in dezelfde module als de cijfers, dus
+  het bericht kan nooit iets anders melden dan het rapport zegt. Getest op inhoud én lengte
+  (< 1500 tekens, leesbaar in één blik op een telefoon).
+- ✅ **Een lege week is óók een bericht** zolang de handel niet uit staat: zeven dagen zonder
+  één voorstel is meestal een kapotte koppeling, geen rustige week.
+- ✅ **`ARA_TRADE_WEEKLY=now`** stuurt het rapport meteen — testhaak én knop voor tussendoor.
+  `=0` zet het uit.
+- Live geverifieerd met een dryrun-Telegram: de payload bevatte het volledige rapport.

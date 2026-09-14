@@ -593,3 +593,50 @@ test('handelsrapport: telt wat er gebeurde en vleit niet', async () => {
   );
   assert.equal(later.retries.length, 0);
 });
+
+test('handelsrapport: het korte bericht zegt hetzelfde als de cijfers', async () => {
+  const { buildTradeReview, formatReviewMessage } = await import('./tradereview.ts');
+  const now = Date.UTC(2026, 0, 20, 12);
+  const day = 24 * 60 * 60 * 1000;
+  const base = {
+    venture: 'trading',
+    instrument: 'XAUUSD',
+    side: 'buy' as const,
+    proposedBy: 'ara-execution-trader',
+    route: 'paper',
+    mode: 'paper',
+    riskPct: 0.2,
+  };
+
+  // Een lege week is óók een bericht: als de handel aanstaat en er gebeurt
+  // niets, is er meestal iets stuk in plaats van rustig.
+  const leeg = formatReviewMessage(buildTradeReview([], [], 7, now));
+  assert.match(leeg, /Geen enkel voorstel/);
+
+  const review = buildTradeReview(
+    [
+      { ...base, id: 'a', createdAt: now - day, status: 'paper-filled', blockedBy: [] },
+      { ...base, id: 'b', createdAt: now - day, status: 'rejected', blockedBy: ['risico per trade'] },
+      { ...base, id: 'c', createdAt: now - 2 * day, status: 'awaiting', blockedBy: [] },
+    ],
+    [
+      { instrument: 'XAUUSD', side: 'buy', qty: 10, entry: 2000, stop: 1980, openedAt: now - day, closedAt: now - day / 2, exitPrice: 2040, pnl: 400 },
+    ],
+    7,
+    now,
+  );
+  const message = formatReviewMessage(review);
+
+  // Elk getal in het bericht komt uit het rapport — geen afronding die iets
+  // anders suggereert, geen weglating van wat op de gebruiker wacht.
+  assert.match(message, /3 voorstel\(len\)/);
+  assert.match(message, /1 door, 1 afgewezen/);
+  assert.match(message, /1 WACHT OP JOU/, 'wachtende voorstellen horen op te vallen');
+  assert.match(message, /risico per trade — 1×/);
+  assert.match(message, /2\.00R per trade/);
+  // De waarschuwing hoort er juist bij als het bericht kort is.
+  assert.match(message, /bovengrens/);
+  // En het bericht claimt nergens dat het een advies is.
+  assert.match(message, /aftekenlijst|Nog niet gehaald/);
+  assert.ok(message.length < 1500, 'moet op een telefoon in één blik te lezen zijn');
+});

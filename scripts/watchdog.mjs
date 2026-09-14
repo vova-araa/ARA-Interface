@@ -13,6 +13,7 @@
  *    max 1 tegelijk via lockfile). LLM-tokens alléén bij echte problemen.
  * 5. Escalaties, gebruikerstaken én kantoorchat-vragen → spawn de supervisor.
  * 6. needsHuman → Telegram (dedupe op sessie + inhoud).
+ * 6b. Maandag: het handelsrapport van de afgelopen week (0 tokens).
  * 7. Eén keer per dag een levensteken, zodat stilte zélf het alarm is.
  *
  * Rem op kosten: elke spawn telt mee. Blijft dezelfde situatie na twee
@@ -20,7 +21,8 @@
  * dagbudget uit org.json bereikt, dan start er niets meer.
  *
  * Env: ARA_COLLECTOR_URL, ARA_TOKEN, ARA_REPO, ARA_LOCK_DIR,
- *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit).
+ *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
+ *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen).
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -700,6 +702,43 @@ try {
   }
 } catch (error) {
   log(`telegram-stap overgeslagen: ${String(error).slice(0, 80)}`);
+}
+
+// ── 6b. Wekelijks handelsrapport ──────────────────────────────────────────
+// Maandagochtend één bericht met wat de week deed. De cijfers komen kant-en-
+// klaar uit de collector (pure functie), dus dit kost nul tokens en kan nooit
+// iets anders melden dan het rapport zelf zegt.
+//
+// Ook als er niets gebeurde gaat het bericht de deur uit, zolang de handel niet
+// uit staat: een week zonder één voorstel is meestal geen rustige week maar een
+// kapotte koppeling — en juist dát merk je anders pas veel later.
+if (process.env.ARA_TRADE_WEEKLY !== '0') {
+  const now = new Date();
+  // `now` forceert het bericht ongeacht de dag. Dat is een testhaak én een
+  // knop: wil je het rapport tussendoor, dan draai je de watchdog één keer met
+  // ARA_TRADE_WEEKLY=now in plaats van tot maandag te wachten.
+  const forced = process.env.ARA_TRADE_WEEKLY === 'now';
+  if (forced || (now.getDay() === 1 && now.getHours() >= 8 && now.getHours() < 10)) {
+    try {
+      const state = await api('/trade/state');
+      if (state.state?.mode !== 'off') {
+        const review = await api('/trade/review?days=7');
+        // ISO-weeknummer als sleutel: één bericht per week, ook als de watchdog
+        // binnen het venster een paar keer draait.
+        const monday = new Date(now);
+        monday.setHours(0, 0, 0, 0);
+        await alertOnce(
+          // Geforceerd = altijd sturen; anders hooguit één keer per maandag.
+          forced ? `trade-weekly-forced-${Date.now()}` : `trade-weekly-${monday.toISOString().slice(0, 10)}`,
+          5 * 24 * 60 * 60 * 1000,
+          review.message,
+        );
+        log(`weekrapport verstuurd (${review.proposals?.total ?? 0} voorstellen)`);
+      }
+    } catch (error) {
+      log(`weekrapport overgeslagen: ${String(error).slice(0, 80)}`);
+    }
+  }
 }
 
 // ── 7. Dagelijks levensteken ──────────────────────────────────────────────

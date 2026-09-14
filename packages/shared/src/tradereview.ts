@@ -109,6 +109,65 @@ export interface TradeReview {
   readiness: ReadinessCheck[];
 }
 
+/**
+ * Het rapport als kort bericht, voor Telegram of een andere smalle kanaal.
+ *
+ * Bewust hier en niet in de watchdog: dan is de tekst te testen en telt niemand
+ * onderweg iets na. Wat hier staat is wat de eigenaar op zondagavond op zijn
+ * telefoon leest, dus het moet in één blik te lezen zijn — en de waarschuwing
+ * over papieren vullingen hoort erbij, juist omdat het bericht kort is.
+ */
+export function formatReviewMessage(review: TradeReview): string {
+  const pct = (n: number): string => `${Math.round(n * 100)}%`;
+  const lines: string[] = [`📊 ARA World — handel, ${review.window.days} dagen`];
+
+  if (review.proposals.total === 0) {
+    // Geen voorstellen is óók een bericht waard: als de handel aanstaat en er
+    // gebeurt een week lang niets, is er meestal iets stuk in plaats van rustig.
+    lines.push('', 'Geen enkel voorstel in dit venster.');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    '',
+    `${review.proposals.total} voorstel(len) op ${review.proposals.activeDays} dag(en): ` +
+      `${review.proposals.accepted} door, ${review.proposals.rejected} afgewezen` +
+      (review.proposals.awaiting > 0 ? `, ${review.proposals.awaiting} WACHT OP JOU` : ''),
+  );
+
+  if (review.blockers.length > 0) {
+    lines.push('', 'Waarop het stukliep:');
+    for (const b of review.blockers.slice(0, 3)) {
+      lines.push(`· ${b.key} — ${b.count}× (${pct(b.share)})`);
+    }
+  }
+
+  if (review.paper.closed > 0) {
+    lines.push(
+      '',
+      `Papier: ${review.paper.closed} afgerond, ${pct(review.paper.winRate)} trefkans, ` +
+        `${review.paper.expectancyR.toFixed(2)}R per trade`,
+    );
+  } else {
+    lines.push('', 'Papier: nog niets afgerond.');
+  }
+
+  // Herhaalpogingen bovenaan de aandacht: dat is gedrag, geen pech.
+  if (review.retries.length > 0) {
+    lines.push('', `⚠️ ${review.retries.length}× opnieuw ingediend na een afwijzing — dat hoort niet.`);
+  }
+
+  const open = review.readiness.filter((c) => !c.met);
+  lines.push(
+    '',
+    open.length === 0
+      ? 'Alle drempels gehaald (dat is een aftekenlijst, geen advies).'
+      : `Nog niet gehaald: ${open.map((c) => c.criterion).join('; ')}.`,
+  );
+  lines.push('', 'Papieren vullingen kennen geen spread of slippage: dit is een bovengrens.');
+  return lines.join('\n');
+}
+
 /** Drempels waaronder cijfers niets zeggen. Bewust conservatief. */
 export const REVIEW_THRESHOLDS = {
   minClosedTrades: 30,

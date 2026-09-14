@@ -126,6 +126,12 @@ Container/CI-bijzonderheden:
   herhaalpogingen na een afwijzing, en de papieren uitkomst **in R** — een resultaat in
   geld zegt niets zonder de inzet erbij. Nooit door een model laten natellen; klopt een
   getal niet, dan is dat een bug in die functie.
+- **Maandagochtend stuurt de watchdog het rapport via Telegram** (0 tokens; de tekst komt
+  uit `formatReviewMessage()` in dezelfde module, dus het bericht kan nooit iets anders
+  melden dan de cijfers). Tussendoor nodig? Draai de watchdog één keer met
+  `ARA_TRADE_WEEKLY=now`. Uitzetten: `ARA_TRADE_WEEKLY=0`. Staat de modus op `off`, dan
+  gaat er niets; staat hij aan en gebeurde er niets, dán juist wél — een week zonder één
+  voorstel is meestal een kapotte koppeling, geen rustige week.
 - De caveats staan in de **data**, niet alleen in de tekst eromheen: papieren vullingen
   kennen geen spread of slippage, dus de uitkomst is een bovengrens. `/ara-trade-review`
   geeft nadrukkelijk geen handelsadvies — het beeld is van ARA, het besluit van de eigenaar.

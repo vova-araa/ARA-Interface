@@ -14,6 +14,7 @@ import {
   routeIntent,
   autoHaltReason,
   buildTradeReview,
+  formatReviewMessage,
   VENTURES,
   WorldState,
   type AraEvent,
@@ -955,7 +956,11 @@ export function createCollector(store: EventStore): CollectorApp {
         exitPrice: p.exitPrice ?? 0,
         pnl: p.pnl ?? 0,
       }));
-    res.json(buildTradeReview(intents, positions, days, Date.now()));
+    const review = buildTradeReview(intents, positions, days, Date.now());
+    // Het korte bericht komt uit dezelfde functie als de cijfers: zo kan een
+    // kanaal dat alleen tekst kan (Telegram) nooit iets anders melden dan het
+    // rapport zelf zegt.
+    res.json({ ...review, message: formatReviewMessage(review) });
   });
 
   /** Een papieren positie sluiten en het resultaat boeken. */
