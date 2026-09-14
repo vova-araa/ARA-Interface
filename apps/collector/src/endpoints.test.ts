@@ -572,3 +572,49 @@ test('/actions: alles wat op een mens wacht, met de knop erbij', async () => {
     store.close();
   }
 });
+
+test('opruimen raakt het handelsspoor niet aan', async () => {
+  // Events en usage worden geprund; een besluit over geld hoort te blijven
+  // staan, ook als het ouder is dan de ringbuffer. Dit staat als garantie in
+  // CLAUDE.md, dus het hoort een test te hebben en geen aanname te zijn.
+  const { store, server, base } = boot();
+  try {
+    const old = Date.now() - 400 * 24 * 60 * 60 * 1000;
+    store.addIntent({
+      id: 'oud-1',
+      createdAt: old,
+      venture: 'trading',
+      instrument: 'XAUUSD',
+      side: 'buy',
+      qty: 1,
+      entry: 2000,
+      stop: 1990,
+      reason: 'oud voorstel uit het archief',
+      sources: '["bron"]',
+      proposedBy: 'ara-execution-trader',
+      decision: '{}',
+      route: 'paper',
+      status: 'paper-filled',
+      mode: 'paper',
+      resolvedBy: '',
+      note: '',
+    });
+    await fetch(`${base}/event`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ kind: 'session.start', sessionId: 'oud-sessie', cwd: '/x', ts: old }),
+    });
+
+    store.prune();
+
+    assert.ok(store.getIntent('oud-1'), 'een handelsbesluit mag nooit weggeprund worden');
+    assert.equal(
+      store.forSession('oud-sessie', 10).length,
+      0,
+      'een event van 400 dagen oud hoort juist wél weg te zijn',
+    );
+  } finally {
+    server.close();
+    store.close();
+  }
+});

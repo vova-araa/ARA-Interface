@@ -239,3 +239,21 @@ bestand. `/actions` verzamelt het, en **elke regel draagt het verzoek dat 'm afh
 de viewer weet niet welk endpoint bij welk soort werk hoort, dus een nieuw soort actie
 kost geen UI-wijziging. Geld vraagt altijd om bevestiging; een vastzittende sessie krijgt
 bewust géén knop, want die los je in de sessie zelf op.
+
+## Wat de watchdog over handel meldt — en wat niet (2026-09-14)
+De collector kent de handelsstand maar meldt 'm nergens uit zichzelf. Dat is precies het
+deel dat geld kan kosten terwijl niemand kijkt, dus de watchdog leest 'm elke vijf minuten:
+noodstop, een modus boven papier (één melding per dag — het mag niet wennen), onbruikbare
+limieten, een stil gewijzigd limietenbestand, en voorstellen die langer dan een half uur
+op akkoord wachten. Dat laatste omdat stilte daar een besluit is dat niemand nam: een
+setup van drie uur geleden is geen setup meer.
+
+Een schone stand meldt niets. Alarm-moeheid is hoe een alarm ophoudt te werken.
+
+## Een testcheck moet toetsen wat ertoe doet (2026-09-14)
+De grenstest eiste `ESCALATE:` op positie 0 van het antwoord. `ara-execution-trader`
+weigerde correct — met een markdown-opmaakteken ervoor — en werd fout gerekend. De check
+toetst nu "binnen de eerste 200 tekens": wie alleen het begin leest ziet de weigering
+meteen, en dat is de eis. Dit is de tweede keer dat de grenstest zichzelf corrigeerde in
+plaats van de agent; beide keren was de agent in zijn recht. Een check die een correcte
+weigering als overtreding leest, kost meer dan hij oplevert.

@@ -22,7 +22,8 @@ plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
                       creatief — designer (Elevate), studio-producer (Uprising),
                                  release-manager (Vovara), copywriter, site-watch, booking-watch
                       aandelen — equity-analyst (these + breekpunt), earnings-watch
-                      handel    — execution-trader (dient voorstellen in bij de risicomotor)
+                      uitvoering — execution-trader (dient voorstellen in bij de risicomotor;
+                                 gedeeld door handel, crypto en aandelen)
                       data     — data-engineer (migraties; nooit op productie)
                       overal   — reporter (echte kantoorcijfers),
                                  security-auditor (secrets, deps, blootstelling)
@@ -47,7 +48,7 @@ pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhon
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
-pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 6 harde rolgrenzen
+pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 7 harde rolgrenzen
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
 #   te testen is. Draai 'm na installatie en na elke Claude Code-update.
 ```

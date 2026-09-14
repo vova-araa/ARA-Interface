@@ -3,6 +3,8 @@
  * ARA Watchdog — de 24/7 nul-token bewaker. Draait elke 5 min via launchd.
  *
  * 1. Collector zelf down → launchctl kickstart → pnpm-fallback.
+ * 1d. Handel: noodstop, modus boven papier, onbruikbare of stil gewijzigde
+ *     limieten, en voorstellen die te lang op akkoord wachten.
  * 2. Checkt alle enabled monitors (monitors.json). Faalt er één:
  *    - critical met launchdService → eerst zelf restarten en herchecken (0 tokens);
  *    - nog steeds stuk → incident-taak op het bord voor manager:ops (dedupe op titel).
@@ -433,6 +435,74 @@ try {
   }
 } catch {
   /* geen logmap (bv. in de container) — niets te roteren */
+}
+
+// ── 1d. Handel: het enige deel dat geld kan kosten terwijl je slaapt ──────
+// De collector kent de stand, maar meldt 'm nergens uit zichzelf. Dit is de
+// 24/7-schakel: een noodstop, een modus boven papier, onbruikbare limieten,
+// stil veranderde limieten of een voorstel dat te lang op akkoord wacht — dat
+// zijn allemaal dingen die je wilt weten vóórdat je toevallig gaat kijken.
+try {
+  const trade = await api('/trade/state');
+  const mode = trade.state?.mode ?? 'onbekend';
+
+  if (trade.state?.halted) {
+    log(`handel ligt stil: ${trade.state.haltReason}`);
+    await alertOnce(
+      `trade-halt-${shortHash(String(trade.state.haltReason))}`,
+      12 * 60 * 60 * 1000,
+      `🔴 ARA World — handel ligt stil\n${trade.state.haltReason}\nHervatten kan in de actielijst; dat zet 'm terug op papier.`,
+    );
+  }
+
+  // Boven papier is geen alarm maar wel iets waarvan je je bewust hoort te
+  // zijn. Eén melding per dag, zodat het niet went.
+  if (mode === 'approval' || mode === 'live') {
+    await alertOnce(
+      `trade-mode-${mode}-${new Date().toISOString().slice(0, 10)}`,
+      20 * 60 * 60 * 1000,
+      `🟠 ARA World — handel staat op "${mode}"\nGezet door ${trade.state.modeSetBy}. Risico per trade max ${trade.limits?.maxRiskPerTradePct}%, dagverlies max ${trade.limits?.dailyLossLimitPct}%.`,
+    );
+  }
+
+  // Onbruikbare limieten laten niets door — dat is veilig, maar het betekent
+  // ook dat er niets gebeurt terwijl jij denkt van wel.
+  if (Array.isArray(trade.problems) && trade.problems.length > 0 && mode !== 'off') {
+    await alertOnce(
+      `trade-limits-${shortHash(trade.problems.join('|'))}`,
+      24 * 60 * 60 * 1000,
+      `🟠 ARA World — handelslimieten onbruikbaar\n${trade.problems.join('\n')}\nZolang dit zo staat komt er geen enkel voorstel doorheen.`,
+    );
+  }
+
+  // Een stil gewijzigd limietenbestand is het soort verandering dat je nooit
+  // ziet gebeuren en altijd te laat merkt.
+  const markFile = path.join(LOCK_DIR, 'ara-trade-limits.fingerprint');
+  const seen = fs.existsSync(markFile) ? fs.readFileSync(markFile, 'utf8').trim() : '';
+  const current = String(trade.limitsFingerprint ?? '');
+  if (seen && current && seen !== current) {
+    await alertOnce(
+      `trade-limits-changed-${current}`,
+      6 * 60 * 60 * 1000,
+      `🟠 ARA World — handelslimieten zijn gewijzigd\nBestand: ${trade.limitsSource}\nRisico/trade ${trade.limits?.maxRiskPerTradePct}%, dagverlies ${trade.limits?.dailyLossLimitPct}%, ${trade.limits?.allowedInstruments?.length ?? 0} instrument(en).\nWas jij dat?`,
+    );
+  }
+  if (current) fs.writeFileSync(markFile, current);
+
+  // Een voorstel dat op akkoord wacht, verloopt: een setup van drie uur
+  // geleden is geen setup meer. Stilte is hier een besluit dat niemand nam.
+  const waiting = await api('/trade/intents?status=awaiting&limit=20');
+  const stale = (waiting.intents ?? []).filter((i) => Date.now() - i.createdAt > 30 * 60 * 1000);
+  if (stale.length > 0) {
+    const first = stale[0];
+    await alertOnce(
+      `trade-waiting-${first.id}`,
+      6 * 60 * 60 * 1000,
+      `🟠 ARA World — ${stale.length} handelsvoorstel(len) wachten op jou\nOudste: ${first.side} ${first.qty} ${first.instrument} op ${first.entry}, ${Math.round((Date.now() - first.createdAt) / 60000)} min oud.\nAkkoord of afwijzen kan in de actielijst.`,
+    );
+  }
+} catch (error) {
+  log(`handelscheck overgeslagen: ${String(error).slice(0, 80)}`);
 }
 
 // ── 2+3. Monitors ─────────────────────────────────────────────────────────

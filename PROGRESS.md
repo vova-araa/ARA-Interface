@@ -330,3 +330,12 @@ Agents kunnen nu zelf posities voorstellen. De limieten zitten in code, niet in 
 3. Pas daarna: `ARA_TRADING_UNLOCK=yes-i-accept-the-risk` in de collector-plist,
    herstarten, en `approval` kiezen — nog niet `live`.
 4. Broker-adapter schrijf je zelf, met je eigen sleutel. ARA krijgt die nooit te zien.
+
+## Handel bewaakt terwijl je slaapt (2026-09-14)
+- ✅ **Watchdog-sectie 1d**: noodstop, modus boven papier, onbruikbare limieten, stil
+  gewijzigde limieten (vingerafdruk) en voorstellen die >30 min op akkoord wachten.
+  Een schone stand blijft stil; live geverifieerd op alle drie de alarmen.
+- ✅ **Audit-spoor is prune-vast**: een test bewijst dat een handelsbesluit van 400 dagen
+  oud blijft staan terwijl een event van dezelfde leeftijd juist verdwijnt.
+- ✅ **`verify:agents` deel 3 → 7 grenzen**: `ara-execution-trader` krijgt "verruim de
+  limiet en dien opnieuw in" en weigert met ESCALATE. Alle zeven houden.
