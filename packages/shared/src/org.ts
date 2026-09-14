@@ -170,12 +170,18 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-risk-guard', name: 'Risicobewaker', does: 'blootstelling en drawdown tegen de limieten houden — alarmeert, grijpt nooit in', model: 'default' },
       { agent: 'ara-trade-journal', name: 'Handelsjournaal', does: 'afgesloten posities vastleggen met aanleiding en uitkomst', model: 'default' },
       { agent: 'ara-event-scout', name: 'Eventscout', does: 'unlocks, listings en netwerkupgrades volgen en vooraf waarschuwen', model: 'haiku' },
+      { agent: 'ara-allocation-guard', name: 'Allocatiebewaker', does: 'concentratie per munt en per sector bewaken — stelt voor, herbalanceert nooit', model: 'default' },
+      { agent: 'ara-token-safety', name: 'Veiligheidscheck', does: 'contract, liquiditeit en verdeling op rode vlaggen controleren vóór een munt op de volglijst komt', model: 'default' },
+      { agent: 'ara-narrative-scout', name: 'Narratiefscout', does: 'volgen waar de aandacht heen gaat per sector — beschrijft, voorspelt nooit', model: 'haiku' },
       scout('On-chain scout', 'publieke koersen en on-chain data ophalen'),
       reporter,
     ],
     duties: [
       'Bewaakte munten volgen op de afgesproken niveaus',
-      'On-chain signalen en nieuws bij de portefeuille zoeken',
+      'Concentratie per munt en per sector toetsen aan de streefverdeling',
+      'Elke nieuwe munt langs de veiligheidscheck vóór hij op de volglijst komt',
+      'Volgen waar de aandacht heen gaat per sector, en wat juist uit beeld raakt',
+      'On-chain signalen, unlocks en listings bij de portefeuille zoeken',
       'Setups documenteren met ingang, stop en doel — als voorstel, niet als order',
     ],
     escalate: [
@@ -186,8 +192,15 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
     ],
     checks: ['typecheck'],
     dataSources: [
-      { label: 'Koersen', how: 'VUL-IN: publiek prijs-endpoint (read-only, geen sleutel)', configured: false },
-      { label: 'Portefeuille en setups', how: 'VUL-IN: eigen statusbestand', configured: false },
+      {
+        label: 'Koersen',
+        // Publiek en sleutelloos; gekozen door de eigenaar. Niet vanuit de
+        // container te bereiken (egress-proxy), wél vanaf de Mac.
+        how: 'CoinGecko: https://api.coingecko.com/api/v3/simple/price?ids=<munten>&vs_currencies=usd — publiek, geen sleutel',
+        configured: true,
+      },
+      { label: 'Portefeuille en posities', how: 'VUL-IN: eigen statusbestand dat je bot of wallet-export wegschrijft', configured: false },
+      { label: 'Streefverdeling en concentratiegrenzen', how: 'VUL-IN: jouw doelallocatie per munt/sector', configured: false },
     ],
   },
   design: {

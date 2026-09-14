@@ -123,7 +123,14 @@ test('agents: op de handelsvloer mag alleen het bot-onderhoud schrijven', () => 
 
   // Analist, risicobewaker en eventscout lezen en melden. Geen van drieën mag
   // een positie, een limiet of een strategie kunnen aanraken.
-  for (const name of ['ara-market-analyst', 'ara-risk-guard', 'ara-event-scout']) {
+  for (const name of [
+    'ara-market-analyst',
+    'ara-risk-guard',
+    'ara-event-scout',
+    'ara-allocation-guard',
+    'ara-token-safety',
+    'ara-narrative-scout',
+  ]) {
     const agent = agents.get(name)!;
     assert.ok(agent, `${name} ontbreekt`);
     for (const forbidden of ['Edit', 'Write']) {
@@ -144,6 +151,21 @@ test('agents: op de handelsvloer mag alleen het bot-onderhoud schrijven', () => 
   assert.match(maintainer.body, /orderlogica/i);
   assert.match(maintainer.body, /sleutel/i);
   assert.match(maintainer.body, /ESCALATE/);
+});
+
+test('agents: de scoutrollen geven geen advies en voorspellen niet', () => {
+  // Een scout die "gaat stijgen" schrijft, is een adviseur geworden. Dat
+  // onderscheid moet letterlijk in zijn instructies staan, niet impliciet.
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+  for (const name of ['ara-event-scout', 'ara-narrative-scout', 'ara-token-safety']) {
+    const agent = agents.get(name)!;
+    assert.ok(agent, `${name} ontbreekt`);
+    assert.match(
+      agent.body,
+      /voorspelt? niet|adviseer|advies/i,
+      `${name} moet expliciet benoemen dat hij niet adviseert of voorspelt`,
+    );
+  }
 });
 
 test('agents: de communicatierol kan het netwerk niet op', () => {
