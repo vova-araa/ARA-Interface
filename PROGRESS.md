@@ -255,3 +255,25 @@ Vier geteste commits, alles wat remote te fixen was uit de eigen audit.
 - **Mac-stap**: vul per tak de `dataSources` in `org.json` (`how` + `configured: true`)
   zodra je weet waar de echte cijfers vandaan komen. Tot die tijd melden de rollen het
   als open punt in plaats van iets te verzinnen.
+
+## Alle 7 takken één voor één goedgezet (2026-09-14)
+Per tak met de eigenaar doorgenomen: rollen, bevoegdheden en databronnen.
+Van 11 naar 28 agentdefinities; van 4 naar 10 structurele invarianten in CI.
+
+| Tak | Rollen | Bijzonder |
+|---|---|---|
+| Sharzi TMS | planner · facturatie · chauffeur/klantcontact · integratie · cijfers | planner en facturatie zonder Edit/Write; contactrol zonder Bash/WebFetch |
+| Truck & Trailers | wagenpark · keuringen · kosten · trailers · data · cijfers | hele vloer read-only |
+| Handelsvloer | analist · risico · journaal · eventscout · bot-onderhoud · cijfers | één schrijver, met verboden gebied |
+| Crypto-desk | + allocatie · veiligheidscheck · narratief · on-chain scout | CoinGecko publiek = eerste aangesloten bron |
+| Elevate | ontwerper · copywriter · sitebewaker · scout · cijfers | klantproductie = ESCALATE |
+| Uprising | productie · agendabewaking · copywriter · sitebewaker · web · cijfers | mag productie, behalve de boekingsflow |
+| Vovara | releasebeheer · copywriter · sitebewaker · promo-scout · cijfers | site mag live, release uitbrengen nooit |
+
+- **Publicatiegrenzen verschillen per tak**, op verzoek van de eigenaar: klantwerk
+  streng, eigen zaak ruimer, onomkeerbare release het strengst.
+- **Read-only is structuur, geen belofte**: 17 van de 28 rollen hebben geen Edit/Write;
+  twee rollen die teksten naar buiten schrijven hebben geen Bash/WebFetch en kunnen
+  dus niet publiceren.
+- **Mac-stap**: vul per tak de resterende `dataSources` in `org.json`
+  (`how` + `configured: true`). Alleen de crypto-koersen staan al aangesloten.

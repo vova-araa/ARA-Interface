@@ -144,3 +144,27 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - **Niet-aangesloten databronnen zijn zichtbaar**: `configured: false` staat in het
   kantoorpaneel én in de manager-prompt. Zo weet een rol dat er niets te halen valt,
   in plaats van een plausibel cijfer te bedenken.
+
+## Takken één voor één (2026-09-14)
+- **Per tak eigen bevoegdheden, niet één huisregel**: op de vraag of "publiceren =
+  altijd escaleren" moest blijven, koos de eigenaar voor differentiatie. Klantwerk
+  (Elevate) mag niets naar buiten; de eigen studio (Uprising) mag productie behalve
+  de boekingsflow; een muziekrelease (Vovara) mag de site wel en de release nooit.
+  De grens volgt het risico, niet de uniformiteit.
+- **Instructie én gereedschap moeten hetzelfde zeggen**: `ara-fleet-tech` beloofde
+  "schrijft niet in productie" met Edit/Write in zijn frontmatter. Zulke gaten zijn
+  nu dicht en een test bewaakt ze — een belofte in proza is geen garantie.
+- **Geen netwerk = kan niet publiceren**: `ara-dispatch-comms` en `ara-copywriter`
+  schrijven teksten die naar klanten gaan. Zonder Bash en WebFetch kunnen ze dat
+  niet versturen, ongeacht wat een taak vraagt.
+- **Eén schrijver per risicovolle vloer**: op de handelsvloer mag alleen
+  `ara-bot-maintainer` schrijven, met zijn verboden gebied (orderlogica, sleutels,
+  alles wat een draaiende bot verandert) letterlijk in zijn instructies.
+- **Een risicobewaker grijpt niet in**: bij een overschreden limiet alarmeert hij en
+  sluit hij niets. Een bewaker die zelf handelt is een handelaar.
+- **Scouts adviseren niet**: eventscout, narratiefscout en veiligheidscheck moeten
+  expliciet benoemen dat ze niet voorspellen of adviseren — een test dwingt dat af.
+  "Ziet er goed uit" is advies, ook zonder het woord advies.
+- **Splitsen waar het werk echt verschilt**: één `ara-creative` voor design, studio
+  en muziek leverde vage instructies op. Drie rollen met eigen opleverregels en
+  eigen publicatiegrenzen leveren scherpe.

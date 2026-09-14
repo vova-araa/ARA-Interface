@@ -14,9 +14,14 @@ apps/viewer/        @ara/viewer   — React Three Fiber (dev-poort 4748)
 plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
                     leiding  — chief, supervisor, manager, ops-manager (mogen spawnen)
                     generiek — worker, web-scout
-                    vak      — planner (TMS), fleet-tech (wagenpark),
-                               market-analyst (handel, read-only), creative (design/studio/muziek),
-                               reporter (echte kantoorcijfers)
+                    vak (per tak, zie GET /org):
+                      tms      — planner, invoice-auditor, dispatch-comms
+                      fleet    — fleet-tech, compliance-watch, fleet-cost, trailer-manager
+                      handel   — market-analyst, risk-guard, trade-journal, event-scout, bot-maintainer
+                      crypto   — + allocation-guard, token-safety, narrative-scout
+                      creatief — designer (Elevate), studio-producer (Uprising),
+                                 release-manager (Vovara), copywriter, site-watch, booking-watch
+                      overal   — reporter (echte kantoorcijfers)
 scripts/            watchdog.mjs (24/7, 0 LLM-tokens), notify.mjs (Telegram), install.sh, expose.sh (Tailscale)
 ops/                launchd plists (templates; install.sh vult placeholders + chmod 600)
 data/               runtime: SQLite db, world.config.json-kopieën, logs (niet committen)
@@ -112,10 +117,16 @@ Container/CI-bijzonderheden:
   wat ALTIJD escaleert, validatiechecks en welke databronnen nog niet aangesloten zijn.
   Wat org.json weglaat komt uit het branche-standaard — een tak start nooit leeg.
   Supervisor en manager lezen `/org`, niet org.json.
-- **Read-only is een garantie, geen belofte**: `ara-market-analyst` en `ara-reporter`
-  hebben geen Edit/Write in hun frontmatter. `apps/collector/src/agents.test.ts` pint dat
-  vast (0 tokens, in CI), samen met: elke playbook-rol bestaat als bestand, de
-  frontmatter-naam matcht het bestand, en alleen leidinggevende rollen hebben de Agent-tool.
+- **Read-only is een garantie, geen belofte**: 17 van de 28 rollen hebben geen Edit/Write;
+  `ara-dispatch-comms` en `ara-copywriter` hebben bovendien geen Bash/WebFetch en kunnen
+  dus niet publiceren. `apps/collector/src/agents.test.ts` pint dat vast (0 tokens, in CI),
+  samen met: elke playbook-rol bestaat als bestand, de frontmatter-naam matcht het bestand,
+  alleen leidinggevende rollen hebben de Agent-tool, scouts benoemen dat ze niet adviseren,
+  en elke creatieve rol benoemt zijn eigen publicatiegrens.
+- **Publicatiegrenzen verschillen per tak** (keuze van de eigenaar): Elevate = klantwerk,
+  niets naar buiten; Uprising = eigen zaak, productie mag behalve de boekingsflow;
+  Vovara = site mag live, een release uitbrengen nooit. Nieuwe rol erbij? Zet zijn grens
+  in zijn eigen instructies, niet alleen in het playbook.
 - Token-discipline: haiku-first voor scouts/simpele workers, Grep vóór Read, korte
   bordresultaten; dagbudget in `org.json` (`tokenBudgetDaily`).
 - `watchdog.mjs` draait via launchd elke 5 min met 0 LLM-tokens; spawnt alléén agents
