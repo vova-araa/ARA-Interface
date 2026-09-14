@@ -23,6 +23,9 @@ export default defineConfig({
       '/latency': COLLECTOR,
       '/office': COLLECTOR,
       '/chat': COLLECTOR,
+      '/org': COLLECTOR,
+      '/trade': COLLECTOR,
+      '/actions': COLLECTOR,
     },
   },
   preview: {
@@ -43,6 +46,9 @@ export default defineConfig({
       '/latency': COLLECTOR,
       '/office': COLLECTOR,
       '/chat': COLLECTOR,
+      '/org': COLLECTOR,
+      '/trade': COLLECTOR,
+      '/actions': COLLECTOR,
     },
   },
   build: {

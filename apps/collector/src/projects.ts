@@ -16,6 +16,7 @@ export const DEMO_PROJECTS: ProjectEntry[] = [
   { name: 'uprising-studio' },
   { name: 'xauusd-bot' },
   { name: 'crypto-desk' },
+  { name: 'aandelen-portefeuille' },
   { name: 'vovara-site' },
 ];
 

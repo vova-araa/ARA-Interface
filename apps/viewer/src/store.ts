@@ -97,6 +97,9 @@ interface AraStore {
   soundOn: boolean;
   panelOpen: boolean;
   boardOpen: boolean;
+  actionsOpen: boolean;
+  /** Bumpt bij elke trade-gebeurtenis, zodat de actielijst zichzelf ververst. */
+  tradeVersion: number;
   /** LOD: true wanneer ver uitgezoomd — icons/bubbles verbergen (perf). */
   lodFar: boolean;
   /** Cinematic postprocessing (tilt-shift/bloom); governor zet uit bij lage fps. */
@@ -135,6 +138,8 @@ interface AraStore {
   toggleSound(): void;
   setPanelOpen(open: boolean): void;
   setBoardOpen(open: boolean): void;
+  setActionsOpen(open: boolean): void;
+  bumpTrade(): void;
   setLodFar(far: boolean): void;
   setOverviewOpen(open: boolean): void;
   setPostFxOn(on: boolean): void;
@@ -261,6 +266,8 @@ export const useAra = create<AraStore>((set, get) => ({
   soundOn: loadPref('ara.soundOn', false),
   panelOpen: window.innerWidth > 800,
   boardOpen: false,
+  actionsOpen: false,
+  tradeVersion: 0,
   lodFar: false,
   postFxOn: true,
   perfLow: false,
@@ -384,6 +391,8 @@ export const useAra = create<AraStore>((set, get) => ({
     }),
   setPanelOpen: (open) => set({ panelOpen: open }),
   setBoardOpen: (open) => set({ boardOpen: open }),
+  setActionsOpen: (open) => set({ actionsOpen: open }),
+  bumpTrade: () => set((s) => ({ tradeVersion: s.tradeVersion + 1 })),
   setLodFar: (far) => set({ lodFar: far }),
   setOverviewOpen: (open) => set({ overviewOpen: open }),
   setPostFxOn: (on) => set({ postFxOn: on }),

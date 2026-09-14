@@ -7,6 +7,7 @@ import { NudgePulse, ReconnectBanner } from './ui/Banners.tsx';
 import { Scrubber } from './ui/Scrubber.tsx';
 import { Minimap } from './ui/Minimap.tsx';
 import { BoardPanel } from './ui/BoardPanel.tsx';
+import { ActionPanel } from './ui/ActionPanel.tsx';
 import { OverviewPanel } from './ui/OverviewPanel.tsx';
 import { Ticker } from './ui/Ticker.tsx';
 import { SoundPlayer } from './ui/Sound.tsx';
@@ -44,6 +45,7 @@ export function App(): JSX.Element {
       const s = useAra.getState();
       if (e.key === 'Escape') {
         if (s.overviewOpen) s.setOverviewOpen(false);
+        else if (s.actionsOpen) s.setActionsOpen(false);
         else if (s.boardOpen) s.setBoardOpen(false);
         else if (s.selectedSessionId) s.select(null);
         (e.target as HTMLElement)?.blur?.();
@@ -56,6 +58,7 @@ export function App(): JSX.Element {
         setTimeout(() => document.querySelector<HTMLInputElement>('.panel .search')?.focus(), 50);
       } else if (e.key === 'f') s.toggleFollowLive();
       else if (e.key === 'b') s.setBoardOpen(!s.boardOpen);
+      else if (e.key === 'a') s.setActionsOpen(!s.actionsOpen);
       else if (e.key === 'o') s.setOverviewOpen(!s.overviewOpen);
     };
     window.addEventListener('keydown', onKey);
@@ -70,6 +73,7 @@ export function App(): JSX.Element {
       <DetailDrawer />
       <Minimap />
       <BoardPanel />
+      <ActionPanel />
       <OverviewPanel />
       <Ticker />
       <Scrubber />

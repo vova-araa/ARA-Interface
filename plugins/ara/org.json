@@ -105,6 +105,15 @@
       "playbook": {
         "managerName": "Manager Crypto-desk"
       }
+    },
+    {
+      "id": "equities",
+      "manager": "manager:equities",
+      "priority": 1,
+      "focus": "Aandelen: these per positie, kwartaalagenda, weging per sector. Voorstellen lopen ALTIJD via de risicomotor (POST /trade/intent); elke order daarbuiten om, en elke wijziging aan limieten, modus of noodstop, is een automatische ESCALATE.",
+      "playbook": {
+        "managerName": "Manager Aandelen"
+      }
     }
   ],
   "offices": {
@@ -205,6 +214,26 @@
       "Promo DE",
       "Playlist-pitch",
       "Merch"
+    ],
+    "equities": [
+      "ASML",
+      "ADYEN",
+      "ASM",
+      "BESI",
+      "HEIA",
+      "INGA",
+      "PHIA",
+      "AD",
+      "WKL",
+      "PRX",
+      "AAPL",
+      "MSFT",
+      "NVDA",
+      "GOOGL",
+      "AMZN",
+      "META",
+      "BRK.B",
+      "COST"
     ]
   },
   "_playbooks": "Elke venture krijgt een playbook: managerName, specialists, duties, escalate, checks en dataSources. Wat je hier niet invult komt uit het branche-standaard in packages/shared/src/org.ts (resolvePlaybook). Zie GET /org voor het resultaat. dataSources met \"configured\": false zijn de plekken waar nog geen echte cijfers vandaan komen — vul \"how\" in en zet configured op true zodra het werkt."

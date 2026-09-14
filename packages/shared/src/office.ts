@@ -16,6 +16,7 @@ import type { VentureStyle } from './world.ts';
 export type OfficeKind =
   | 'trading'
   | 'crypto'
+  | 'equities'
   | 'tms'
   | 'fleet'
   | 'design'
@@ -164,6 +165,7 @@ export const OFFICE_KIND_BY_VENTURE: Record<string, OfficeKind> = {
   blex: 'fleet',
   trading: 'trading',
   crypto: 'crypto',
+  equities: 'equities',
   elevate: 'design',
   uprising: 'studio',
   vovara: 'music',
@@ -203,6 +205,20 @@ const KIND_SPECS: Record<OfficeKind, KindSpec> = {
     stationSub: (i, seed) => `${1 + ((seed + i) % 4)} setups`,
     metricLabels: ['Situatie', 'Nominaal', 'Aantal', 'Ingang', 'Stop', 'Doel', 'Open', 'P&L vandaag', 'Trades', 'Trefkans'],
     planLabels: ['Trades', 'Trefkans', 'Winstfactor'],
+  },
+  equities: {
+    title: 'AANDELEN — PORTEFEUILLE',
+    roomName: 'Zaal RESEARCH',
+    headlineLabel: 'PORTEFEUILLEWAARDE',
+    valueKind: 'money',
+    entities: ['ASML', 'ADYEN', 'ASM', 'BESI', 'HEIA', 'INGA', 'PHIA', 'AD', 'WKL', 'PRX', 'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'BRK.B', 'COST'],
+    entityWord: 'posities',
+    // Aandelen zijn geen trades maar bezit: de kolommen gaan over de these en
+    // de kostprijs, niet over een setup die vandaag geldt.
+    kpiLabels: ['Posities', 'Winnaars', 'Grootste weging', 'Cijfers deze week'],
+    stationSub: (i: number, seed: number) => `${1 + ((seed + i) % 4)}e jaar in bezit`,
+    metricLabels: ['These', 'Sector', 'Aantal', 'Kostprijs', 'Koers', 'Weging', 'Rendement', 'Dividend', 'Cijfers', 'Stop'],
+    planLabels: ['Rendement', 'Weging', 'Sinds aankoop'],
   },
   crypto: {
     title: 'CRYPTO-VLOER — LIVE',

@@ -77,6 +77,16 @@ const security: Specialist = {
   does: 'secrets, kwetsbare dependencies en onbeschermde endpoints opsporen — meldt met bewijs, herstelt nooit',
   model: 'default',
 };
+/**
+ * De enige rol die een handelsvoorstel indient. Hij beslist niets: de
+ * risicomotor in de collector doet dat, en die staat buiten zijn bereik.
+ */
+const executionTrader: Specialist = {
+  agent: 'ara-execution-trader',
+  name: 'Uitvoering',
+  does: 'dient voorstellen in bij de risicomotor — kan zelf geen order plaatsen en houdt geen sleutel',
+  model: 'default',
+};
 const dataEngineer: Specialist = {
   agent: 'ara-data-engineer',
   name: 'Data-engineer',
@@ -156,6 +166,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-risk-guard', name: 'Risicobewaker', does: 'blootstelling, drawdown en positiegrootte tegen de limieten houden — alarmeert, grijpt nooit in', model: 'default' },
       { agent: 'ara-trade-journal', name: 'Handelsjournaal', does: 'elke afgesloten trade vastleggen met aanleiding en uitkomst, en periodiek evalueren', model: 'default' },
       { agent: 'ara-event-scout', name: 'Eventscout', does: 'agenda die het instrument raakt volgen en vóór het event waarschuwen', model: 'haiku' },
+      executionTrader,
       { agent: 'ara-bot-maintainer', name: 'Bot-onderhoud', does: 'logging, backtests en infrastructuur rond de bot — nooit de orderlogica', model: 'default' },
       security,
       reporter,
@@ -193,6 +204,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-allocation-guard', name: 'Allocatiebewaker', does: 'concentratie per munt en per sector bewaken — stelt voor, herbalanceert nooit', model: 'default' },
       { agent: 'ara-token-safety', name: 'Veiligheidscheck', does: 'contract, liquiditeit en verdeling op rode vlaggen controleren vóór een munt op de volglijst komt', model: 'default' },
       { agent: 'ara-narrative-scout', name: 'Narratiefscout', does: 'volgen waar de aandacht heen gaat per sector — beschrijft, voorspelt nooit', model: 'haiku' },
+      executionTrader,
       scout('On-chain scout', 'publieke koersen en on-chain data ophalen'),
       security,
       reporter,
@@ -303,6 +315,39 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
     dataSources: [
       { label: 'Releases en streams', how: 'VUL-IN: distributeur-export', configured: false },
       { label: 'Releaseplanning en metadata', how: 'VUL-IN: eigen releaselijst', configured: false },
+    ],
+  },
+  equities: {
+    specialists: [
+      { agent: 'ara-equity-analyst', name: 'Fundamenteel analist', does: 'these per positie onderbouwen met primaire bronnen, en melden wanneer het breekpunt geraakt is', model: 'default' },
+      { agent: 'ara-earnings-watch', name: 'Cijferbewaking', does: 'kwartaalagenda en dividenddata bijhouden en vooraf waarschuwen', model: 'default' },
+      { agent: 'ara-allocation-guard', name: 'Portefeuillebeheer', does: 'weging per naam en per sector bewaken — stelt voor, herbalanceert nooit', model: 'default' },
+      { agent: 'ara-risk-guard', name: 'Risicobewaker', does: 'blootstelling en drawdown tegen de limieten houden — alarmeert, grijpt nooit in', model: 'default' },
+      executionTrader,
+      { agent: 'ara-trade-journal', name: 'Journaal', does: 'elke aan- en verkoop vastleggen met these en uitkomst', model: 'default' },
+      security,
+      reporter,
+    ],
+    duties: [
+      'These per positie actueel houden en het breekpunt expliciet benoemen',
+      'Kwartaalagenda en dividenddata van portefeuille en volglijst bijhouden',
+      'Weging per naam en per sector toetsen aan de streefverdeling',
+      'Voorstellen indienen via de risicomotor — nooit daarbuiten om',
+      'Elke aan- en verkoop in het journaal zetten met de these die eronder lag',
+    ],
+    escalate: [
+      'ELKE order buiten de risicomotor om',
+      'ELKE wijziging aan trading-limits.json, de modus of de noodstop',
+      'ELKE aanraking van broker-sleutels of rekeninginstellingen',
+      'Geld storten, opnemen of overboeken',
+      'Een positie sluiten zonder dat daar een eigen besluit met reden aan ten grondslag ligt',
+    ],
+    checks: ['risicomotor accepteerde het voorstel', 'these vastgelegd met bron', 'typecheck'],
+    dataSources: [
+      { label: 'Koersen en portefeuille', how: 'VUL-IN: export van je broker of eigen statusbestand — ARA leest, vraagt nooit zelf de broker', configured: false },
+      { label: 'Kwartaalagenda', how: 'VUL-IN: investor-relations-pagina per naam, of een agenda-export', configured: false },
+      { label: 'Jaarverslagen en kwartaalcijfers', how: 'VUL-IN: primaire bron per naam (IR-site)', configured: false },
+      { label: 'Streefverdeling per sector', how: 'VUL-IN: jouw doelallocatie', configured: false },
     ],
   },
   generic: {

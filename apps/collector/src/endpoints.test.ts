@@ -500,3 +500,75 @@ test('/trade: voorstel, toets, noodstop en het slot op de modus', async () => {
     delete process.env.ARA_TRADING_LIMITS;
   }
 });
+
+test('/actions: alles wat op een mens wacht, met de knop erbij', async () => {
+  const { store, server, base } = boot();
+  try {
+    // Een escalatie van het bord hoort in de lijst, met een knop om 'm te sluiten.
+    const { task } = (await (
+      await fetch(`${base}/tasks`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ title: 'migratie op productie gevraagd', assignee: 'supervisor' }),
+      })
+    ).json()) as { task: { id: string } };
+    await fetch(`${base}/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: json,
+      body: JSON.stringify({ result: 'ESCALATE: productie-uitvoering gevraagd' }),
+    });
+
+    // Een sessie die vastzit.
+    await fetch(`${base}/event`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        kind: 'notification',
+        sessionId: 'stuck-1',
+        project: 'sharzi-tms',
+        message: 'mag ik deze rit verzetten?',
+      }),
+    });
+
+    const { actions } = (await (await fetch(`${base}/actions`)).json()) as {
+      actions: {
+        id: string;
+        kind: string;
+        urgency: string;
+        title: string;
+        detail: string;
+        buttons: { label: string; method: string; path: string; confirm?: boolean }[];
+      }[];
+    };
+
+    const kinds = new Set(actions.map((a) => a.kind));
+    assert.ok(kinds.has('escalation'), 'een escalatie hoort in de actielijst');
+    assert.ok(kinds.has('needs-human'), 'een vastzittende sessie hoort in de actielijst');
+    assert.ok(kinds.has('data-source'), 'niet-aangesloten bronnen horen zichtbaar te zijn');
+
+    // Blokkerende items staan bovenaan — anders verdwijnen ze onder de rest.
+    const urgencies = actions.map((a) => a.urgency);
+    assert.deepEqual(
+      [...urgencies].sort((a, b) => ({ blocking: 0, soon: 1, whenever: 2 })[a as 'soon'] - ({ blocking: 0, soon: 1, whenever: 2 })[b as 'soon']),
+      urgencies,
+      'de lijst hoort op urgentie gesorteerd te zijn',
+    );
+
+    // Een escalatie draagt zijn eigen afhandeling: geen onthouden welk endpoint.
+    const escalation = actions.find((a) => a.kind === 'escalation')!;
+    assert.equal(escalation.buttons[0]!.method, 'PATCH');
+    assert.match(escalation.buttons[0]!.path, /^\/tasks\//);
+
+    // Een vastzittende sessie krijgt bewust géén knop: dat los je in de sessie
+    // zelf op, niet van afstand.
+    assert.equal(actions.find((a) => a.kind === 'needs-human')!.buttons.length, 0);
+
+    // Databronnen die nog niet aangesloten zijn, staan er zonder knop maar wél
+    // met wat je moet doen.
+    const source = actions.find((a) => a.kind === 'data-source')!;
+    assert.match(source.detail, /org\.json/);
+  } finally {
+    server.close();
+    store.close();
+  }
+});

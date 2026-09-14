@@ -134,4 +134,13 @@ test.describe('kantoren 1400×900', () => {
     await page.locator('.office-topbar .btn').click();
     await expect(page.locator('.office-overlay')).toHaveCount(0);
   });
+
+  test('acties: lijst opent en toont wat op de mens wacht', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.topbar-actions .btn', { hasText: '✓' }).click();
+    await expect(page.locator('.actions')).toBeVisible();
+    // Zonder openstaande acties is de lege tekst het juiste antwoord — niet
+    // een leeg paneel waarin je je afvraagt of het kapot is.
+    await expect(page.locator('.actions-list')).toBeVisible({ timeout: 10_000 });
+  });
 });

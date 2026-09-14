@@ -85,6 +85,7 @@ export function connectLive(): void {
         .catch(() => undefined);
     });
     source.addEventListener('tasks', () => useAra.getState().bumpTasks());
+    source.addEventListener('trade', () => useAra.getState().bumpTrade());
     source.addEventListener('status', (msg) => {
       try {
         useAra.getState().setLiveStatus(JSON.parse((msg as MessageEvent).data) as LiveStatus);

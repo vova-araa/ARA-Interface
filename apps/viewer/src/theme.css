@@ -611,3 +611,41 @@ html, body, #root {
 .office-bullets li { margin-bottom: 3px; }
 .office-bullets-warn li { color: #ffce7a; }
 .office-bullet-open { color: #ffce7a; }
+
+/* Actielijst: wat op jou wacht, met de knop erbij. */
+.actions {
+  position: absolute; top: 54px; right: 12px; bottom: 12px; width: 360px;
+  display: flex; flex-direction: column; z-index: 18;
+  background: rgba(22, 25, 31, 0.96); border: 1px solid var(--border);
+  border-radius: 14px; backdrop-filter: blur(12px); overflow: hidden;
+}
+.actions-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.actions-badge {
+  background: var(--amber); color: #1a1a1a; border-radius: 999px;
+  padding: 1px 7px; font-size: 12px; margin-left: 6px;
+}
+.actions-error { margin: 8px 12px 0; font-size: 12px; color: var(--amber); }
+.actions-empty { color: var(--text-dim); padding: 18px; text-align: center; font-size: 13px; }
+.actions-list { flex: 1; overflow-y: auto; padding: 8px 10px 12px; }
+.action {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left-width: 3px; border-radius: 10px; padding: 9px 11px; margin-bottom: 7px;
+}
+.action-blocking { border-left-color: var(--amber); }
+.action-soon { border-left-color: #6ee7ff; }
+.action-whenever { border-left-color: var(--border); opacity: 0.8; }
+.action-top { display: flex; gap: 8px; align-items: center; font-size: 11px; color: var(--text-dim); }
+.action-age { margin-left: auto; }
+.action-title { font-size: 13.5px; margin-top: 3px; }
+.action-detail { font-size: 12px; color: var(--text-dim); margin-top: 3px; white-space: pre-wrap; }
+.action-buttons { display: flex; gap: 6px; margin-top: 8px; }
+.btn-strong { background: var(--accent); border-color: var(--accent); color: #fff; }
+@media (max-width: 800px) {
+  .actions {
+    top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 72vh;
+    border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); z-index: 19;
+  }
+}

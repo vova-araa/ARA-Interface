@@ -24,6 +24,8 @@ export function TopBar(): JSX.Element {
   const panelOpen = useAra((s) => s.panelOpen);
   const setPanelOpen = useAra((s) => s.setPanelOpen);
   const boardOpen = useAra((s) => s.boardOpen);
+  const actionsOpen = useAra((s) => s.actionsOpen);
+  const setActionsOpen = useAra((s) => s.setActionsOpen);
   const setBoardOpen = useAra((s) => s.setBoardOpen);
   const overviewOpen = useAra((s) => s.overviewOpen);
   const setOverviewOpen = useAra((s) => s.setOverviewOpen);
@@ -70,6 +72,13 @@ export function TopBar(): JSX.Element {
           title="Takenbord (b)"
         >
           ☷
+        </button>
+        <button
+          className={`btn ${actionsOpen ? 'btn-active' : ''}`}
+          onClick={() => setActionsOpen(!actionsOpen)}
+          title="Acties — alles wat op jou wacht (a)"
+        >
+          ✓
         </button>
         <button className="btn" onClick={() => setPanelOpen(!panelOpen)} title="Thread list">
           ☰

@@ -25,6 +25,7 @@ import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
 import { projectPulse } from './pulse.ts';
 import * as trading from './trading.ts';
+import { buildActions } from './actions.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
@@ -46,7 +47,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org|trade)(\/|$)/i;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org|trade|actions)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -658,6 +659,33 @@ export function createCollector(store: EventStore): CollectorApp {
     });
     broadcastFrame('event: office\ndata: {}\n\n');
     res.json({ ok: true });
+  });
+
+  /**
+   * Alles wat op een mens wacht, op één plek. Dit is geen dashboard maar een
+   * werklijst: elke regel draagt het verzoek dat 'm afhandelt, zodat je 'm
+   * vanaf hier kunt doen in plaats van te onthouden dat het moet.
+   */
+  app.get('/actions', (req, res) => {
+    allowOrigin(req, res);
+    const org = readOrg();
+    const report = trading.readLimits();
+    const tradingState = trading.readState();
+    res.json({
+      actions: buildActions({
+        store,
+        snapshot: state.snapshot(),
+        ventures: VENTURES.filter((v) => v.id !== 'misc').map((v) => ({
+          id: v.id,
+          label: v.label,
+          playbook: resolvePlaybook(v.id, v.label, org.ventures?.find((o) => o.id === v.id)?.playbook),
+        })),
+        tradingProblems: report.problems,
+        tradingHalted: tradingState.halted,
+        haltReason: tradingState.haltReason,
+        now: Date.now(),
+      }),
+    });
   });
 
   // ── Handel: agents stellen voor, deterministische code beslist ─────────
