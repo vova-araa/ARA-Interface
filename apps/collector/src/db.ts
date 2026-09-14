@@ -99,6 +99,8 @@ export interface TaskStore {
   getIntent(id: string): IntentRow | null;
   listIntents(filter: { status?: string; limit?: number }): IntentRow[];
   openPaperPositions(): PaperPositionRow[];
+  /** Posities die sinds `from` gesloten zijn — de basis voor het rapport. */
+  closedPaperPositions(from: number): PaperPositionRow[];
   addPaperPosition(row: PaperPositionRow): void;
   closePaperPosition(id: string, exitPrice: number, closedAt: number): PaperPositionRow | null;
   /** Gerealiseerd resultaat van papieren posities die op `day` gesloten zijn. */
@@ -571,6 +573,13 @@ export function openStore(dbPath = DB_PATH): EventStore {
       return (
         db.prepare('SELECT * FROM paper_positions WHERE closed_at IS NULL ORDER BY opened_at').all() as
           Record<string, unknown>[]
+      ).map(toPaper);
+    },
+    closedPaperPositions(from) {
+      return (
+        db
+          .prepare('SELECT * FROM paper_positions WHERE closed_at >= ? ORDER BY closed_at')
+          .all(from) as Record<string, unknown>[]
       ).map(toPaper);
     },
     addPaperPosition(row) {

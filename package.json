@@ -18,6 +18,7 @@
     "soak": "pnpm --filter @ara/collector soak",
     "browse": "node apps/viewer/scripts/browse.mjs",
     "map": "pnpm --filter @ara/collector map",
-    "verify:agents": "node scripts/verify-agents.mjs"
+    "verify:agents": "node scripts/verify-agents.mjs",
+    "trade:review": "node scripts/trade-review.mjs"
   }
 }

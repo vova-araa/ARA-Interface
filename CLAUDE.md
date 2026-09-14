@@ -51,6 +51,7 @@ pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhon
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
+pnpm trade:review [dagen]    # handelsrapport uit het audit-spoor (0 tokens; --json voor ruwe data)
 pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 7 harde rolgrenzen
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
 #   te testen is. Draai 'm na installatie en na elke Claude Code-update.
@@ -120,6 +121,14 @@ Container/CI-bijzonderheden:
   de eigenaar zelf draait.
 - Elk voorstel wordt bewaard met zijn volledige beoordeling, afwijzingen incluis
   (`trade_intents`). Die tabel wordt niet meegeprund — een besluit over geld blijft staan.
+- **Rapport**: `GET /trade/review?days=N` en `pnpm trade:review` rekenen het spoor uit in
+  `buildTradeReview()` (pure functie). Welke regels blokkeerden, wie waarop stukliep,
+  herhaalpogingen na een afwijzing, en de papieren uitkomst **in R** — een resultaat in
+  geld zegt niets zonder de inzet erbij. Nooit door een model laten natellen; klopt een
+  getal niet, dan is dat een bug in die functie.
+- De caveats staan in de **data**, niet alleen in de tekst eromheen: papieren vullingen
+  kennen geen spread of slippage, dus de uitkomst is een bovengrens. `/ara-trade-review`
+  geeft nadrukkelijk geen handelsadvies — het beeld is van ARA, het besluit van de eigenaar.
 
 ## Actielijst
 

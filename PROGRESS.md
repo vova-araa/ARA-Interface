@@ -362,3 +362,20 @@ Bewust alleen rollen die **vandaag** werken — zonder dat er eerst een databron
   driver-planner, backtest-runner, seo-analyst, competitor-watch, cashflow-watch) en 3 die
   bestaande rollen zouden overlappen. Zeven rollen die alleen `ESCALATE: geen bron` melden
   is ruis, geen organisatie.
+
+## Handelsrapport (2026-09-14)
+- ✅ **`pnpm trade:review [dagen]`** en `GET /trade/review?days=N`: het audit-spoor als
+  leesbaar rapport, 0 LLM-tokens. De cijfers komen uit `buildTradeReview()` — een pure
+  functie — zodat een rapport van deze week naast dat van vorige week te leggen is.
+- ✅ **De belangrijkste tabel is "waarop het stukliep"**: veel afwijzingen op *risico per
+  trade* betekent dat het systeem werkt; veel op *bron* of *reden* betekent dat een rol
+  geen databron heeft — een gat in de configuratie, niet in zijn oordeel.
+- ✅ **Herhaalpogingen** worden apart uitgelicht: een afgewezen voorstel dat binnen het uur
+  terugkomt is precies het gedrag waartegen de limieten bestaan.
+- ✅ **Uitkomst in R**, niet in euro's, met de verwachtingswaarde vóór de trefkans.
+- ✅ **Drempels als aftekenlijst** (30 trades, 20 actieve dagen, positieve verwachting,
+  <10% vormfouten, geen herhaalpogingen, niets wachtend) — geen advies over echt geld.
+- ✅ **`/ara-trade-review`** slash-command dat het rapport draait en bespreekt, met de
+  opdracht niets na te tellen en geen handelsadvies te geven.
+- Live geverifieerd tegen een gevuld spoor: 4 voorstellen, 1 door, blokkades correct
+  geteld, +2,00R op een winst van 400 bij 200 risico.

@@ -281,3 +281,27 @@ werk beoordeelt. Zijn zwaarste bevinding is niet een bug maar een onwaar resulta
 Hetzelfde principe bij `ara-backup-verifier`: hij zet terug naar een tijdelijke map, nooit
 over de levende database. Een echte restore is een besluit van de eigenaar met de collector
 uit — niet iets dat een wekelijkse controle en passant doet.
+
+## Het rapport rekent, het model vertelt hooguit (2026-09-14)
+`buildTradeReview()` is een pure functie, en `pnpm trade:review` tekent alleen wat eruit
+komt. Een rapport dat een model heeft geteld, kun je niet naast dat van vorige week leggen:
+de telling zelf zou dan kunnen verschillen. Het slash-command krijgt daarom expliciet de
+opdracht niets na te tellen en niets om te rekenen — noemt het een getal, dan komt dat
+letterlijk uit de uitvoer.
+
+Drie keuzes die het rapport bruikbaar maken in plaats van vleiend:
+
+- **Uitkomst in R, niet in euro's.** Een resultaat in geld zegt alleen iets samen met de
+  inzet, en de inzet verschilt per trade. De verwachtingswaarde staat daarom vóór de
+  trefkans: veel kleine winsten en één grote verliezer is een verliezend systeem, ook bij
+  80% trefkans.
+- **De caveats zitten in de data**, niet alleen in de begeleidende tekst. Papieren
+  vullingen kennen geen spread, geen slippage en geen gemiste order, dus de uitkomst is een
+  bovengrens. De tekst leest iemand één keer; het getal onthoudt hij.
+- **Drempels in plaats van een oordeel.** De aftekenlijst zegt of de eigen voorwaarden
+  gehaald zijn, niet of er gehandeld moet worden. Dat besluit gaat over zijn geld en blijft
+  van hem; het command zegt dat ook hardop als hij er toch om vraagt.
+
+Onderscheid dat nergens anders zichtbaar was: afwijzingen op **vorm** (bron, reden, stop)
+tellen apart van afwijzingen op de **markt** (risico, blootstelling). Het eerste is een
+ontbrekende databron, het tweede is de risicomotor die zijn werk doet.

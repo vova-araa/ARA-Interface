@@ -498,3 +498,98 @@ test('risicotoets: elke limiet blokkeert aantoonbaar', async () => {
   assert.match(String(autoHaltReason(limits, { ...flat, realizedPnlToday: -2000 })), /dagverlies/);
   assert.match(String(autoHaltReason(limits, { ...flat, equity: 90_000 })), /drawdown/);
 });
+
+test('handelsrapport: telt wat er gebeurde en vleit niet', async () => {
+  const { buildTradeReview, REVIEW_THRESHOLDS } = await import('./tradereview.ts');
+  const now = Date.UTC(2026, 0, 20, 12);
+  const day = 24 * 60 * 60 * 1000;
+  const mk = (over: Partial<Parameters<typeof buildTradeReview>[0][number]>) => ({
+    id: Math.random().toString(36).slice(2),
+    createdAt: now - day,
+    venture: 'trading',
+    instrument: 'XAUUSD',
+    side: 'buy' as const,
+    proposedBy: 'ara-execution-trader',
+    status: 'paper-filled',
+    route: 'paper',
+    mode: 'paper',
+    blockedBy: [] as string[],
+    riskPct: 0.2,
+    ...over,
+  });
+
+  const intents = [
+    mk({}),
+    mk({ status: 'rejected', blockedBy: ['risico per trade'] }),
+    mk({ status: 'rejected', blockedBy: ['risico per trade', 'totale blootstelling'] }),
+    mk({ status: 'rejected', blockedBy: ['bron opgegeven'], proposedBy: 'ara-market-analyst' }),
+    mk({ status: 'awaiting', instrument: 'ASML' }),
+    // Buiten het venster: mag niet meetellen.
+    mk({ createdAt: now - 30 * day, status: 'rejected', blockedBy: ['drawdown'] }),
+  ];
+
+  // Eén winnaar van 2R, één verliezer van -1R ⇒ verwachting +0,5R.
+  const positions = [
+    { instrument: 'XAUUSD', side: 'buy' as const, qty: 10, entry: 2000, stop: 1980, openedAt: now - day, closedAt: now - day / 2, exitPrice: 2040, pnl: 400 },
+    { instrument: 'XAUUSD', side: 'buy' as const, qty: 10, entry: 2000, stop: 1980, openedAt: now - day, closedAt: now - day / 3, exitPrice: 1980, pnl: -200 },
+  ];
+
+  const r = buildTradeReview(intents, positions, 7, now);
+
+  // Het venster snijdt echt af.
+  assert.equal(r.proposals.total, 5, 'een voorstel van 30 dagen oud telt niet mee in 7 dagen');
+  assert.equal(r.proposals.accepted, 1);
+  assert.equal(r.proposals.rejected, 3);
+  assert.equal(r.proposals.awaiting, 1);
+  assert.ok(!r.blockers.some((b) => b.key === 'drawdown'), 'blokkades van buiten het venster tellen niet');
+
+  // De belangrijkste tabel: wat hield het vaakst tegen.
+  assert.equal(r.blockers[0]!.key, 'risico per trade');
+  assert.equal(r.blockers[0]!.count, 2);
+
+  // Per indiener, inclusief waar hij op stukliep.
+  const analyst = r.byProposer.find((p) => p.who === 'ara-market-analyst')!;
+  assert.equal(analyst.rejected, 1);
+  assert.equal(analyst.topBlocker, 'bron opgegeven');
+
+  // R-rekenwerk: +2R en -1R ⇒ 50% trefkans, +0,5R verwachting.
+  assert.equal(r.paper.closed, 2);
+  assert.equal(r.paper.winRate, 0.5);
+  assert.equal(r.paper.bestR, 2);
+  assert.equal(r.paper.worstR, -1);
+  assert.equal(r.paper.expectancyR, 0.5);
+  assert.equal(r.paper.pnl, 200);
+
+  // De waarschuwing zit in de data, niet alleen in de begeleidende tekst.
+  assert.ok(r.caveats.some((c) => /slippage/i.test(c)));
+  assert.ok(r.caveats.some((c) => /bovengrens/i.test(c)));
+
+  // Drempels: met twee trades hoort dit nadrukkelijk nog niet groen te staan.
+  const closedCheck = r.readiness.find((c) => c.criterion.includes('afgeronde papieren trades'))!;
+  assert.equal(closedCheck.met, false);
+  // 'wacht' alleen zou ook "verwachtingswaarde" raken — matchen op de hele zin.
+  assert.equal(r.readiness.find((c) => c.criterion.includes('akkoord wachten'))!.met, false);
+  assert.equal(r.readiness.find((c) => c.criterion.includes('verwachtingswaarde'))!.met, true);
+
+  // Herhaalpoging: afgewezen en binnen het uur hetzelfde opnieuw.
+  const retryIntents = [
+    mk({ createdAt: now - 2 * 60 * 60 * 1000, status: 'rejected', blockedBy: ['risico per trade'] }),
+    mk({ createdAt: now - 2 * 60 * 60 * 1000 + 15 * 60_000, status: 'paper-filled' }),
+  ];
+  const retried = buildTradeReview(retryIntents, [], 7, now);
+  assert.equal(retried.retries.length, 1);
+  assert.equal(retried.retries[0]!.minutes, 15);
+  assert.equal(retried.readiness.find((c) => c.criterion.includes('herhaalpogingen'))!.met, false);
+
+  // Ver buiten het herhaalvenster telt niet als herhaalpoging.
+  const later = buildTradeReview(
+    [
+      mk({ createdAt: now - 5 * 60 * 60 * 1000, status: 'rejected', blockedBy: ['risico per trade'] }),
+      mk({ createdAt: now - 5 * 60 * 60 * 1000 + (REVIEW_THRESHOLDS.retryWindowMin + 30) * 60_000 }),
+    ],
+    [],
+    7,
+    now,
+  );
+  assert.equal(later.retries.length, 0);
+});

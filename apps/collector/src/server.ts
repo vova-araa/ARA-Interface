@@ -13,6 +13,7 @@ import {
   evaluateIntent,
   routeIntent,
   autoHaltReason,
+  buildTradeReview,
   VENTURES,
   WorldState,
   type AraEvent,
@@ -899,6 +900,62 @@ export function createCollector(store: EventStore): CollectorApp {
     const result = trading.setMode(mode, by, Date.now());
     broadcastFrame('event: trade\ndata: {}\n\n');
     res.status(result.ok ? 200 : 403).json(result);
+  });
+
+  /**
+   * Het handelsspoor als rapport. Bewust een endpoint en geen agent-taak: de
+   * cijfers komen uit deterministische code, niet uit een samenvatting. Een
+   * rapport dat door een model geteld is, kun je niet naast dat van vorige week
+   * leggen.
+   */
+  app.get('/trade/review', (req, res) => {
+    allowOrigin(req, res);
+    const days = Math.min(Math.max(Number(req.query.days ?? 7), 1), 365);
+    const intents = store.listIntents({ limit: 2000 }).map((row) => {
+      let blockedBy: string[] = [];
+      let riskPct = 0;
+      let rewardRisk: number | undefined;
+      try {
+        const decision = JSON.parse(row.decision) as {
+          blockedBy?: string[];
+          riskPct?: number;
+          rewardRisk?: number;
+        };
+        blockedBy = decision.blockedBy ?? [];
+        riskPct = decision.riskPct ?? 0;
+        rewardRisk = decision.rewardRisk;
+      } catch {
+        /* kapotte beoordeling telt als geen blokkade-informatie */
+      }
+      return {
+        id: row.id,
+        createdAt: row.createdAt,
+        venture: row.venture,
+        instrument: row.instrument,
+        side: row.side,
+        proposedBy: row.proposedBy,
+        status: row.status,
+        route: row.route,
+        mode: row.mode,
+        blockedBy,
+        riskPct,
+        rewardRisk,
+      };
+    });
+    const positions = store
+      .closedPaperPositions(Date.now() - days * 24 * 60 * 60 * 1000)
+      .map((p) => ({
+        instrument: p.instrument,
+        side: p.side,
+        qty: p.qty,
+        entry: p.entry,
+        stop: p.stop,
+        openedAt: p.openedAt,
+        closedAt: p.closedAt ?? 0,
+        exitPrice: p.exitPrice ?? 0,
+        pnl: p.pnl ?? 0,
+      }));
+    res.json(buildTradeReview(intents, positions, days, Date.now()));
   });
 
   /** Een papieren positie sluiten en het resultaat boeken. */
