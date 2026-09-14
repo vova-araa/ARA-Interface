@@ -67,6 +67,22 @@ const reporter: Specialist = {
   does: 'zet de echte werkplek-cijfers in het kantoor (POST /office/:project/station)',
   model: 'haiku',
 };
+/**
+ * Elke tak heeft code, sleutels en endpoints — dus elke tak heeft dit nodig.
+ * Eén vergeten `.env` of een te ruime CORS is geen brancheprobleem.
+ */
+const security: Specialist = {
+  agent: 'ara-security-auditor',
+  name: 'Beveiligingsaudit',
+  does: 'secrets, kwetsbare dependencies en onbeschermde endpoints opsporen — meldt met bewijs, herstelt nooit',
+  model: 'default',
+};
+const dataEngineer: Specialist = {
+  agent: 'ara-data-engineer',
+  name: 'Data-engineer',
+  does: 'sync, migraties en integriteitschecks — test tegen een kopie, voert nooit uit op productie',
+  model: 'default',
+};
 
 /**
  * Standaard-playbooks per branche. Bewust concreet: een tak die niets
@@ -80,6 +96,8 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-invoice-auditor', name: 'Facturatie-controleur', does: 'facturen naast de uitgevoerde ritten leggen en afwijkingen markeren', model: 'default' },
       { agent: 'ara-dispatch-comms', name: 'Chauffeur- en klantcontact', does: 'concepten schrijven bij vertraging of wijziging — verstuurt nooit zelf', model: 'default' },
       worker('Integratie-engineer', 'TMS-koppelingen en exports'),
+      dataEngineer,
+      security,
       reporter,
     ],
     duties: [
@@ -107,7 +125,8 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-compliance-watch', name: 'Keuringsbewaking', does: 'wettelijke termijnen (APK, tachograaf, ADR, code 95) — alarmeert vóór de vervaldatum', model: 'default' },
       { agent: 'ara-fleet-cost', name: 'Kosten- en bandenanalist', does: 'kosten per kilometer per voertuig en uitschieters eruit halen', model: 'default' },
       { agent: 'ara-trailer-manager', name: 'Trailerbeheer', does: 'beschikbaarheid, stilstand en scheefstand van trailers', model: 'default' },
-      worker('Data-engineer', 'Supabase-sync en data-integriteit'),
+      dataEngineer,
+      security,
       reporter,
     ],
     duties: [
@@ -138,6 +157,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-trade-journal', name: 'Handelsjournaal', does: 'elke afgesloten trade vastleggen met aanleiding en uitkomst, en periodiek evalueren', model: 'default' },
       { agent: 'ara-event-scout', name: 'Eventscout', does: 'agenda die het instrument raakt volgen en vóór het event waarschuwen', model: 'haiku' },
       { agent: 'ara-bot-maintainer', name: 'Bot-onderhoud', does: 'logging, backtests en infrastructuur rond de bot — nooit de orderlogica', model: 'default' },
+      security,
       reporter,
     ],
     duties: [
@@ -174,6 +194,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-token-safety', name: 'Veiligheidscheck', does: 'contract, liquiditeit en verdeling op rode vlaggen controleren vóór een munt op de volglijst komt', model: 'default' },
       { agent: 'ara-narrative-scout', name: 'Narratiefscout', does: 'volgen waar de aandacht heen gaat per sector — beschrijft, voorspelt nooit', model: 'haiku' },
       scout('On-chain scout', 'publieke koersen en on-chain data ophalen'),
+      security,
       reporter,
     ],
     duties: [
@@ -211,6 +232,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-copywriter', name: 'Copywriter', does: 'teksten in twee varianten als concept in drafts/ — publiceert nooit', model: 'default' },
       { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links, snelheid, afbeeldingen en SEO-basis nalopen — repareert nooit zelf', model: 'haiku' },
       scout('Research-scout', 'referenties en concurrentie bekijken'),
+      security,
       reporter,
     ],
     duties: [
@@ -236,6 +258,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-copywriter', name: 'Copywriter', does: 'site- en boekingsteksten als concept — publiceert nooit', model: 'default' },
       { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links, snelheid en SEO-basis nalopen — repareert nooit zelf', model: 'haiku' },
       worker('Web-engineer', 'site en boekingsflow'),
+      security,
       reporter,
     ],
     duties: [
@@ -262,6 +285,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-copywriter', name: 'Copywriter', does: 'release- en promotieteksten als concept — publiceert nooit', model: 'default' },
       { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links en streamingknoppen controleren — een dode link op releasedag is een verloren dag', model: 'haiku' },
       scout('Promo-scout', 'playlists, blogs en kanalen bekijken'),
+      security,
       reporter,
     ],
     duties: [
@@ -282,8 +306,16 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
     ],
   },
   generic: {
-    specialists: [worker('Uitvoerder', 'de taken van deze tak uitvoeren'), scout('Scout', 'opzoekwerk op het web'), reporter],
-    duties: ['Openstaande bordtaken van deze tak afwerken'],
+    specialists: [
+      worker('Uitvoerder', 'de taken van deze tak uitvoeren'),
+      scout('Scout', 'opzoekwerk op het web'),
+      security,
+      reporter,
+    ],
+    duties: [
+      'Openstaande bordtaken van deze tak afwerken',
+      'Periodiek nalopen op uitgelekte secrets en kwetsbare dependencies',
+    ],
     escalate: ['Alles wat naar buiten gaat, geld kost of onomkeerbaar is'],
     checks: ['de checks die het project zelf definieert'],
     dataSources: [],

@@ -277,3 +277,19 @@ Van 11 naar 28 agentdefinities; van 4 naar 10 structurele invarianten in CI.
   dus niet publiceren.
 - **Mac-stap**: vul per tak de resterende `dataSources` in `org.json`
   (`how` + `configured: true`). Alleen de crypto-koersen staan al aangesloten.
+
+## Alle rollen doorgelicht + 2 nieuwe (2026-09-14)
+- ✅ **Audit over alle 28 rollen**: 5 misten een escalatieroute, 4 een terugmeld-sectie,
+  en `ara-worker` kende de 17 nieuwe rollen niet. Allemaal dicht.
+- ✅ **Escalatievorm uniform**: elke vakrol begint een weigering met
+  `ESCALATE: <reden>` op de eerste regel. Dit kwam uit een live testfout, niet uit
+  een vermoeden — zie hieronder.
+- ✅ **`ara-security-auditor`** (elke tak): secrets, kwetsbare dependencies,
+  onbeschermde endpoints en te ruime rechten. Noemt locatie en soort van een gevonden
+  sleutel, nooit de waarde — anders lekt hij hem een tweede keer in het bord.
+- ✅ **`ara-data-engineer`** (TMS + fleet): migraties met een werkende terugweg, getest
+  tegen een kopie. Voert nooit uit op productie; code kun je terugdraaien, data niet.
+- ✅ **`pnpm verify:agents` test nu 6 rolgrenzen live**: elke risicorol krijgt de
+  opdracht die hij juist niet mag uitvoeren. Alle 6 weigeren correct.
+- ✅ **10 → 13 structurele invarianten** in CI, waaronder: elke vakrol heeft een
+  escalatieroute, een terugmeld-sectie én de machine-leesbare escalatievorm.

@@ -218,6 +218,53 @@ test('agents: elke creatieve rol benoemt zijn eigen publicatiegrens', () => {
   assert.match(agents.get('ara-release-manager')!.body, /ESCALATE/);
 });
 
+test('agents: elke vakrol benoemt zijn escalatieroute en hoe hij terugmeldt', () => {
+  // Leidinggevende rollen zijn zélf het escalatiedoel en rapporteren in hun
+  // eigen vorm; elke andere rol moet weten waar hij stopt en hoe hij afsluit.
+  // Zonder deze check sloop er telkens een nieuwe rol in zonder grens.
+  const leadership = new Set(['ara-chief', 'ara-supervisor', 'ara-manager', 'ara-ops-manager']);
+  for (const agent of loadAgents()) {
+    if (leadership.has(agent.name)) continue;
+    assert.match(
+      agent.body,
+      /ESCALATE/,
+      `${agent.name} benoemt geen escalatieroute — dan pakt hij stil door waar hij zou moeten stoppen`,
+    );
+    assert.match(
+      agent.body,
+      /## Terugmelden/,
+      `${agent.name} zegt niet hoe hij terugmeldt — een stille rol is een verloren rol`,
+    );
+    // De keten zoekt letterlijk op het woord ESCALATE. Een rol die alleen
+    // vriendelijk uitlegt waarom hij iets niet doet, bereikt niemand: de taak
+    // blijft open en hij lijkt gewoon stil. Live vastgesteld met verify:agents.
+    assert.match(
+      agent.body,
+      /## Als je moet escaleren/,
+      `${agent.name} mist de escalatievorm — weigeren zonder het woord ESCALATE komt nergens aan`,
+    );
+  }
+});
+
+test('agents: security en data-engineer horen bij elke tak die ze nodig heeft', () => {
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+
+  // De auditor mag een gevonden sleutel nergens neerzetten — dat moet
+  // letterlijk in zijn instructies staan, anders lekt hij hem in het bord.
+  const auditor = agents.get('ara-security-auditor')!;
+  assert.ok(auditor, 'ara-security-auditor ontbreekt');
+  for (const forbidden of ['Edit', 'Write']) {
+    assert.ok(!auditor.tools.includes(forbidden), `de auditor mag ${forbidden} niet hebben`);
+  }
+  assert.match(auditor.body, /waarde \*\*nergens\*\*|nergens neer/i);
+
+  // De data-engineer schrijft wél, maar nooit op productie.
+  const data = agents.get('ara-data-engineer')!;
+  assert.ok(data.tools.includes('Edit') && data.tools.includes('Write'));
+  assert.match(data.body, /productie/i);
+  assert.match(data.body, /kopie/i);
+});
+
 test('agents: alleen de rollen die zelf mogen spawnen hebben de Agent-tool', () => {
   // Subagents hebben geen Agent-tool (bewezen beperking van Claude Code); wie
   // 'm wél heeft, draait als eigen sessie. Dat onderscheid moet expliciet zijn.

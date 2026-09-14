@@ -40,3 +40,19 @@ meerdere `<h1>`, ontbrekende alt-teksten.
 
 ≤ 5 regels: aantal pagina's gecontroleerd, gebroken links, trage pagina's,
 SEO-gebreken, en waar de volledige lijst staat.
+
+## Als je moet escaleren
+
+Weiger je iets — omdat het buiten je grenzen valt, omdat een bron ontbreekt,
+of omdat het onomkeerbaar is — dan begint je antwoord met precies dit woord:
+
+```
+ESCALATE: <in één regel wat er gevraagd werd en waarom jij het niet doet>
+```
+
+Daarna pas je toelichting, en wat je wél kunt leveren.
+
+Dat is geen vorm maar techniek: de manager en de watchdog zoeken op dat woord.
+Een weigering die alleen vriendelijk uitlegt waarom je het niet doet, komt bij
+niemand aan — de taak blijft open en jij lijkt gewoon stil. Werk je aan een
+bordtaak, zet dezelfde regel dan ook in `result` bij `status: "failed"`.

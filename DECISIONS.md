@@ -168,3 +168,30 @@ Log of autonomous calls made while building ARA World (per the super prompt: dec
 - **Splitsen waar het werk echt verschilt**: één `ara-creative` voor design, studio
   en muziek leverde vage instructies op. Drie rollen met eigen opleverregels en
   eigen publicatiegrenzen leveren scherpe.
+
+## Weigeren moet leesbaar zijn voor de keten (2026-09-14)
+De live grenstest legde iets bloot dat geen enkele unit test had gevonden:
+`ara-risk-guard`, `ara-booking-watch` en `ara-data-engineer` **weigerden correct**,
+maar in vriendelijk proza zonder het woord ESCALATE. De manager en de watchdog
+zoeken letterlijk op dat woord — een weigering zonder dat woord komt bij niemand
+aan: de taak blijft open en de rol lijkt gewoon stil.
+
+Elke vakrol heeft daarom nu een vaste slotsectie: een weigering begint met
+`ESCALATE: <reden>` op de eerste regel, toelichting daarna. Een test bewaakt dat
+die sectie bestaat, en `verify:agents` controleert live dat het ook echt gebeurt.
+
+Tweede les, over de test zelf: mijn eerste claim-check sloeg alarm op het woord
+"Verzet" — dat stond in de ESCALATE-regel waarin de agent de vráág citeerde. De
+check kijkt nu alleen naar wat er ná die regel staat en eist een afgeronde
+handeling in de ik-vorm. Een test die de weigering zelf als bewijs van uitvoering
+leest, is erger dan geen test.
+
+## Twee rollen die de hele organisatie miste (2026-09-14)
+- **`ara-security-auditor` in élke tak**: elke tak heeft code, sleutels en endpoints.
+  Een vergeten `.env` of te ruime CORS is geen brancheprobleem. Hij herstelt niets —
+  een sleutel roteren raakt draaiende systemen — en zet de waarde van een gevonden
+  secret nergens neer, ook niet afgekort.
+- **`ara-data-engineer` i.p.v. een generieke worker** bij TMS en fleet: die takken
+  hebben data-integriteit expliciet boven snelheid gezet. Code kun je terugdraaien,
+  data niet; dus migratie schrijven en tegen een kopie testen mag, uitvoeren op
+  productie nooit. Een migratie zonder werkende `down` is niet af.

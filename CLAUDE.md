@@ -21,7 +21,9 @@ plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
                       crypto   — + allocation-guard, token-safety, narrative-scout
                       creatief — designer (Elevate), studio-producer (Uprising),
                                  release-manager (Vovara), copywriter, site-watch, booking-watch
-                      overal   — reporter (echte kantoorcijfers)
+                      data     — data-engineer (migraties; nooit op productie)
+                      overal   — reporter (echte kantoorcijfers),
+                                 security-auditor (secrets, deps, blootstelling)
 scripts/            watchdog.mjs (24/7, 0 LLM-tokens), notify.mjs (Telegram), install.sh, expose.sh (Tailscale)
 ops/                launchd plists (templates; install.sh vult placeholders + chmod 600)
 data/               runtime: SQLite db, world.config.json-kopieën, logs (niet committen)
@@ -43,7 +45,7 @@ pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhon
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
-pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + read-only grens
+pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 6 harde rolgrenzen
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
 #   te testen is. Draai 'm na installatie en na elke Claude Code-update.
 ```
@@ -123,6 +125,10 @@ Container/CI-bijzonderheden:
   samen met: elke playbook-rol bestaat als bestand, de frontmatter-naam matcht het bestand,
   alleen leidinggevende rollen hebben de Agent-tool, scouts benoemen dat ze niet adviseren,
   en elke creatieve rol benoemt zijn eigen publicatiegrens.
+- **Weigeren begint met `ESCALATE:` op de eerste regel.** De manager en de watchdog
+  zoeken letterlijk op dat woord; een weigering in proza komt nergens aan en laat de
+  taak open staan. Elke vakrol heeft daarvoor de slotsectie "Als je moet escaleren" —
+  nieuwe rol? Neem die sectie over, een test eist 'm.
 - **Publicatiegrenzen verschillen per tak** (keuze van de eigenaar): Elevate = klantwerk,
   niets naar buiten; Uprising = eigen zaak, productie mag behalve de boekingsflow;
   Vovara = site mag live, een release uitbrengen nooit. Nieuwe rol erbij? Zet zijn grens
