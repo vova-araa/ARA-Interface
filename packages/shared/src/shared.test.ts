@@ -384,3 +384,117 @@ test('buildOffice: het kantoor toont de vaste rollen, ook als er niemand draait'
 
   assert.equal(office.playbook?.managerName, 'Manager Wagenpark');
 });
+
+test('risicotoets: elke limiet blokkeert aantoonbaar', async () => {
+  const { evaluateIntent, DEFAULT_LIMITS, routeIntent, autoHaltReason } = await import('./trading.ts');
+  const now = Date.UTC(2026, 0, 6, 12, 0); // dinsdag 12:00 UTC
+
+  const limits = {
+    ...DEFAULT_LIMITS,
+    accountValue: 100_000,
+    maxRiskPerTradePct: 1,
+    maxTotalExposurePct: 20,
+    maxPositionsTotal: 3,
+    maxPositionsPerInstrument: 1,
+    dailyLossLimitPct: 2,
+    maxDrawdownPct: 10,
+    allowedInstruments: ['XAUUSD', 'ASML'],
+    minRewardRisk: 1.5,
+    cooldownAfterLossMin: 30,
+  };
+  const flat = { positions: [], realizedPnlToday: 0, equity: 100_000, peakEquity: 100_000 };
+  // 10 eenheden, 20 punten risico = 200 = 0,2% van de rekening. Doel geeft 3R.
+  const good = {
+    id: 't1',
+    createdAt: now,
+    venture: 'trading',
+    instrument: 'XAUUSD',
+    side: 'buy' as const,
+    qty: 10,
+    entry: 2000,
+    stop: 1980,
+    target: 2060,
+    reason: 'uitbraak boven de weekopening, bevestigd op het uur',
+    sources: ['bot-status.json 12:00'],
+    proposedBy: 'ara-market-analyst',
+  };
+
+  const base = evaluateIntent(good, limits, flat, now);
+  assert.equal(base.ok, true, base.blockedBy.join(', '));
+  assert.equal(base.riskAmount, 200);
+  assert.ok(Math.abs(base.riskPct - 0.2) < 1e-9);
+  assert.equal(base.rewardRisk, 3);
+
+  // Elke regel afzonderlijk: wijzig één ding, en precies die regel hoort te vallen.
+  const blocks: [string, () => ReturnType<typeof evaluateIntent>][] = [
+    ['stop aan de juiste kant', () => evaluateIntent({ ...good, stop: 2020 }, limits, flat, now)],
+    ['bron opgegeven', () => evaluateIntent({ ...good, sources: [] }, limits, flat, now)],
+    ['reden opgegeven', () => evaluateIntent({ ...good, reason: 'kort' }, limits, flat, now)],
+    ['instrument toegestaan', () => evaluateIntent({ ...good, instrument: 'DOGE' }, limits, flat, now)],
+    ['risico per trade', () => evaluateIntent({ ...good, qty: 200 }, limits, flat, now)],
+    ['doel/risico', () => evaluateIntent({ ...good, target: 2010 }, limits, flat, now)],
+    ['geldige getallen', () => evaluateIntent({ ...good, qty: 0 }, limits, flat, now)],
+    [
+      'totale blootstelling',
+      () =>
+        evaluateIntent(good, limits, {
+          ...flat,
+          positions: [{ instrument: 'ASML', side: 'buy', qty: 100, entry: 190, openedAt: now, stop: 180 }],
+        }, now),
+    ],
+    [
+      'posities per instrument',
+      () =>
+        evaluateIntent(good, limits, {
+          ...flat,
+          positions: [{ instrument: 'XAUUSD', side: 'buy', qty: 1, entry: 2000, openedAt: now, stop: 1990 }],
+        }, now),
+    ],
+    ['dagverlieslimiet', () => evaluateIntent(good, limits, { ...flat, realizedPnlToday: -2500 }, now)],
+    ['drawdown', () => evaluateIntent(good, limits, { ...flat, equity: 88_000 }, now)],
+    ['afkoeling na verlies', () => evaluateIntent(good, limits, { ...flat, lastLossAt: now - 60_000 }, now)],
+  ];
+  for (const [rule, run] of blocks) {
+    const decision = run();
+    assert.equal(decision.ok, false, `${rule} had moeten blokkeren`);
+    assert.ok(decision.blockedBy.includes(rule), `verwachtte blokkade op "${rule}", kreeg: ${decision.blockedBy.join(', ')}`);
+  }
+
+  // Een lege witte lijst betekent NIETS mag — nooit "alles mag".
+  const empty = evaluateIntent(good, { ...limits, allowedInstruments: [] }, flat, now);
+  assert.equal(empty.ok, false);
+  assert.ok(empty.blockedBy.includes('instrument toegestaan'));
+
+  // Rekeningwaarde 0 (nog niets ingesteld) laat niets door.
+  const unset = evaluateIntent(good, { ...limits, accountValue: 0 }, flat, now);
+  assert.equal(unset.ok, false);
+  assert.ok(unset.blockedBy.includes('risico per trade'));
+
+  // Elke toets komt in de uitslag, ook de geslaagde — anders is een afwijzing
+  // niet naspeurbaar.
+  assert.ok(base.checks.length >= 11);
+  assert.ok(base.checks.every((c) => c.detail.length > 0));
+
+  // Handelsvenster, inclusief een venster dat over middernacht loopt.
+  const nightLimits = { ...limits, tradingHours: { fromHour: 22, toHour: 4, days: [0, 1, 2, 3, 4, 5, 6] } };
+  assert.equal(evaluateIntent(good, nightLimits, flat, Date.UTC(2026, 0, 6, 23)).ok, true);
+  assert.equal(evaluateIntent(good, nightLimits, flat, Date.UTC(2026, 0, 6, 2)).ok, true);
+  assert.equal(evaluateIntent(good, nightLimits, flat, now).ok, false);
+
+  // ── Routering: de noodstop wint van alles ────────────────────────────────
+  const live = { mode: 'live' as const, halted: false, haltReason: '', modeSetBy: 'vova', modeSetAt: now };
+  assert.equal(routeIntent(live, base).action, 'handoff');
+  assert.equal(routeIntent({ ...live, mode: 'paper' }, base).action, 'paper');
+  assert.equal(routeIntent({ ...live, mode: 'approval' }, base).action, 'await-approval');
+  assert.equal(routeIntent({ ...live, mode: 'off' }, base).action, 'reject');
+  const halted = routeIntent({ ...live, halted: true, haltReason: 'handmatig' }, base);
+  assert.equal(halted.action, 'reject', 'een noodstop blokkeert ook in live');
+  assert.match(halted.why, /noodstop/);
+  // Een afgekeurd voorstel gaat nergens heen, ook niet in live.
+  assert.equal(routeIntent(live, empty).action, 'reject');
+
+  // ── Zelf stilleggen bij een geraakte limiet ─────────────────────────────
+  assert.equal(autoHaltReason(limits, flat), null);
+  assert.match(String(autoHaltReason(limits, { ...flat, realizedPnlToday: -2000 })), /dagverlies/);
+  assert.match(String(autoHaltReason(limits, { ...flat, equity: 90_000 })), /drawdown/);
+});

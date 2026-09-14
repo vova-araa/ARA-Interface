@@ -94,6 +94,94 @@ export interface TaskStore {
   upsertUsage(usage: SessionUsage): void;
   /** Per-project totals for sessions updated since `from`. */
   usageSummary(from: number): UsageSummaryRow[];
+  addIntent(row: IntentRow): void;
+  updateIntent(id: string, patch: Partial<Pick<IntentRow, 'status' | 'resolvedAt' | 'resolvedBy' | 'note'>>): IntentRow | null;
+  getIntent(id: string): IntentRow | null;
+  listIntents(filter: { status?: string; limit?: number }): IntentRow[];
+  openPaperPositions(): PaperPositionRow[];
+  addPaperPosition(row: PaperPositionRow): void;
+  closePaperPosition(id: string, exitPrice: number, closedAt: number): PaperPositionRow | null;
+  /** Gerealiseerd resultaat van papieren posities die op `day` gesloten zijn. */
+  paperRealized(dayStart: number): { pnl: number; lastLossAt?: number };
+}
+
+/** Eén handelsvoorstel met zijn beoordeling — het audit-spoor. */
+export interface IntentRow {
+  id: string;
+  createdAt: number;
+  venture: string;
+  instrument: string;
+  side: 'buy' | 'sell';
+  qty: number;
+  entry: number;
+  stop: number;
+  target?: number;
+  reason: string;
+  /** JSON-array met bronnen. */
+  sources: string;
+  proposedBy: string;
+  /** JSON van de RiskDecision. */
+  decision: string;
+  route: string;
+  status: string;
+  mode: string;
+  resolvedAt?: number;
+  resolvedBy: string;
+  note: string;
+}
+
+export interface PaperPositionRow {
+  id: string;
+  instrument: string;
+  side: 'buy' | 'sell';
+  qty: number;
+  entry: number;
+  stop: number;
+  mark?: number;
+  openedAt: number;
+  closedAt?: number;
+  exitPrice?: number;
+  pnl?: number;
+}
+
+function toIntent(row: Record<string, unknown>): IntentRow {
+  return {
+    id: String(row.id),
+    createdAt: Number(row.created_at),
+    venture: String(row.venture),
+    instrument: String(row.instrument),
+    side: row.side === 'sell' ? 'sell' : 'buy',
+    qty: Number(row.qty),
+    entry: Number(row.entry),
+    stop: Number(row.stop),
+    target: row.target === null ? undefined : Number(row.target),
+    reason: String(row.reason),
+    sources: String(row.sources),
+    proposedBy: String(row.proposed_by),
+    decision: String(row.decision),
+    route: String(row.route),
+    status: String(row.status),
+    mode: String(row.mode),
+    resolvedAt: row.resolved_at === null ? undefined : Number(row.resolved_at),
+    resolvedBy: String(row.resolved_by),
+    note: String(row.note),
+  };
+}
+
+function toPaper(row: Record<string, unknown>): PaperPositionRow {
+  return {
+    id: String(row.id),
+    instrument: String(row.instrument),
+    side: row.side === 'sell' ? 'sell' : 'buy',
+    qty: Number(row.qty),
+    entry: Number(row.entry),
+    stop: Number(row.stop),
+    mark: row.mark === null ? undefined : Number(row.mark),
+    openedAt: Number(row.opened_at),
+    closedAt: row.closed_at === null ? undefined : Number(row.closed_at),
+    exitPrice: row.exit_price === null ? undefined : Number(row.exit_price),
+    pnl: row.pnl === null ? undefined : Number(row.pnl),
+  };
 }
 
 /** Lokale kalenderdag (collector-tijdzone) als sorteerbare YYYY-MM-DD. */
@@ -184,6 +272,47 @@ export function openStore(dbPath = DB_PATH): EventStore {
       ts INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_chat_room ON chat_messages(room, ts);
+    -- Handelsvoorstellen met hun volledige beoordeling. Dit is een audit-spoor:
+    -- rijen worden nooit gewijzigd behalve om af te ronden, en nooit gewist door
+    -- de gewone opruiming — een besluit over geld moet naspeurbaar blijven.
+    CREATE TABLE IF NOT EXISTS trade_intents (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      venture TEXT NOT NULL DEFAULT '',
+      instrument TEXT NOT NULL,
+      side TEXT NOT NULL,
+      qty REAL NOT NULL,
+      entry REAL NOT NULL,
+      stop REAL NOT NULL,
+      target REAL,
+      reason TEXT NOT NULL DEFAULT '',
+      sources TEXT NOT NULL DEFAULT '[]',
+      proposed_by TEXT NOT NULL DEFAULT '',
+      decision TEXT NOT NULL DEFAULT '{}',
+      route TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'proposed',
+      mode TEXT NOT NULL DEFAULT '',
+      resolved_at INTEGER,
+      resolved_by TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT ''
+    );
+    CREATE INDEX IF NOT EXISTS idx_intents_status ON trade_intents(status, created_at);
+    -- Het papieren boek. Alleen posities die ARA zelf boekte; wat er bij een
+    -- echte broker staat weet ARA niet en doet het niet alsof.
+    CREATE TABLE IF NOT EXISTS paper_positions (
+      id TEXT PRIMARY KEY,
+      instrument TEXT NOT NULL,
+      side TEXT NOT NULL,
+      qty REAL NOT NULL,
+      entry REAL NOT NULL,
+      stop REAL NOT NULL,
+      mark REAL,
+      opened_at INTEGER NOT NULL,
+      closed_at INTEGER,
+      exit_price REAL,
+      pnl REAL
+    );
+    CREATE INDEX IF NOT EXISTS idx_paper_open ON paper_positions(closed_at);
   `);
 
   const insertStmt = db.prepare(
@@ -404,6 +533,79 @@ export function openStore(dbPath = DB_PATH): EventStore {
       } catch {
         /* compacteren is onderhoud, nooit reden om te falen */
       }
+    },
+    addIntent(row) {
+      db.prepare(`
+        INSERT INTO trade_intents
+          (id, created_at, venture, instrument, side, qty, entry, stop, target, reason,
+           sources, proposed_by, decision, route, status, mode, resolved_at, resolved_by, note)
+        VALUES
+          (@id, @createdAt, @venture, @instrument, @side, @qty, @entry, @stop, @target, @reason,
+           @sources, @proposedBy, @decision, @route, @status, @mode, @resolvedAt, @resolvedBy, @note)
+      `).run({ target: null, resolvedAt: null, ...row });
+    },
+    updateIntent(id, patch) {
+      const current = this.getIntent(id);
+      if (!current) return null;
+      const next = { ...current, ...patch };
+      db.prepare(
+        'UPDATE trade_intents SET status = ?, resolved_at = ?, resolved_by = ?, note = ? WHERE id = ?',
+      ).run(next.status, next.resolvedAt ?? null, next.resolvedBy, next.note, id);
+      return next;
+    },
+    getIntent(id) {
+      const row = db.prepare('SELECT * FROM trade_intents WHERE id = ?').get(id) as
+        | Record<string, unknown>
+        | undefined;
+      return row ? toIntent(row) : null;
+    },
+    listIntents({ status, limit = 50 }) {
+      const rows = status
+        ? db
+            .prepare('SELECT * FROM trade_intents WHERE status = ? ORDER BY created_at DESC LIMIT ?')
+            .all(status, limit)
+        : db.prepare('SELECT * FROM trade_intents ORDER BY created_at DESC LIMIT ?').all(limit);
+      return (rows as Record<string, unknown>[]).map(toIntent);
+    },
+    openPaperPositions() {
+      return (
+        db.prepare('SELECT * FROM paper_positions WHERE closed_at IS NULL ORDER BY opened_at').all() as
+          Record<string, unknown>[]
+      ).map(toPaper);
+    },
+    addPaperPosition(row) {
+      db.prepare(`
+        INSERT INTO paper_positions (id, instrument, side, qty, entry, stop, mark, opened_at)
+        VALUES (@id, @instrument, @side, @qty, @entry, @stop, @mark, @openedAt)
+      `).run({ mark: null, ...row });
+    },
+    closePaperPosition(id, exitPrice, closedAt) {
+      const row = db.prepare('SELECT * FROM paper_positions WHERE id = ?').get(id) as
+        | Record<string, unknown>
+        | undefined;
+      if (!row || row.closed_at !== null) return null;
+      const position = toPaper(row);
+      const direction = position.side === 'buy' ? 1 : -1;
+      const pnl = (exitPrice - position.entry) * position.qty * direction;
+      db.prepare('UPDATE paper_positions SET closed_at = ?, exit_price = ?, pnl = ? WHERE id = ?').run(
+        closedAt,
+        exitPrice,
+        pnl,
+        id,
+      );
+      return { ...position, closedAt, exitPrice, pnl };
+    },
+    paperRealized(dayStart) {
+      const rows = db
+        .prepare('SELECT pnl, closed_at FROM paper_positions WHERE closed_at >= ? ORDER BY closed_at')
+        .all(dayStart) as { pnl: number | null; closed_at: number }[];
+      let pnl = 0;
+      let lastLossAt: number | undefined;
+      for (const row of rows) {
+        pnl += row.pnl ?? 0;
+        if ((row.pnl ?? 0) < 0) lastLossAt = row.closed_at;
+      }
+      return { pnl, lastLossAt };
     },
     close() {
       db.close();

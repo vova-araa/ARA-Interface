@@ -10,15 +10,21 @@ import {
   placementForProject,
   redactValue,
   resolvePlaybook,
+  evaluateIntent,
+  routeIntent,
+  autoHaltReason,
   VENTURES,
   WorldState,
   type AraEvent,
   type RawPlaybook,
+  type TradeIntent,
+  type TradingMode,
   type StationOverride,
 } from '@ara/shared';
 import type { EventStore } from './db.ts';
 import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projects.ts';
 import { projectPulse } from './pulse.ts';
+import * as trading from './trading.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
@@ -40,7 +46,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org)(\/|$)/i;
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org|trade)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -652,6 +658,241 @@ export function createCollector(store: EventStore): CollectorApp {
     });
     broadcastFrame('event: office\ndata: {}\n\n');
     res.json({ ok: true });
+  });
+
+  // ── Handel: agents stellen voor, deterministische code beslist ─────────
+  // De volgorde is met opzet: eerst de risicotoets (pure functie in shared),
+  // dan de routering (modus + noodstop). Een voorstel dat de toets niet haalt
+  // bereikt nooit een uitvoeringspad, ook niet in live.
+  const dayStartOf = (ts: number): number => {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+
+  function portfolioNow(limits: ReturnType<typeof trading.readLimits>['limits']) {
+    const open = store.openPaperPositions().map((p) => ({
+      instrument: p.instrument,
+      side: p.side,
+      qty: p.qty,
+      entry: p.entry,
+      stop: p.stop,
+      mark: p.mark,
+      openedAt: p.openedAt,
+    }));
+    const realized = store.paperRealized(dayStartOf(Date.now()));
+    return trading.portfolioFrom(open, realized.pnl, limits, realized.lastLossAt);
+  }
+
+  /** Volledige stand: limieten, modus, portefeuille en wat er mis is. */
+  app.get('/trade/state', (req, res) => {
+    allowOrigin(req, res);
+    const report = trading.readLimits();
+    const state = trading.readState();
+    const portfolio = portfolioNow(report.limits);
+    res.json({
+      state,
+      unlocked: trading.unlocked(),
+      limits: report.limits,
+      limitsSource: report.source,
+      limitsFingerprint: report.fingerprint,
+      problems: report.problems,
+      portfolio,
+      openIntents: store.listIntents({ status: 'awaiting', limit: 50 }).length,
+    });
+  });
+
+  /** Een agent dient een voorstel in. Hij krijgt het besluit terug, niet de macht. */
+  app.post('/trade/intent', (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const now = Date.now();
+    const intent: TradeIntent = {
+      id: crypto.randomUUID(),
+      createdAt: now,
+      venture: capText(String(body.venture ?? ''), 40) ?? '',
+      instrument: capText(String(body.instrument ?? ''), 40) ?? '',
+      side: body.side === 'sell' ? 'sell' : 'buy',
+      qty: Number(body.qty),
+      entry: Number(body.entry),
+      stop: Number(body.stop),
+      target: body.target === undefined ? undefined : Number(body.target),
+      reason: capText(String(body.reason ?? ''), 500) ?? '',
+      sources: Array.isArray(body.sources)
+        ? body.sources.map((x) => capText(String(x), 200) ?? '').filter(Boolean)
+        : [],
+      proposedBy: capText(String(body.proposedBy ?? ''), 80) ?? '',
+    };
+    if (!intent.instrument) {
+      res.status(400).json({ ok: false, error: 'instrument required' });
+      return;
+    }
+
+    const report = trading.readLimits();
+    const state = trading.readState();
+    const decision = evaluateIntent(intent, report.limits, portfolioNow(report.limits), now);
+    const route = routeIntent(state, decision);
+
+    // Alles wordt vastgelegd — juist de afwijzingen. Een agent die twintig keer
+    // op dezelfde limiet stukloopt is een patroon dat je wilt zien.
+    const status =
+      route.action === 'reject'
+        ? 'rejected'
+        : route.action === 'paper'
+          ? 'paper-filled'
+          : route.action === 'await-approval'
+            ? 'awaiting'
+            : 'handoff';
+    store.addIntent({
+      ...intent,
+      sources: JSON.stringify(intent.sources),
+      decision: JSON.stringify(decision),
+      route: route.action,
+      status,
+      mode: state.mode,
+      resolvedBy: '',
+      note: route.why,
+    });
+
+    if (route.action === 'paper') {
+      store.addPaperPosition({
+        id: intent.id,
+        instrument: intent.instrument,
+        side: intent.side,
+        qty: intent.qty,
+        entry: intent.entry,
+        stop: intent.stop,
+        openedAt: now,
+      });
+    }
+
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.json({ ok: route.action !== 'reject', id: intent.id, route, decision, mode: state.mode });
+  });
+
+  app.get('/trade/intents', (req, res) => {
+    allowOrigin(req, res);
+    const status = req.query.status ? String(req.query.status) : undefined;
+    const rows = store.listIntents({ status, limit: Math.min(Number(req.query.limit ?? 50), 200) });
+    res.json({
+      intents: rows.map((r) => ({
+        ...r,
+        sources: JSON.parse(r.sources) as string[],
+        decision: JSON.parse(r.decision) as unknown,
+      })),
+    });
+  });
+
+  /**
+   * Menselijk akkoord op een wachtend voorstel. De risicotoets wordt hier
+   * opnieuw gedraaid: tussen voorstel en akkoord kan de portefeuille veranderd
+   * zijn, en dan is het oude "ja" niet meer geldig.
+   */
+  app.post('/trade/intents/:id/approve', (req, res) => {
+    const row = store.getIntent(req.params.id);
+    if (!row || row.status !== 'awaiting') {
+      res.status(404).json({ ok: false, error: 'geen wachtend voorstel met dat id' });
+      return;
+    }
+    const by = capText(String((req.body ?? {}).by ?? 'mens'), 80) ?? 'mens';
+    const now = Date.now();
+    const report = trading.readLimits();
+    const state = trading.readState();
+    const fresh = evaluateIntent(
+      {
+        id: row.id,
+        createdAt: row.createdAt,
+        venture: row.venture,
+        instrument: row.instrument,
+        side: row.side,
+        qty: row.qty,
+        entry: row.entry,
+        stop: row.stop,
+        target: row.target,
+        reason: row.reason,
+        sources: JSON.parse(row.sources) as string[],
+        proposedBy: row.proposedBy,
+      },
+      report.limits,
+      portfolioNow(report.limits),
+      now,
+    );
+    if (!fresh.ok || state.halted) {
+      store.updateIntent(row.id, {
+        status: 'rejected',
+        resolvedAt: now,
+        resolvedBy: by,
+        note: state.halted ? 'noodstop actief bij akkoord' : `hertoets faalde: ${fresh.blockedBy.join(', ')}`,
+      });
+      broadcastFrame('event: trade\ndata: {}\n\n');
+      res.status(409).json({ ok: false, error: 'hertoets faalde', decision: fresh, halted: state.halted });
+      return;
+    }
+    store.updateIntent(row.id, { status: 'handoff', resolvedAt: now, resolvedBy: by, note: 'akkoord gegeven' });
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.json({ ok: true, decision: fresh });
+  });
+
+  app.post('/trade/intents/:id/reject', (req, res) => {
+    const by = capText(String((req.body ?? {}).by ?? 'mens'), 80) ?? 'mens';
+    const note = capText(String((req.body ?? {}).note ?? 'afgewezen door mens'), 200) ?? '';
+    const updated = store.updateIntent(req.params.id, {
+      status: 'rejected',
+      resolvedAt: Date.now(),
+      resolvedBy: by,
+      note,
+    });
+    if (!updated) {
+      res.status(404).json({ ok: false, error: 'onbekend voorstel' });
+      return;
+    }
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.json({ ok: true });
+  });
+
+  /** Noodstop. Eén verzoek, geen bevestiging, geen voorwaarden. */
+  app.post('/trade/halt', (req, res) => {
+    const reason = capText(String((req.body ?? {}).reason ?? 'handmatige noodstop'), 200) ?? '';
+    const state = trading.halt(reason, Date.now());
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.json({ ok: true, state });
+  });
+
+  /** Hervatten zet de modus terug op paper — je begint niet live weer. */
+  app.post('/trade/resume', (req, res) => {
+    const by = capText(String((req.body ?? {}).by ?? 'mens'), 80) ?? 'mens';
+    const state = trading.resume(by, Date.now());
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.json({ ok: true, state });
+  });
+
+  app.post('/trade/mode', (req, res) => {
+    const mode = String((req.body ?? {}).mode ?? '') as TradingMode;
+    const by = capText(String((req.body ?? {}).by ?? 'mens'), 80) ?? 'mens';
+    const result = trading.setMode(mode, by, Date.now());
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.status(result.ok ? 200 : 403).json(result);
+  });
+
+  /** Een papieren positie sluiten en het resultaat boeken. */
+  app.post('/trade/positions/:id/close', (req, res) => {
+    const price = Number((req.body ?? {}).price);
+    if (!Number.isFinite(price) || price <= 0) {
+      res.status(400).json({ ok: false, error: 'price required' });
+      return;
+    }
+    const closed = store.closePaperPosition(req.params.id, price, Date.now());
+    if (!closed) {
+      res.status(404).json({ ok: false, error: 'geen open positie met dat id' });
+      return;
+    }
+    // Na elke afgeronde trade toetsen of de dag zichzelf hoort stil te leggen.
+    // Anders merkt het systeem een geraakte limiet pas als er toevallig weer
+    // iemand wil handelen.
+    const report = trading.readLimits();
+    const reason = autoHaltReason(report.limits, portfolioNow(report.limits));
+    if (reason) trading.halt(reason, Date.now());
+    broadcastFrame('event: trade\ndata: {}\n\n');
+    res.json({ ok: true, position: closed, autoHalted: reason });
   });
 
   // ── Chat: gebruiker praat direct met agents, managers en de chief ───────

@@ -25,6 +25,11 @@ test('API is gated when ARA_TOKEN is set; /health stays open', async () => {
     // organisatie (inclusief managernamen en databronnen) aan wie maar vraagt.
     assert.equal((await fetch(`${base}/org`)).status, 401, 'org gated');
     assert.equal((await fetch(`${base}/Org`)).status, 401, 'org gated, ongeacht casing');
+    // De handelspaden zijn het gevoeligst van allemaal: stand, voorstellen en
+    // de noodstop mogen nooit zonder token bereikbaar zijn.
+    for (const route of ['/trade/state', '/trade/intents', '/trade/halt', '/Trade/state']) {
+      assert.equal((await fetch(`${base}${route}`)).status, 401, `${route} gated`);
+    }
     assert.equal((await fetch(`${base}/state?token=testsecret`)).status, 200, 'query token');
     assert.equal(
       (await fetch(`${base}/state`, { headers: { authorization: 'Bearer testsecret' } })).status,

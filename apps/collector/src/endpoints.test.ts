@@ -347,3 +347,156 @@ test('/org: de organisatie is data, compleet per tak', async () => {
     store.close();
   }
 });
+
+test('/trade: voorstel, toets, noodstop en het slot op de modus', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-trade-'));
+  fs.writeFileSync(
+    path.join(dir, 'limits.json'),
+    JSON.stringify({
+      accountValue: 100_000,
+      maxRiskPerTradePct: 1,
+      maxTotalExposurePct: 20,
+      maxPositionsTotal: 3,
+      maxPositionsPerInstrument: 1,
+      dailyLossLimitPct: 2,
+      maxDrawdownPct: 10,
+      allowedInstruments: ['XAUUSD'],
+      minRewardRisk: 1.5,
+      cooldownAfterLossMin: 0,
+    }),
+  );
+  process.env.ARA_TRADING_LIMITS = path.join(dir, 'limits.json');
+  process.env.ARA_DATA_DIR = dir;
+  // Verse import: de handelsmodule leest paden bij het laden.
+  const { createCollector: makeCollector } = await import(`./server.ts?trade=${Date.now()}`);
+  const store = openStore(path.join(dir, 'test.db'));
+  const { app } = makeCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const propose = (patch: Record<string, unknown> = {}) =>
+    fetch(`${base}/trade/intent`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        venture: 'trading',
+        instrument: 'XAUUSD',
+        side: 'buy',
+        qty: 10,
+        entry: 2000,
+        stop: 1980,
+        target: 2060,
+        reason: 'uitbraak boven de weekopening, bevestigd op het uur',
+        sources: ['bot-status.json 12:00'],
+        proposedBy: 'ara-market-analyst',
+        ...patch,
+      }),
+    });
+
+  try {
+    // Standaardmodus is paper — nooit live, ook niet als niemand iets instelde.
+    const state0 = (await (await fetch(`${base}/trade/state`)).json()) as {
+      state: { mode: string; halted: boolean };
+      unlocked: boolean;
+    };
+    assert.equal(state0.state.mode, 'paper');
+    assert.equal(state0.state.halted, false);
+    assert.equal(state0.unlocked, false, 'zonder ARA_TRADING_UNLOCK is het slot dicht');
+
+    // Een goed voorstel wordt op papier geboekt.
+    const ok = (await (await propose()).json()) as { ok: boolean; route: { action: string }; id: string };
+    assert.equal(ok.ok, true);
+    assert.equal(ok.route.action, 'paper');
+
+    // Een voorstel zonder bron wordt geweigerd — en de reden staat erbij.
+    const noSource = (await (await propose({ sources: [] })).json()) as {
+      ok: boolean;
+      route: { action: string };
+      decision: { blockedBy: string[] };
+    };
+    assert.equal(noSource.ok, false);
+    assert.equal(noSource.route.action, 'reject');
+    assert.ok(noSource.decision.blockedBy.includes('bron opgegeven'));
+
+    // Tweede positie in hetzelfde instrument: geblokkeerd door de portefeuille,
+    // niet door de vorm van het voorstel. De toets kijkt dus echt naar de stand.
+    const second = (await (await propose()).json()) as { ok: boolean; decision: { blockedBy: string[] } };
+    assert.equal(second.ok, false);
+    assert.ok(second.decision.blockedBy.includes('posities per instrument'));
+
+    // Elke poging staat in het audit-spoor, ook de afgewezen.
+    const all = (await (await fetch(`${base}/trade/intents`)).json()) as { intents: { status: string }[] };
+    assert.equal(all.intents.length, 3);
+    assert.equal(all.intents.filter((i) => i.status === 'rejected').length, 2);
+
+    // Positie sluiten boekt het resultaat — en maakt het boek weer vlak, zodat
+    // de volgende controles de modus toetsen en niet de portefeuille.
+    const closed = (await (
+      await fetch(`${base}/trade/positions/${ok.id}/close`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify({ price: 2040 }),
+      })
+    ).json()) as { ok: boolean; position: { pnl: number }; autoHalted: string | null };
+    assert.equal(closed.ok, true);
+    assert.equal(closed.position.pnl, 400);
+    assert.equal(closed.autoHalted, null, 'winst mag de dag niet stilleggen');
+
+    // Het slot: de modus kan niet omhoog via de API.
+    const raise = await fetch(`${base}/trade/mode`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ mode: 'live', by: 'agent' }),
+    });
+    assert.equal(raise.status, 403, 'live zetten mag nooit via een verzoek');
+    assert.match(((await raise.json()) as { why: string }).why, /ARA_TRADING_UNLOCK/);
+
+    // Omlaag mag altijd — veiliger worden is nooit geblokkeerd.
+    const lower = await fetch(`${base}/trade/mode`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ mode: 'off', by: 'vova' }),
+    });
+    assert.equal(lower.status, 200);
+    const offRes = (await (await propose({ instrument: 'XAUUSD', qty: 1 })).json()) as {
+      route: { action: string; why: string };
+    };
+    assert.equal(offRes.route.action, 'reject');
+    assert.match(offRes.route.why, /staat uit/);
+
+    // Noodstop wint van alles, ook van een verder geldig voorstel.
+    await fetch(`${base}/trade/mode`, { method: 'POST', headers: json, body: JSON.stringify({ mode: 'paper' }) });
+    await fetch(`${base}/trade/halt`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ reason: 'test' }),
+    });
+    const halted = (await (await propose({ instrument: 'XAUUSD' })).json()) as { route: { action: string; why: string } };
+    assert.equal(halted.route.action, 'reject');
+    assert.match(halted.route.why, /noodstop/);
+
+    // Hervatten zet terug op paper, niet op wat het daarvoor was.
+    const resumed = (await (
+      await fetch(`${base}/trade/resume`, { method: 'POST', headers: json, body: JSON.stringify({ by: 'vova' }) })
+    ).json()) as { state: { halted: boolean; mode: string } };
+    assert.equal(resumed.state.halted, false);
+    assert.equal(resumed.state.mode, 'paper');
+
+    // Een al gesloten positie sluit niet nog een keer.
+    assert.equal(
+      (
+        await fetch(`${base}/trade/positions/${ok.id}/close`, {
+          method: 'POST',
+          headers: json,
+          body: JSON.stringify({ price: 2100 }),
+        })
+      ).status,
+      404,
+      'dubbel sluiten zou het resultaat twee keer boeken',
+    );
+  } finally {
+    server.close();
+    store.close();
+    delete process.env.ARA_TRADING_LIMITS;
+  }
+});
