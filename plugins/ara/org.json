@@ -40,7 +40,27 @@
     "standing": true,
     "spawnedBy": "watchdog (scripts/watchdog.mjs, launchd elke 5 min, 0 tokens)",
     "focus": "Incidenten: sites offline, glitches, kapotte services. Operationele fixes direct; codefixes op ara/incident-* branches; escalatieketen manager:ops → supervisor (feedback + 1 herkansing) → mens.",
-    "monitors": "plugins/ara/monitors.json"
+    "monitors": "plugins/ara/monitors.json",
+    "specialists": [
+      {
+        "agent": "ara-backup-verifier",
+        "name": "Backupcontrole",
+        "does": "backup terugzetten naar een tijdelijke map en de integriteit controleren — herstelt nooit over de echte database",
+        "cadence": "wekelijks"
+      },
+      {
+        "agent": "ara-org-auditor",
+        "name": "Organisatie-audit",
+        "does": "rollen, playbooks en inzet naast elkaar leggen — wijzigt niets",
+        "cadence": "maandelijks"
+      },
+      {
+        "agent": "ara-security-auditor",
+        "name": "Beveiligingsaudit",
+        "does": "secrets, kwetsbare dependencies en blootstelling — herstelt nooit",
+        "cadence": "wekelijks"
+      }
+    ]
   },
   "ventures": [
     {

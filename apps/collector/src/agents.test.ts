@@ -265,6 +265,56 @@ test('agents: security en data-engineer horen bij elke tak die ze nodig heeft', 
   assert.match(data.body, /kopie/i);
 });
 
+test('agents: de controlerende rollen kunnen niet repareren', () => {
+  // Een controleur die zelf bijwerkt, controleert daarna zijn eigen werk — en
+  // dan is de controle weg. Dat moet uit het gereedschap blijken, niet uit een
+  // belofte in de tekst.
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+  for (const name of ['ara-qa-verifier', 'ara-backup-verifier', 'ara-org-auditor']) {
+    const agent = agents.get(name)!;
+    assert.ok(agent, `${name} ontbreekt`);
+    for (const forbidden of ['Edit', 'Write']) {
+      assert.ok(!agent.tools.includes(forbidden), `${name} mag ${forbidden} niet hebben`);
+    }
+  }
+
+  // De backupcontrole mag nooit over de echte database heen terugzetten.
+  assert.match(agents.get('ara-backup-verifier')!.body, /tijdelijke map/i);
+
+  // De contentplanning schrijft concepten en kan het netwerk niet op.
+  const scheduler = agents.get('ara-social-scheduler')!;
+  for (const forbidden of ['Bash', 'WebFetch', 'WebSearch']) {
+    assert.ok(!scheduler.tools.includes(forbidden), `ara-social-scheduler mag ${forbidden} niet hebben`);
+  }
+  assert.ok(scheduler.tools.includes('Write'));
+
+  // Wie wél schrijft, moet zijn grens benoemen: niet mergen, niets verzinnen.
+  assert.match(agents.get('ara-dependency-warden')!.body, /niet mergen|Niet mergen/);
+  assert.match(agents.get('ara-doc-writer')!.body, /verzinnen/i);
+});
+
+test('agents: de vaste ops-rollen bestaan en zijn read-only', () => {
+  // ops.specialists staat los van de venture-playbooks, dus de invariant die
+  // playbook-rollen controleert raakt ze niet. Zonder deze check kan een
+  // ops-rol verdwijnen zonder dat iets het merkt.
+  const org = JSON.parse(fs.readFileSync(path.join(REPO, 'plugins/ara/org.json'), 'utf8')) as {
+    ops?: { specialists?: { agent: string }[] };
+  };
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+  const roster = org.ops?.specialists ?? [];
+  assert.ok(roster.length > 0, 'ops hoort vaste rollen te hebben, niet alleen incidenten');
+  for (const spec of roster) {
+    const agent = agents.get(spec.agent);
+    assert.ok(agent, `ops noemt ${spec.agent}, maar dat rolbestand bestaat niet`);
+    for (const forbidden of ['Edit', 'Write']) {
+      assert.ok(
+        !agent.tools.includes(forbidden),
+        `${spec.agent} draait ongevraagd op schema — die mag niets kunnen wijzigen`,
+      );
+    }
+  }
+});
+
 test('agents: alleen de rollen die zelf mogen spawnen hebben de Agent-tool', () => {
   // Subagents hebben geen Agent-tool (bewezen beperking van Claude Code); wie
   // 'm wél heeft, draait als eigen sessie. Dat onderscheid moet expliciet zijn.

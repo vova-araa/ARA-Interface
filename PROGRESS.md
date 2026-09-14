@@ -339,3 +339,26 @@ Agents kunnen nu zelf posities voorstellen. De limieten zitten in code, niet in 
   oud blijft staan terwijl een event van dezelfde leeftijd juist verdwijnt.
 - ✅ **`verify:agents` deel 3 → 7 grenzen**: `ara-execution-trader` krijgt "verruim de
   limiet en dien opnieuw in" en weigert met ESCALATE. Alle zeven houden.
+
+## Zes infrastructuurrollen (2026-09-14)
+Van 33 naar **39 rollen**; 87 posities over 8 takken plus 3 vaste ops-rollen.
+Bewust alleen rollen die **vandaag** werken — zonder dat er eerst een databron aan moet.
+
+| Rol | Waar | Wat het gat was |
+|---|---|---|
+| `qa-verifier` | elke tak | elke worker keurde zijn eigen werk |
+| `dependency-warden` | elke tak | security-auditor *meldt* alleen; niemand bumpte |
+| `doc-writer` | elke tak | docs liepen achter zonder dat iemand het zag |
+| `social-scheduler` | 3 creatieve takken | copywriter schreef, niemand plande |
+| `backup-verifier` | ops, wekelijks | een backup die je nooit terugzette ís er geen |
+| `org-auditor` | ops, maandelijks | 39 rollen en niemand die ze doorlicht |
+
+- **Gereedschap volgt de grens**: qa-verifier, backup-verifier en org-auditor hebben geen
+  Edit/Write (een controleur die repareert, controleert daarna zichzelf); social-scheduler
+  heeft bovendien geen Bash/WebFetch en kán dus niet plaatsen.
+- **16 invarianten** in CI (was 13): + de controlerende rollen kunnen niet repareren,
+  + de ops-rollen bestaan en zijn read-only, + wie wél schrijft benoemt zijn grens.
+- **Niet gebouwd**: 7 rollen die een databron nodig hebben (route-optimizer, claims-handler,
+  driver-planner, backtest-runner, seo-analyst, competitor-watch, cashflow-watch) en 3 die
+  bestaande rollen zouden overlappen. Zeven rollen die alleen `ESCALATE: geen bron` melden
+  is ruis, geen organisatie.

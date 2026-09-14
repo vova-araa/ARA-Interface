@@ -47,3 +47,22 @@ Bord: `$ARA_COLLECTOR_URL` (default `http://127.0.0.1:4747`), header
   escaleren met wat je zag.
 - Meerdere incidenten met dezelfde oorzaak → één fix, alle taken sluiten met
   verwijzing naar de gedeelde oorzaak.
+
+## Je vaste rollen (buiten incidenten om)
+
+Naast storingen heb je terugkerend onderhoud. `curl -s "$ARA_COLLECTOR_URL/org"`
+geeft ze onder `ops.specialists`, met hoe vaak ze horen te draaien:
+
+| Rol | Wat | Hoe vaak |
+|---|---|---|
+| `ara-backup-verifier` | zet de nieuwste backup terug naar een tijdelijke map en controleert de integriteit | wekelijks |
+| `ara-security-auditor` | secrets, kwetsbare dependencies, onbeschermde endpoints | wekelijks |
+| `ara-org-auditor` | rollen, playbooks en werkelijke inzet naast elkaar | maandelijks |
+
+Alle drie zijn read-only: ze melden, ze repareren niet. Een bevinding die actie
+vraagt zet je als taak op het bord bij de rol die het wél mag doen — een
+dependency-bump bij `ara-dependency-warden`, een sleutelrotatie bij de mens.
+
+Draait er al dagen geen backupcontrole, dan is dat zelf een bevinding: een
+backup die niemand controleert, is precies de backup die faalt als je 'm nodig
+hebt.

@@ -25,8 +25,11 @@ plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
                       uitvoering — execution-trader (dient voorstellen in bij de risicomotor;
                                  gedeeld door handel, crypto en aandelen)
                       data     — data-engineer (migraties; nooit op productie)
-                      overal   — reporter (echte kantoorcijfers),
-                                 security-auditor (secrets, deps, blootstelling)
+                      overal   — reporter (echte kantoorcijfers), qa-verifier (controleert
+                                 andermans werk), dependency-warden (bumps op een branch),
+                                 doc-writer (docs ↔ code), security-auditor (secrets, deps)
+                      ops      — backup-verifier (wekelijks), org-auditor (maandelijks),
+                                 security-auditor — staan in org.json onder ops.specialists
 scripts/            watchdog.mjs (24/7, 0 LLM-tokens), notify.mjs (Telegram), install.sh, expose.sh (Tailscale)
 ops/                launchd plists (templates; install.sh vult placeholders + chmod 600)
 data/               runtime: SQLite db, world.config.json-kopieën, logs (niet committen)
@@ -151,7 +154,7 @@ Container/CI-bijzonderheden:
   wat ALTIJD escaleert, validatiechecks en welke databronnen nog niet aangesloten zijn.
   Wat org.json weglaat komt uit het branche-standaard — een tak start nooit leeg.
   Supervisor en manager lezen `/org`, niet org.json.
-- **Read-only is een garantie, geen belofte**: 17 van de 28 rollen hebben geen Edit/Write;
+- **Read-only is een garantie, geen belofte**: ruim de helft van de 39 rollen heeft geen Edit/Write;
   `ara-dispatch-comms` en `ara-copywriter` hebben bovendien geen Bash/WebFetch en kunnen
   dus niet publiceren. `apps/collector/src/agents.test.ts` pint dat vast (0 tokens, in CI),
   samen met: elke playbook-rol bestaat als bestand, de frontmatter-naam matcht het bestand,

@@ -87,6 +87,30 @@ const executionTrader: Specialist = {
   does: 'dient voorstellen in bij de risicomotor — kan zelf geen order plaatsen en houdt geen sleutel',
   model: 'default',
 };
+/**
+ * Tot nu toe keurde elke worker zijn eigen werk. Deze rol bouwt niets en
+ * repareert niets; hij stelt vast. Elke tak heeft 'm nodig, want elke tak
+ * levert werk op waarvan iemand zegt dat het af is.
+ */
+const qa: Specialist = {
+  agent: 'ara-qa-verifier',
+  name: 'Controle',
+  does: 'draait de checks zelf en leest de diff tegen de opdracht — repareert nooit',
+  model: 'default',
+};
+/** Afhankelijkheden bijwerken is ander werk dan ze melden. */
+const deps: Specialist = {
+  agent: 'ara-dependency-warden',
+  name: 'Afhankelijkheden',
+  does: 'changelog lezen, één bump per commit op een branch, volledige checks — merget nooit',
+  model: 'default',
+};
+const docs: Specialist = {
+  agent: 'ara-doc-writer',
+  name: 'Documentatie',
+  does: 'docs synchroon houden met de code — verzint nooit gedrag dat hij niet las',
+  model: 'haiku',
+};
 const dataEngineer: Specialist = {
   agent: 'ara-data-engineer',
   name: 'Data-engineer',
@@ -107,6 +131,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-dispatch-comms', name: 'Chauffeur- en klantcontact', does: 'concepten schrijven bij vertraging of wijziging — verstuurt nooit zelf', model: 'default' },
       worker('Integratie-engineer', 'TMS-koppelingen en exports'),
       dataEngineer,
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -136,6 +163,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-fleet-cost', name: 'Kosten- en bandenanalist', does: 'kosten per kilometer per voertuig en uitschieters eruit halen', model: 'default' },
       { agent: 'ara-trailer-manager', name: 'Trailerbeheer', does: 'beschikbaarheid, stilstand en scheefstand van trailers', model: 'default' },
       dataEngineer,
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -168,6 +198,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-event-scout', name: 'Eventscout', does: 'agenda die het instrument raakt volgen en vóór het event waarschuwen', model: 'haiku' },
       executionTrader,
       { agent: 'ara-bot-maintainer', name: 'Bot-onderhoud', does: 'logging, backtests en infrastructuur rond de bot — nooit de orderlogica', model: 'default' },
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -206,6 +239,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-narrative-scout', name: 'Narratiefscout', does: 'volgen waar de aandacht heen gaat per sector — beschrijft, voorspelt nooit', model: 'haiku' },
       executionTrader,
       scout('On-chain scout', 'publieke koersen en on-chain data ophalen'),
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -243,7 +279,11 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-designer', name: 'Ontwerper', does: 'campagnes en assets voor klanten, altijd met screenshot — staging mag, klantkanalen nooit', model: 'default' },
       { agent: 'ara-copywriter', name: 'Copywriter', does: 'teksten in twee varianten als concept in drafts/ — publiceert nooit', model: 'default' },
       { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links, snelheid, afbeeldingen en SEO-basis nalopen — repareert nooit zelf', model: 'haiku' },
+      { agent: 'ara-social-scheduler', name: 'Contentplanning', does: 'contentkalender als concept in drafts/ — plaatst nooit', model: 'default' },
       scout('Research-scout', 'referenties en concurrentie bekijken'),
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -269,7 +309,11 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-booking-watch', name: 'Agendabewaking', does: 'dubbele boekingen, te lang openstaande aanvragen en gaten in de agenda', model: 'default' },
       { agent: 'ara-copywriter', name: 'Copywriter', does: 'site- en boekingsteksten als concept — publiceert nooit', model: 'default' },
       { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links, snelheid en SEO-basis nalopen — repareert nooit zelf', model: 'haiku' },
+      { agent: 'ara-social-scheduler', name: 'Contentplanning', does: 'contentkalender als concept in drafts/ — plaatst nooit', model: 'default' },
       worker('Web-engineer', 'site en boekingsflow'),
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -296,7 +340,11 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-release-manager', name: 'Releasebeheer', does: 'releasepakket en metadata compleet maken; site mag live, de release uitbrengen nooit', model: 'default' },
       { agent: 'ara-copywriter', name: 'Copywriter', does: 'release- en promotieteksten als concept — publiceert nooit', model: 'default' },
       { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links en streamingknoppen controleren — een dode link op releasedag is een verloren dag', model: 'haiku' },
+      { agent: 'ara-social-scheduler', name: 'Contentplanning', does: 'contentkalender als concept in drafts/ — plaatst nooit', model: 'default' },
       scout('Promo-scout', 'playlists, blogs en kanalen bekijken'),
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -325,6 +373,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { agent: 'ara-risk-guard', name: 'Risicobewaker', does: 'blootstelling en drawdown tegen de limieten houden — alarmeert, grijpt nooit in', model: 'default' },
       executionTrader,
       { agent: 'ara-trade-journal', name: 'Journaal', does: 'elke aan- en verkoop vastleggen met these en uitkomst', model: 'default' },
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],
@@ -354,6 +405,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
     specialists: [
       worker('Uitvoerder', 'de taken van deze tak uitvoeren'),
       scout('Scout', 'opzoekwerk op het web'),
+      qa,
+      deps,
+      docs,
       security,
       reporter,
     ],

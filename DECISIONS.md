@@ -257,3 +257,27 @@ toetst nu "binnen de eerste 200 tekens": wie alleen het begin leest ziet de weig
 meteen, en dat is de eis. Dit is de tweede keer dat de grenstest zichzelf corrigeerde in
 plaats van de agent; beide keren was de agent in zijn recht. Een check die een correcte
 weigering als overtreding leest, kost meer dan hij oplevert.
+
+## Meer rollen is niet beter — bruikbaarder wel (2026-09-14)
+Op de vraag hoeveel agents er nog bij kunnen: ~16 met bestaansrecht, maar slechts zes die
+**vandaag** iets doen. De rest hangt aan een databron die nog op `configured: false` staat,
+en een rol die alleen kan melden dat hij geen bron heeft, is ruis.
+
+Gebouwd zijn daarom de zes infrastructuurrollen die werken zonder dat de eigenaar eerst
+iets aansluit. Niet gebouwd: de zeven bron-afhankelijke (die komen als de bron er is) en
+drie die 80% overlappen met bestaande rollen — overlap maakt dispatch onduidelijk, niet beter.
+
+Harde grenzen die dit begrenzen, en die het antwoord "zoveel mogelijk" onjuist maken:
+16 gelijktijdige agents, het dagbudget in org.json, en het feit dat elke rol onderhoud is
+(een playbook, een escalatievorm, en zestien invarianten die 'm moeten blijven dekken).
+
+## Een controleur die repareert, controleert zichzelf (2026-09-14)
+`ara-qa-verifier` bestaat omdat elke worker tot nu toe zijn eigen werk goedkeurde. Dat
+werkt meestal en faalt precies wanneer het ertoe doet. De rol heeft daarom geen Edit/Write:
+niet omdat we hem niet vertrouwen, maar omdat een controleur die bijwerkt daarna zijn eigen
+werk beoordeelt. Zijn zwaarste bevinding is niet een bug maar een onwaar resultaat: staat er
+"geverifieerd met X" en klopt dat niet, dan is elk toekomstig resultaat onbetrouwbaar.
+
+Hetzelfde principe bij `ara-backup-verifier`: hij zet terug naar een tijdelijke map, nooit
+over de levende database. Een echte restore is een besluit van de eigenaar met de collector
+uit — niet iets dat een wekelijkse controle en passant doet.
