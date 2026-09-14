@@ -168,18 +168,54 @@ test('agents: de scoutrollen geven geen advies en voorspellen niet', () => {
   }
 });
 
-test('agents: de communicatierol kan het netwerk niet op', () => {
-  // Een rol die klantberichten schrijft én kan versturen, kan per ongeluk
-  // versturen. Zonder Bash en WebFetch is "verstuurt nooit zelf" een feit.
-  const comms = loadAgents().find((a) => a.name === 'ara-dispatch-comms')!;
-  assert.ok(comms, 'ara-dispatch-comms ontbreekt');
-  for (const forbidden of ['Bash', 'WebFetch', 'WebSearch', 'Agent']) {
-    assert.ok(
-      !comms.tools.includes(forbidden),
-      `ara-dispatch-comms mag ${forbidden} niet hebben — anders kan hij een bericht daadwerkelijk versturen`,
-    );
+test('agents: wie concepten schrijft, kan het netwerk niet op', () => {
+  // Een rol die teksten voor buiten schrijft én het netwerk op kan, kan per
+  // ongeluk versturen of publiceren. Zonder Bash en WebFetch is "verstuurt
+  // nooit zelf" een feit in plaats van een regel om te onthouden.
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+  for (const name of ['ara-dispatch-comms', 'ara-copywriter']) {
+    const agent = agents.get(name)!;
+    assert.ok(agent, `${name} ontbreekt`);
+    for (const forbidden of ['Bash', 'WebFetch', 'WebSearch', 'Agent']) {
+      assert.ok(
+        !agent.tools.includes(forbidden),
+        `${name} mag ${forbidden} niet hebben — anders kan hij daadwerkelijk publiceren`,
+      );
+    }
+    assert.ok(agent.tools.includes('Write'), `${name} moet wel concepten kunnen wegschrijven`);
   }
-  assert.ok(comms.tools.includes('Write'), 'hij moet wel concepten kunnen wegschrijven');
+
+  // De sitebewaker kijkt en repareert niet; anders verandert hij dingen die
+  // niemand heeft beoordeeld.
+  const site = agents.get('ara-site-watch')!;
+  for (const forbidden of ['Edit', 'Write']) {
+    assert.ok(!site.tools.includes(forbidden), `ara-site-watch mag ${forbidden} niet hebben`);
+  }
+
+  // De agendabewaker leest; bevestigen en verzetten doet een mens.
+  const booking = agents.get('ara-booking-watch')!;
+  for (const forbidden of ['Edit', 'Write']) {
+    assert.ok(!booking.tools.includes(forbidden), `ara-booking-watch mag ${forbidden} niet hebben`);
+  }
+});
+
+test('agents: elke creatieve rol benoemt zijn eigen publicatiegrens', () => {
+  // De drie takken hebben bewust verschillende bevoegdheden. Die staan in de
+  // instructies van de rol zelf, niet alleen in het playbook — de rol is wat
+  // de agent leest.
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+
+  // Klantwerk: productie van een klant is altijd een escalatie.
+  assert.match(agents.get('ara-designer')!.body, /ESCALATE/);
+  assert.match(agents.get('ara-designer')!.body, /klant/i);
+
+  // Eigen zaak: mag deployen, behalve de boekingsflow.
+  assert.match(agents.get('ara-studio-producer')!.body, /boekingsflow/i);
+  assert.match(agents.get('ara-studio-producer')!.body, /staging/i);
+
+  // Onomkeerbaar: een release uitbrengen kan nooit zelf.
+  assert.match(agents.get('ara-release-manager')!.body, /distributeur/i);
+  assert.match(agents.get('ara-release-manager')!.body, /ESCALATE/);
 });
 
 test('agents: alleen de rollen die zelf mogen spawnen hebben de Agent-tool', () => {

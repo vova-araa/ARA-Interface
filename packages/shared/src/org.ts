@@ -203,44 +203,83 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { label: 'Streefverdeling en concentratiegrenzen', how: 'VUL-IN: jouw doelallocatie per munt/sector', configured: false },
     ],
   },
+  // De drie creatieve takken delen geen rol meer: klantwerk, eigen zaak en een
+  // onomkeerbare release hebben elk andere publicatiegrenzen.
   design: {
     specialists: [
-      { agent: 'ara-creative', name: 'Ontwerper', does: 'campagnes en assets maken, altijd met screenshot in het resultaat', model: 'default' },
+      { agent: 'ara-designer', name: 'Ontwerper', does: 'campagnes en assets voor klanten, altijd met screenshot — staging mag, klantkanalen nooit', model: 'default' },
+      { agent: 'ara-copywriter', name: 'Copywriter', does: 'teksten in twee varianten als concept in drafts/ — publiceert nooit', model: 'default' },
+      { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links, snelheid, afbeeldingen en SEO-basis nalopen — repareert nooit zelf', model: 'haiku' },
       scout('Research-scout', 'referenties en concurrentie bekijken'),
       reporter,
     ],
     duties: [
       'Lopende campagnes en deliverables bijhouden',
-      'Assets consistent houden met de huisstijl',
-      'Sites controleren op gebroken pagina\'s en trage laadtijden',
+      'Assets consistent houden met de huisstijl van de klant',
+      'Klantsites periodiek nalopen op gebroken links, trage pagina\'s en SEO-gebreken',
     ],
-    escalate: ['Publiceren naar een live site of kanaal', 'Uitgaven aan advertenties of tooling'],
+    escalate: [
+      'Publiceren naar productie van een klant, of naar een kanaal, mail of advertentie',
+      'Uitgaven aan advertenties, stockmateriaal, licenties of tooling',
+      'Beeld gebruiken waarvan de herkomst onbekend is',
+    ],
     checks: ['build', 'screenshot in het taakresultaat'],
     dataSources: [
       { label: 'Lopende opdrachten', how: 'VUL-IN: projectlijst of board-export', configured: false },
+      { label: 'Te bewaken sites', how: 'VUL-IN: lijst met URL\'s per klant', configured: false },
     ],
   },
   studio: {
     specialists: [
-      { agent: 'ara-creative', name: 'Studio-productie', does: 'site, boekingen en audio-tooling', model: 'default' },
+      { agent: 'ara-studio-producer', name: 'Studio-productie', does: 'site en audio-tooling; mag naar productie behalve de boekingsflow', model: 'default' },
+      { agent: 'ara-booking-watch', name: 'Agendabewaking', does: 'dubbele boekingen, te lang openstaande aanvragen en gaten in de agenda', model: 'default' },
+      { agent: 'ara-copywriter', name: 'Copywriter', does: 'site- en boekingsteksten als concept — publiceert nooit', model: 'default' },
+      { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links, snelheid en SEO-basis nalopen — repareert nooit zelf', model: 'haiku' },
       worker('Web-engineer', 'site en boekingsflow'),
       reporter,
     ],
-    duties: ['Boekingen en beschikbaarheid bijhouden', 'Site en boekingsflow werkend houden', 'Audio-tooling onderhouden'],
-    escalate: ['Publiceren naar de live site', 'Wijzigingen in de boekingsflow die klanten raken'],
-    checks: ['build', 'screenshot in het taakresultaat'],
-    dataSources: [{ label: 'Boekingen', how: 'VUL-IN: agenda of boekingssysteem', configured: false }],
+    duties: [
+      'Aanvragen volgen: niets langer dan 24 uur onbeantwoord',
+      'Agenda bewaken op dubbele boekingen en op verkoopbare gaten',
+      'Site en boekingsflow werkend houden, boekingsflow altijd eerst op staging',
+      'Audio-tooling onderhouden',
+    ],
+    escalate: [
+      'Productie-deploy van de boekingsflow zelf',
+      'Een boeking bevestigen, verzetten of annuleren',
+      'Contact met een klant, in welke vorm dan ook',
+      'Uitgaven aan tooling of hosting',
+    ],
+    checks: ['build', 'boekingsflow end-to-end op staging', 'screenshot in het taakresultaat'],
+    dataSources: [
+      { label: 'Agenda en boekingen', how: 'VUL-IN: agenda of boekingssysteem', configured: false },
+      { label: 'Openstaande aanvragen', how: 'VUL-IN: mailbox-export of formulier-backend', configured: false },
+    ],
   },
   music: {
     specialists: [
-      { agent: 'ara-creative', name: 'Releasebeheer', does: 'releases, artwork en promotie', model: 'default' },
+      { agent: 'ara-release-manager', name: 'Releasebeheer', does: 'releasepakket en metadata compleet maken; site mag live, de release uitbrengen nooit', model: 'default' },
+      { agent: 'ara-copywriter', name: 'Copywriter', does: 'release- en promotieteksten als concept — publiceert nooit', model: 'default' },
+      { agent: 'ara-site-watch', name: 'Sitebewaker', does: 'links en streamingknoppen controleren — een dode link op releasedag is een verloren dag', model: 'haiku' },
       scout('Promo-scout', 'playlists, blogs en kanalen bekijken'),
       reporter,
     ],
-    duties: ['Releaseplanning bijhouden', 'Promotiekanalen volgen', 'Site en links actueel houden'],
-    escalate: ['Publiceren van een release', 'Contact met labels of platforms namens de gebruiker'],
-    checks: ['links werken', 'build'],
-    dataSources: [{ label: 'Releases en streams', how: 'VUL-IN: distributeur-export', configured: false }],
+    duties: [
+      'Releaseplanning bijhouden en het pakket compleet maken tot aan de knop',
+      'Metadata driemaal controleren: credits, schrijvers, ISRC, releasedatum',
+      'Site en streaminglinks actueel houden, zeker rond een releasedatum',
+      'Promotiekanalen volgen en materiaal als concept klaarzetten',
+    ],
+    escalate: [
+      'Een release daadwerkelijk uitbrengen bij een distributeur of platform',
+      'Een releasedatum vastleggen of verzetten',
+      'Contact met een label, playlist of platform namens de gebruiker',
+    ],
+    checks: ['links werken', 'build', 'metadata compleet'],
+    dataSources: [
+      { label: 'Releases en streams', how: 'VUL-IN: distributeur-export', configured: false },
+      { label: 'Releaseplanning en metadata', how: 'VUL-IN: eigen releaselijst', configured: false },
+    ],
   },
   generic: {
     specialists: [worker('Uitvoerder', 'de taken van deze tak uitvoeren'), scout('Scout', 'opzoekwerk op het web'), reporter],
