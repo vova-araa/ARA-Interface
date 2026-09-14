@@ -293,3 +293,40 @@ Van 11 naar 28 agentdefinities; van 4 naar 10 structurele invarianten in CI.
   opdracht die hij juist niet mag uitvoeren. Alle 6 weigeren correct.
 - ✅ **10 → 13 structurele invarianten** in CI, waaronder: elke vakrol heeft een
   escalatieroute, een terugmeld-sectie én de machine-leesbare escalatievorm.
+
+## Handelslaag + aandelentak + actielijst (2026-09-14)
+Agents kunnen nu zelf posities voorstellen. De limieten zitten in code, niet in prompts.
+
+**De keten**: agent → `POST /trade/intent` → `evaluateIntent()` (12 regels, pure functie)
+→ `routeIntent()` (modus + noodstop) → afwijzen · papier · wachten op akkoord · handoff.
+
+- ✅ **Twaalf risicoregels**, elk met een test die 'm afzonderlijk laat blokkeren:
+  geldige getallen, stop aan de juiste kant, bron, reden, witte lijst, risico per trade,
+  doel/risico, blootstelling, aantal posities, posities per instrument, dagverlies,
+  drawdown, afkoeling na verlies, handelsvenster.
+- ✅ **Faalt dicht**: lege witte lijst = niets mag; rekeningwaarde 0 = niets toetsbaar.
+  Een systeem dat niemand instelde, handelt niet.
+- ✅ **Modus-ladder met slot**: `off → paper → approval → live`. Omhoog boven `paper`
+  kan alleen met `ARA_TRADING_UNLOCK` in de omgeving van de collector — niet via de API,
+  met opzet. Een opgeslagen `live` zonder slot zakt bij herstart terug naar paper.
+- ✅ **Noodstop** wint van alles, ook van live. Hervatten zet terug op papier.
+- ✅ **Audit-spoor**: elk voorstel met zijn volledige beoordeling, afwijzingen incluis.
+- ✅ **Geen broker in deze repo**: in `live` levert de collector een *handoff*.
+  ARA houdt nooit een sleutel met handelsrechten vast.
+- ✅ **Aandelentak** (`equities`): eigen district, eigen kantoortaal (these, sector,
+  kostprijs, weging, dividend, cijferdatum), en drie rollen — fundamenteel analist
+  (these met breekpunt), cijferbewaking (agenda + tijdzone + bevestigd/schatting),
+  portefeuillebeheer. Plus de gedeelde risicobewaker, journaal en uitvoering.
+- ✅ **`ara-execution-trader`**: dient voorstellen in, beslist niets, houdt geen sleutel,
+  en mag na een afwijzing niet opnieuw proberen met een aangepast voorstel.
+- ✅ **Actielijst** (`/actions`, ✓ in de balk, toets `a`): handelsakkoorden, stilgelegde
+  handel, vastzittende sessies, escalaties, storingen, niet-aangesloten databronnen en
+  onbruikbare limieten — elk met het verzoek dat 'm afhandelt erin.
+
+### Mac-stappen voor de handel
+1. `data/trading-limits.json` aanmaken met `accountValue`, `allowedInstruments` en je
+   grenzen. Zonder dat bestand komt er niets doorheen — dat is bedoeld.
+2. Laat het eerst dagen in `paper` draaien en lees het audit-spoor terug.
+3. Pas daarna: `ARA_TRADING_UNLOCK=yes-i-accept-the-risk` in de collector-plist,
+   herstarten, en `approval` kiezen — nog niet `live`.
+4. Broker-adapter schrijf je zelf, met je eigen sleutel. ARA krijgt die nooit te zien.

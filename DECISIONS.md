@@ -195,3 +195,47 @@ leest, is erger dan geen test.
   hebben data-integriteit expliciet boven snelheid gezet. Code kun je terugdraaien,
   data niet; dus migratie schrijven en tegen een kopie testen mag, uitvoeren op
   productie nooit. Een migratie zonder werkende `down` is niet af.
+
+## Handel: de LLM stelt voor, code beslist (2026-09-14)
+De eigenaar wil dat agents zelf posities nemen. Dat draait het eerdere beleid om
+("STRIKT read-only op live trading"), en dat is zijn keuze — het is zijn geld.
+Het antwoord op het risico is niet weigeren maar **de limieten uit de prompts halen**:
+
+- **Een limiet in een instructie is een suggestie; een limiet in een pure functie is een
+  limiet.** `evaluateIntent()` is deterministisch, zonder I/O, en de agent kan 'm niet
+  lezen, schrijven of overtuigen. Elke getoetste regel staat in de uitslag, ook de
+  geslaagde, zodat een afwijzing achteraf naspeurbaar is.
+- **Faalt dicht, niet open.** Een lege witte lijst betekent "niets mag" — nooit "alles
+  mag"; dat is precies hoe een configuratiefout een rekening leegtrekt. Rekeningwaarde 0
+  maakt elk percentage ontoetsbaar, dus een systeem dat niemand instelde handelt niet.
+  Een kapotte limietconfiguratie valt terug op de strengste stand, nooit op een ruimere.
+- **Het slot zit in de omgeving, niet in een verzoek.** `approval` en `live` vereisen
+  `ARA_TRADING_UNLOCK` in het collector-proces. Een agent die het API-pad vindt — of
+  zelfs het token heeft — komt er niet langs. Een opgeslagen `live` zonder dat slot zakt
+  bij herstart terug naar paper: één keer ontgrendelen mag niet voor altijd gelden.
+- **Omlaag mag altijd.** Veiliger worden is nooit geblokkeerd; hervatten na een noodstop
+  zet terug op papier in plaats van op wat er draaide.
+- **Hertoets bij akkoord.** Tussen voorstel en menselijk "ja" kan de portefeuille bewogen
+  zijn. Een oud ja is gevaarlijker dan geen antwoord, dus de risicotoets draait opnieuw.
+- **Geen herhaalpogingen.** `ara-execution-trader` mag een afgewezen voorstel niet
+  bijschaven tot het er net doorheen past — dat is precies wat de limieten voorkomen.
+- **Geen sleutel in ARA.** In `live` levert de collector een handoff voor een adapter die
+  de eigenaar zelf draait. Dat is geen beperking maar het ontwerp: de sleutel hoort bij
+  de mens, niet bij het systeem dat de voorstellen bedenkt.
+- **Zelf stilleggen na elke afgeronde trade**, niet pas bij het volgende voorstel —
+  anders merkt het systeem een geraakte dagverlies- of drawdownlimiet te laat.
+
+## Aandelen zijn geen trades (2026-09-14)
+Een aandeel is bezit, geen setup. De kantoortaal gaat daarom over these, sector,
+kostprijs, weging, dividend en cijferdatum — niet over ingang/stop/doel. De these heeft
+verplicht een **breekpunt**: een these die je niet kunt verliezen, leert je niets.
+`ara-earnings-watch` scheidt "haalde de cijfers maar verlaagde de vooruitblik" van een
+gewone meevaller, omdat dat meestal het slechtere nieuws is.
+
+## De actielijst bestaat omdat het systeem juist níét alles mag (2026-09-14)
+Alles wat ARA zelf kan, doet het. Wat overblijft is per definitie het werk dat een mens
+moet doen — en dat lag verspreid over een bord, een kantoorpaneel en een configuratie-
+bestand. `/actions` verzamelt het, en **elke regel draagt het verzoek dat 'm afhandelt**:
+de viewer weet niet welk endpoint bij welk soort werk hoort, dus een nieuw soort actie
+kost geen UI-wijziging. Geld vraagt altijd om bevestiging; een vastzittende sessie krijgt
+bewust géén knop, want die los je in de sessie zelf op.

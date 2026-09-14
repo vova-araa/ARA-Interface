@@ -21,6 +21,8 @@ plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
                       crypto   — + allocation-guard, token-safety, narrative-scout
                       creatief — designer (Elevate), studio-producer (Uprising),
                                  release-manager (Vovara), copywriter, site-watch, booking-watch
+                      aandelen — equity-analyst (these + breekpunt), earnings-watch
+                      handel    — execution-trader (dient voorstellen in bij de risicomotor)
                       data     — data-engineer (migraties; nooit op productie)
                       overal   — reporter (echte kantoorcijfers),
                                  security-auditor (secrets, deps, blootstelling)
@@ -94,6 +96,35 @@ Container/CI-bijzonderheden:
 - Kantoorchat: `GET/POST /chat` met `room: "office:<project>"`. Een vraag van de
   gebruiker wordt óók een bordtaak bij de aangesproken rol, zodat de watchdog
   die agent wakker maakt en er echt antwoord komt.
+
+## Handel (agents mogen posities voorstellen)
+
+- Keten: agent → `POST /trade/intent` → `evaluateIntent()` (pure functie in
+  `packages/shared/src/trading.ts`, 12 regels) → `routeIntent()` (modus + noodstop)
+  → afwijzen · papier · wachten op akkoord · handoff.
+- **Nooit een limiet in een prompt zetten.** Een limiet hoort in `evaluateIntent()`;
+  een instructie is een suggestie, een pure functie is een grens. Nieuwe regel? Voeg 'm
+  daar toe mét een test die 'm afzonderlijk laat blokkeren (`shared.test.ts`).
+- **Faalt dicht**: lege `allowedInstruments` = niets mag; `accountValue: 0` = niets
+  toetsbaar. Een kapotte `trading-limits.json` valt terug op de strengste stand.
+- Modus-ladder `off → paper → approval → live`. Omhoog boven `paper` vereist
+  `ARA_TRADING_UNLOCK=yes-i-accept-the-risk` in de omgeving van de collector — dit kan
+  niet via de API, met opzet. Een opgeslagen `live` zonder slot zakt bij herstart terug.
+- Noodstop (`POST /trade/halt`) wint van alles; `resume` zet terug op papier.
+- **Geen broker-koppeling in deze repo, en ARA houdt nooit een sleutel met
+  handelsrechten.** In `live` komt er een *handoff* klaar te staan voor een adapter die
+  de eigenaar zelf draait.
+- Elk voorstel wordt bewaard met zijn volledige beoordeling, afwijzingen incluis
+  (`trade_intents`). Die tabel wordt niet meegeprund — een besluit over geld blijft staan.
+
+## Actielijst
+
+- `GET /actions` verzamelt alles wat op een mens wacht: handelsakkoorden, stilgelegde
+  handel, vastzittende sessies, escalaties, storingen, niet-aangesloten databronnen,
+  onbruikbare limieten. Knop ✓ in de balk, toets `a`.
+- **Elke actie draagt zijn eigen verzoek** (`method` + `path` + `body`). De viewer weet
+  niets over endpoints; een nieuw soort actie kost dus geen UI-wijziging. Zet
+  `confirm: true` bij alles wat geld raakt of onomkeerbaar is.
 
 ## Auth & toegang
 
