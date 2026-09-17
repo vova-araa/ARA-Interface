@@ -10,9 +10,27 @@ import { sessionPosition } from '../placements.ts';
 const ISO_OFFSET = new THREE.Vector3(14, 16, 14); // ~30° isometric tilt
 const IDLE_DRIFT_AFTER_MS = 8000;
 
+/**
+ * Hoeveel wereld er in beeld hoort te passen. Onder een ortho-camera is
+ * zoom = pixels per wereldeenheid, dus een vaste zoom betekent: op een groot
+ * scherm zie je meer wereld, op een klein scherm een postzegel. De wereld is
+ * een schijf van 13 hexen (spacing 1.06), dus ~28 eenheden straal; 44 in beeld
+ * laat het geheel zien met wat lucht eromheen.
+ */
+const WORLD_UNITS_IN_VIEW = 44;
+const MIN_ZOOM = 13;
+const MAX_ZOOM = 46;
+
+function fitZoom(width: number, height: number): number {
+  const base = Math.min(width, height) / WORLD_UNITS_IN_VIEW;
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, base));
+}
+
 export function CameraRig(): JSX.Element {
   const controlsRef = useRef<MapControlsImpl>(null);
   const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  const restZoom = fitZoom(size.width, size.height);
   const flyTarget = useAra((s) => s.flyTarget);
   const goal = useRef<THREE.Vector3 | null>(null);
   const focusZoom = useRef<number | null>(null);
@@ -39,9 +57,13 @@ export function CameraRig(): JSX.Element {
     goal.current = new THREE.Vector3(x, 0, z);
     lastInteraction.current = Date.now();
     // Focus-pull: onder ortho is "scherpstellen" een zoom-duw richting de pod.
+    // Scherpstellen is onder ortho een zoom-duw richting de pod. Relatief aan
+    // de rustzoom, want die hangt nu van het venster af: een vaste 48 zou op
+    // een klein scherm een sprong zijn en op een groot scherm niets doen.
     const zoom = (camera as THREE.OrthographicCamera).zoom;
-    if (zoom < 44) focusZoom.current = 48;
-  }, [flyTarget, camera]);
+    const target = restZoom * 1.35;
+    if (zoom < target) focusZoom.current = target;
+  }, [flyTarget, camera, restZoom]);
 
   // Camera nudge on needs-human effects.
   const effects = useAra((s) => s.effects);
@@ -68,7 +90,7 @@ export function CameraRig(): JSX.Element {
     if (intro.current < 1) {
       intro.current = Math.min(1, intro.current + delta / 2);
       const ease = 1 - Math.pow(1 - intro.current, 3);
-      cam.zoom = 14 + (38 - 14) * ease;
+      cam.zoom = MIN_ZOOM + (restZoom - MIN_ZOOM) * ease;
       cam.updateProjectionMatrix();
     } else if (focusZoom.current !== null) {
       const settled = !damp(cam, 'zoom', focusZoom.current, 0.4, delta);

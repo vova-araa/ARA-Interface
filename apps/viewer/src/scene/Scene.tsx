@@ -260,7 +260,7 @@ export function Scene(): JSX.Element {
       orthographic
       shadows
       dpr={[1, 2]}
-      camera={{ position: [14, 16, 14], zoom: 38, near: -100, far: 300 }}
+      camera={{ position: [14, 16, 14], zoom: 22, near: -100, far: 400 }}
       // Grading gebeurt éénmalig in de composer (ToneMapping-effect); de
       // governor zet de renderer-tonemapping terug zodra postfx uitgaat.
       gl={{ antialias: true, powerPreference: 'high-performance', toneMapping: THREE.NoToneMapping }}
@@ -268,7 +268,10 @@ export function Scene(): JSX.Element {
       style={{ touchAction: 'none' }}
     >
       <color attach="background" args={[daylight.stops[0]]} />
-      <fog attach="fog" args={[daylight.fogColor, 55, 120]} />
+      {/* 55–120 begon zo dicht bij de wereld dat de Ararat en de luchtkoepel
+          erachter altijd in mist verdwenen — er wás een horizon, je zag hem
+          alleen nooit. Nu begint de mist voorbij de wereldrand. */}
+      <fog attach="fog" args={[daylight.fogColor, 95, 280]} />
       <ambientLight intensity={daylight.ambient * 0.8} color="#fff1e0" />
       <SunRig daylight={daylight} />
       <hemisphereLight args={['#9db8ff', '#e2a49a', 0.25]} />

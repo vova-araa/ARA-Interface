@@ -22,6 +22,7 @@ const STEPPE = new THREE.Color('#a8a06a'); // droog gras op de hoogvlakte
 const BASALT = new THREE.Color('#8a7268'); // kale rots
 const SEVAN_BLUE = new THREE.Color('#2e9cc7');
 const SEVAN_SHALLOW = new THREE.Color('#57c6d8');
+const ROAD = new THREE.Color('#d8cdbd'); // aangestampt grind
 
 const LAKE_CENTER = { q: -2, r: 10 };
 const LAKE_RADIUS = 2;
@@ -31,6 +32,37 @@ interface Tiles {
   base: { pos: [number, number, number]; color: THREE.Color; lift: number }[];
   district: { pos: [number, number, number]; color: THREE.Color; borderColor: THREE.Color }[];
   water: { pos: [number, number, number]; color: THREE.Color }[];
+  /** Wegen van de hub naar elk district; zonder die zweven ze los rond. */
+  road: { pos: [number, number, number] }[];
+}
+
+/**
+ * Rechte lijn over het hex-raster van a naar b, in kubuscoördinaten
+ * geïnterpoleerd en teruggerond. Dat geeft een aaneengesloten pad — met alleen
+ * axiale interpolatie krijg je gaten waar de afronding twee keer dezelfde
+ * tegel kiest.
+ */
+function hexLine(a: { q: number; r: number }, b: { q: number; r: number }): { q: number; r: number }[] {
+  const dist = Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.q + a.r - b.q - b.r));
+  const out: { q: number; r: number }[] = [];
+  for (let i = 0; i <= dist; i += 1) {
+    const t = dist === 0 ? 0 : i / dist;
+    const q = a.q + (b.q - a.q) * t;
+    const r = a.r + (b.r - a.r) * t;
+    const sAxis = -q - r;
+    let rq = Math.round(q);
+    let rr = Math.round(r);
+    const rs = Math.round(sAxis);
+    // De as met de grootste afrondfout wordt uit de andere twee afgeleid,
+    // anders valt de som niet meer op nul en ligt de tegel naast het pad.
+    const dq = Math.abs(rq - q);
+    const dr = Math.abs(rr - r);
+    const ds = Math.abs(rs - sAxis);
+    if (dq > dr && dq > ds) rq = -rr - rs;
+    else if (dr > ds) rr = -rq - rs;
+    out.push({ q: rq, r: rr });
+  }
+  return out;
 }
 
 /**
@@ -89,9 +121,10 @@ function terrainAt(hex: { q: number; r: number }, key: string, distance: number)
 }
 
 function computeTiles(world: WorldConfig | null): Tiles {
-  const tiles: Tiles = { base: [], district: [], water: [] };
+  const tiles: Tiles = { base: [], district: [], water: [], road: [] };
   const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
   const claimed = new Set<string>();
+  const roadKeys = new Set<string>();
 
   if (world) {
     for (const district of world.districts) {
@@ -108,6 +141,25 @@ function computeTiles(world: WorldConfig | null): Tiles {
             borderColor: color,
           });
         }
+      }
+    }
+
+    // Wegen vanaf de hub in het midden naar het hart van elk district. Alles
+    // straalt vanuit één punt, wat klopt met wat de hub in deze wereld is —
+    // en het maakt van losse eilanden een plek waar je doorheen kunt.
+    for (const district of world.districts) {
+      const hexes = district.projects.flatMap((project) => project.hexes);
+      if (hexes.length === 0) continue;
+      const centre = {
+        q: Math.round(hexes.reduce((sum, h) => sum + h.q, 0) / hexes.length),
+        r: Math.round(hexes.reduce((sum, h) => sum + h.r, 0) / hexes.length),
+      };
+      for (const hex of hexLine({ q: 0, r: 0 }, centre)) {
+        const key = axialKey(hex);
+        // Een weg loopt niet dóór een district of het meer heen; hij houdt op
+        // waar hij aankomt.
+        if (claimed.has(key) || lake.has(key)) continue;
+        roadKeys.add(key);
       }
     }
   }
@@ -133,6 +185,12 @@ function computeTiles(world: WorldConfig | null): Tiles {
     if (claimed.has(key)) continue;
     const distance = Math.max(Math.abs(hex.q), Math.abs(hex.r), Math.abs(hex.q + hex.r));
     const { lift, color } = terrainAt(hex, key, distance);
+    if (roadKeys.has(key)) {
+      // De weg is de grond zelf, geplaveid: hij volgt dus dezelfde hoogte.
+      // Een vlak lint op y=0 zou door de heuvels heen snijden.
+      tiles.road.push({ pos: [x * HEX_SPACING, lift, z * HEX_SPACING] });
+      continue;
+    }
     tiles.base.push({ pos: [x * HEX_SPACING, lift, z * HEX_SPACING], color, lift });
   }
   return tiles;
@@ -237,6 +295,35 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
           emissiveIntensity={0.72}
           toneMapped={false}
         />
+      </instancedMesh>
+
+      {/* Het sokkelblok. De tegelprisma's hangen 1,2 onder de wereld zodat een
+          verhoogde tegel geen gat laat zien — maar van opzij werd dat een
+          pilarenwoud dat in de lucht zweeft. Dit blok vangt dat op: de tegels
+          zijn de korst, dit is het gesteente eronder. Iets kleiner dan de
+          tegelschijf, zodat de rand overhangt in plaats van als een taartrand
+          uit te steken. */}
+      <mesh position={[0, -6.5, 0]} receiveShadow>
+        {/* De tegelprisma's zíjn de klif — die zagen er goed uit, ze hingen
+            alleen in de lucht. Dit blok zit er precies onder (de laagste
+            tegelbodem ligt op ~-2,3) en loopt taps toe, zodat de wereld op
+            gesteente staat in plaats van op een dienblad. Twaalf zijden, want
+            een zeshoek reikt op zijn vlakke kanten maar tot r·cos30° en daar
+            steken de buitenste tegels (~24) doorheen. */}
+        <cylinderGeometry args={[24.2, 16, 8.4, 12]} />
+        <meshStandardMaterial color="#6d5850" roughness={1} />
+      </mesh>
+
+      {/* Wegen: dezelfde prisma's, andere kleur, een haar hoger zodat de rand
+          zichtbaar blijft tegen de grond eromheen. */}
+      <instancedMesh
+        key={`road-${tiles.road.length}`}
+        args={[undefined, undefined, Math.max(1, tiles.road.length)]}
+        ref={useInstances(tiles.road.map((t) => ({ ...t, color: ROAD })), -1.03)}
+        receiveShadow
+        material={BASE_MAT}
+      >
+        <cylinderGeometry args={[0.88, 0.88, 2.4, 6]} />
       </instancedMesh>
 
       {/* Sevan water */}
