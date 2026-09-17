@@ -1,4 +1,4 @@
-import { Suspense, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
   Bloom,
@@ -40,45 +40,127 @@ import { Petals } from './Petals.tsx';
 const CHROMATIC_OFFSET = new THREE.Vector2(0.0008, 0.0008);
 
 /**
- * Adaptieve kwaliteit in twee trappen:
- *  - < 25fps: schaduwen uit, dpr 1, postprocessing uit
- *  - < 14fps: ook de sier-lagen (crowd, district-leven, weer) uit
- * Sterke hardware merkt er niets van.
+ * Adaptieve kwaliteit — in trappen, met de weg terug open.
+ *
+ * De vorige versie mat één keer, vanaf de allereerste frame, en legde de
+ * uitkomst voor de hele sessie vast. Dat gaat mis op precies de machines waar
+ * het niet zou moeten: de eerste seconden compileren shaders en uploaden
+ * textures, dus een snelle Mac meet daar gerust 12fps. Hij zakte dan naar
+ * dpr 1 — op een Retina-scherm een kwart van de pixels, zichtbaar wazig — en
+ * kwam daar nooit meer vanaf.
+ *
+ * Nu: eerst opwarmen, dan meten in vensters, en zowel omlaag als omhoog. De
+ * volgorde van afbouwen volgt wat het duurst is (gemeten: dit is fill-rate,
+ * niet geometrie), dus postfx en schaduwen gaan eerst, resolutie pas daarna —
+ * resolutie is het enige dat je meteen ziét.
+ *
+ *   trap 0  alles aan
+ *   trap 1  postfx + schaduwen uit
+ *   trap 2  ook resolutie omlaag
+ *   trap 3  ook de sier-lagen uit (crowd, district-leven, weer, drones)
+ *
+ * ?fx=force of ?q=high houdt alles aan · ?q=low start op trap 3.
  */
+const WARMUP_SEC = 3;
+const WINDOW_SEC = 2;
+/** Onder deze fps een trap omlaag. */
+const DEGRADE_FPS = 26;
+/** Boven deze fps, dit aantal vensters lang, een trap omhoog. */
+const RECOVER_FPS = 52;
+const RECOVER_WINDOWS = 3;
+const MAX_STAGE = 3;
+
+/**
+ * De scherpte waarop we renderen. Retina geeft 2, een telefoon vaak 3 — en 3
+ * is drie keer zoveel pixels voor een scherm dat je op armlengte houdt. 2 is
+ * daar ruim, en het is precies de bovengrens die de Canvas ook meekrijgt.
+ */
+function maxDpr(): number {
+  return Math.min(2, typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
+}
+
 function QualityGovernor(): null {
   const { gl, scene, setDpr } = useThree();
   const frames = useRef(0);
-  const startedAt = useRef(0);
-  const decided = useRef(false);
-  // ?fx=force houdt alle lagen aan, ongeacht fps (screenshots/demo-opnames).
-  const forced = useRef(new URLSearchParams(location.search).get('fx') === 'force');
+  const windowStart = useRef(0);
+  const warmedUp = useRef(false);
+  const stage = useRef(0);
+  const goodWindows = useRef(0);
+  const params = useRef(new URLSearchParams(location.search));
+  const forced = useRef(
+    params.current.get('fx') === 'force' || params.current.get('q') === 'high',
+  );
+
+  // Eén plek die de trap toepast, zodat omhoog exact het omgekeerde is van
+  // omlaag. Twee losse takken lopen altijd uit elkaar.
+  const applyStage = (next: number): void => {
+    const shadows = next < 1;
+    gl.shadowMap.enabled = shadows;
+    gl.shadowMap.autoUpdate = shadows;
+    gl.shadowMap.needsUpdate = shadows;
+    // De castShadow/receiveShadow-vlaggen blijven staan: die wissen is
+    // onomkeerbaar, en dan is "omhoog" een leugen. shadowMap.enabled alleen
+    // is genoeg om het renderen te stoppen.
+    scene.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      const material = mesh.material;
+      if (!material) return;
+      for (const m of Array.isArray(material) ? material : [material]) m.needsUpdate = true;
+    });
+    // Zonder composer vervalt de ToneMapping-pass; dan moet de renderer het
+    // overnemen, anders oogt alles rauw-lineair uitgewassen.
+    gl.toneMapping = next < 1 ? THREE.NoToneMapping : THREE.ACESFilmicToneMapping;
+    setDpr(next < 2 ? maxDpr() : 1);
+    useAra.getState().setPostFxOn(next < 1);
+    useAra.getState().setPerfLow(next >= 3);
+    stage.current = next;
+  };
+
+  useEffect(() => {
+    if (forced.current) return;
+    if (params.current.get('q') === 'low') applyStage(MAX_STAGE);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useFrame(({ clock }) => {
-    if (decided.current || forced.current) return;
-    if (startedAt.current === 0) startedAt.current = clock.elapsedTime;
+    if (forced.current) return;
+    const now = clock.elapsedTime;
+    if (!warmedUp.current) {
+      // Opwarmen: shaders compileren, textures uploaden. Wat je hier meet zegt
+      // niets over wat de machine kan.
+      if (now < WARMUP_SEC) return;
+      warmedUp.current = true;
+      windowStart.current = now;
+      frames.current = 0;
+      return;
+    }
+
     frames.current += 1;
-    const elapsed = clock.elapsedTime - startedAt.current;
-    if (elapsed < 4) return;
-    decided.current = true;
+    const elapsed = now - windowStart.current;
+    if (elapsed < WINDOW_SEC) return;
+
     const fps = frames.current / elapsed;
-    if (fps < 25) {
-      gl.shadowMap.enabled = false;
-      gl.shadowMap.autoUpdate = false;
-      scene.traverse((obj) => {
-        obj.castShadow = false;
-        obj.receiveShadow = false;
-      });
-      setDpr(1);
-      // Zonder composer geen ToneMapping-pass meer → renderer neemt het over,
-      // anders oogt alles rauw-lineair uitgewassen.
-      gl.toneMapping = THREE.ACESFilmicToneMapping;
-      useAra.getState().setPostFxOn(false);
-      console.info(`[ara] lage framerate (${fps.toFixed(0)}fps) — schaduwen/postfx uit, dpr 1`);
+    frames.current = 0;
+    windowStart.current = now;
+
+    if (fps < DEGRADE_FPS && stage.current < MAX_STAGE) {
+      goodWindows.current = 0;
+      applyStage(stage.current + 1);
+      console.info(`[ara] ${fps.toFixed(0)}fps — kwaliteit naar trap ${stage.current}`);
+      return;
     }
-    if (fps < 14) {
-      useAra.getState().setPerfLow(true);
-      console.info('[ara] zeer lage framerate — sier-lagen uit');
+    if (fps >= RECOVER_FPS && stage.current > 0) {
+      goodWindows.current += 1;
+      // Pas omhoog na een paar rustige vensters: anders pendelt hij heen en
+      // weer, en dat ziet er slechter uit dan één trap te laag blijven staan.
+      if (goodWindows.current >= RECOVER_WINDOWS) {
+        goodWindows.current = 0;
+        applyStage(stage.current - 1);
+        console.info(`[ara] ${fps.toFixed(0)}fps — kwaliteit terug naar trap ${stage.current}`);
+      }
+      return;
     }
+    goodWindows.current = 0;
   });
   return null;
 }
