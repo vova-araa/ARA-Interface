@@ -52,6 +52,7 @@ pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
 pnpm trade:review [dagen]    # handelsrapport uit het audit-spoor (0 tokens; --json voor ruwe data)
+pnpm ara:update              # Mac bijwerken: pull → install → viewer-build → launchd herstart → /health
 pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 7 harde rolgrenzen
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
 #   te testen is. Draai 'm na installatie en na elke Claude Code-update.

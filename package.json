@@ -19,6 +19,7 @@
     "browse": "node apps/viewer/scripts/browse.mjs",
     "map": "pnpm --filter @ara/collector map",
     "verify:agents": "node scripts/verify-agents.mjs",
-    "trade:review": "node scripts/trade-review.mjs"
+    "trade:review": "node scripts/trade-review.mjs",
+    "ara:update": "bash scripts/update.sh"
   }
 }
