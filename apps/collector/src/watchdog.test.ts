@@ -173,3 +173,72 @@ test('inbox: een taak uit git komt op het bord, precies één keer', async () =>
     store.close();
   }
 });
+
+test('ritme: terugkerend werk komt op het bord, één keer, en alleen aangezet', async () => {
+  const store = openStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-')), 'test.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+  // Eigen repo-map: data/rhythm.json van de echte repo mag een test niet raken.
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-repo-'));
+
+  const run = (env: Record<string, string>): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const child = spawn('node', [path.join(REPO, 'scripts', 'watchdog.mjs')], {
+        env: {
+          ...process.env,
+          ARA_COLLECTOR_URL: base,
+          ARA_LOCK_DIR: lockDir,
+          ARA_REPO: repo,
+          ARA_WATCHDOG_NO_SPAWN: '1',
+          ARA_NOTIFY_DRYRUN: '1',
+          ARA_TELEGRAM_BOT_TOKEN: 'test',
+          ARA_TELEGRAM_CHAT_ID: 'test',
+          ARA_DAILY_PING: '0',
+          ...env,
+        },
+      });
+      let out = '';
+      child.stdout.on('data', (chunk) => (out += String(chunk)));
+      child.stderr.on('data', (chunk) => (out += String(chunk)));
+      child.on('error', reject);
+      child.on('close', () => resolve(out));
+    });
+
+  try {
+    // Uit betekent uit. Dit laat het systeem uit zichzelf tokens uitgeven;
+    // dat mag nooit beginnen omdat de watchdog toevallig draait.
+    await run({});
+    assert.equal(
+      store.listTasks({ status: 'open', limit: 300 }).length,
+      0,
+      'zonder ARA_RHYTHM=1 komt er geen terugkerend werk op het bord',
+    );
+
+    // Eén tak aan: alleen díé tak krijgt werk.
+    await run({ ARA_RHYTHM: '1', ARA_RHYTHM_VENTURES: 'blex' });
+    const first = store.listTasks({ status: 'open', limit: 300 });
+    assert.ok(first.length > 0, 'blex krijgt zijn terugkerende werk');
+    assert.ok(
+      first.every((t) => t.assignee === 'manager:blex'),
+      'en geen enkele andere tak komt mee',
+    );
+    assert.ok(
+      first.every((t) => /^(Dagelijks|Wekelijks|Maandelijks): /.test(t.title)),
+      'de cadans staat in de titel, zodat je op het bord ziet wat wanneer hoort',
+    );
+
+    // Tweede ronde meteen erna: alles staat nog open én het interval is niet
+    // verstreken. Eén taak per ritme, geen stapel die elke vijf minuten groeit.
+    await run({ ARA_RHYTHM: '1', ARA_RHYTHM_VENTURES: 'blex' });
+    assert.equal(
+      store.listTasks({ status: 'open', limit: 300 }).length,
+      first.length,
+      'een tweede ronde stapelt niets bovenop',
+    );
+  } finally {
+    server.close();
+    store.close();
+  }
+});

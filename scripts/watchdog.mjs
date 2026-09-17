@@ -17,6 +17,8 @@
  * 7. Eén keer per dag een levensteken, zodat stilte zélf het alarm is.
  * 8. Auto-update: nieuwe commits op de eigen branch ophalen, bouwen, herstarten.
  * 9. Inbox: taken die via git binnenkwamen op het bord zetten.
+ * 10. Ritme: terugkerend werk per tak op het bord zetten zodra het aan de
+ *     beurt is. Zonder dit staat er een functieomschrijving en geen taak.
  *    8 en 9 staan standaard uit — ze voeren werk uit dat niet vanaf deze Mac
  *    gestart is, en dat hoort een bewuste keuze te zijn.
  *
@@ -27,7 +29,8 @@
  * Env: ARA_COLLECTOR_URL, ARA_TOKEN, ARA_REPO, ARA_LOCK_DIR,
  *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
  *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen),
- *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan).
+ *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan),
+ *      ARA_RHYTHM=1 (sectie 10 aan), ARA_RHYTHM_VENTURES=blex,traject (leeg = alle).
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -924,6 +927,94 @@ if (process.env.ARA_INBOX === '1') {
     fs.writeFileSync(seenFile, `${JSON.stringify(seen, null, 2)}\n`);
   } catch (error) {
     log(`inbox-geheugen niet opgeslagen: ${String(error).slice(0, 80)}`);
+  }
+}
+
+// ── 10. Ritme: terugkerend werk op het bord ──────────────────────────────
+// Het playbook van elke tak noemt zijn terugkerende werk, maar dat stond
+// alleen in de prompt die een manager leest wanneer hij gestart wordt — en
+// niets startte hem. Acht managers met een functieomschrijving en nul taken.
+// Hier krijgt dat werk zijn ritme.
+//
+// Standaard uit: dit laat het systeem uit zichzelf tokens uitgeven, elke dag.
+if (process.env.ARA_RHYTHM === '1') {
+  const MS = { dag: 24 * 60 * 60 * 1000, week: 7 * 24 * 60 * 60 * 1000, maand: 30 * 24 * 60 * 60 * 1000 };
+  const only = (process.env.ARA_RHYTHM_VENTURES ?? '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+  const stateFile = path.join(REPO, 'data', 'rhythm.json');
+
+  let last = {};
+  try {
+    last = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  } catch {
+    /* nog nooit gedraaid */
+  }
+
+  try {
+    // Het budget gaat vóór het ritme. Is het dagbudget op, dan komt er geen
+    // werk bij — anders is een druk etmaal precies het moment waarop het
+    // systeem zichzelf extra werk geeft.
+    if (await budgetExceeded()) {
+      log('ritme overgeslagen: dagbudget bereikt');
+    } else {
+      const org = await api('/org');
+      const open = await api('/tasks?status=open&limit=200').catch(() => ({ tasks: [] }));
+      const openTitles = new Set((open.tasks ?? []).map((t) => t.title));
+      const now = Date.now();
+      let placed = 0;
+
+      for (const venture of org.ventures ?? []) {
+        if (only.length > 0 && !only.includes(venture.id)) continue;
+        for (const duty of venture.playbook?.duties ?? []) {
+          const key = `${venture.id}:${duty.text}`;
+          const interval = MS[duty.every] ?? MS.week;
+          if (now - (last[key] ?? 0) < interval) continue;
+
+          // Staat dezelfde taak nog open, dan is hij niet af — en dan is een
+          // tweede exemplaar geen ritme maar een stapel.
+          const title = `${duty.every === 'dag' ? 'Dagelijks' : duty.every === 'week' ? 'Wekelijks' : 'Maandelijks'}: ${duty.text}`;
+          if (openTitles.has(title)) {
+            log(`ritme: "${title.slice(0, 50)}…" staat nog open, niet opnieuw`);
+            continue;
+          }
+
+          await api('/tasks', {
+            method: 'POST',
+            body: JSON.stringify({
+              title,
+              detail:
+                `Terugkerend werk uit het playbook van ${venture.label ?? venture.id} (${duty.every}).\n\n` +
+                `${duty.text}\n\n` +
+                'Lever een kort bordresultaat: wat je nagelopen hebt, wat eruit sprong, en wat er ' +
+                'niet te meten viel. Valt er niets te melden, zeg dan dát — een lege ronde is ook ' +
+                'een uitkomst. Kom je iets tegen dat boven je grens gaat, begin je antwoord met ESCALATE:.',
+              assignee: venture.manager ?? `manager:${venture.id}`,
+              status: 'open',
+            }),
+          });
+          last[key] = now;
+          placed += 1;
+          log(`ritme: "${title.slice(0, 60)}" → ${venture.manager ?? venture.id}`);
+        }
+      }
+
+      if (placed > 0) {
+        fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+        fs.writeFileSync(stateFile, `${JSON.stringify(last, null, 2)}\n`);
+        // Eén bericht per ronde, niet per taak: dertig losse pushjes leest
+        // niemand, en dan zet je de meldingen uit en mis je de echte.
+        await alertOnce(
+          `rhythm-${new Date().toISOString().slice(0, 13)}`,
+          6 * 60 * 60 * 1000,
+          `🗓️ ${placed} terugkerende ta(a)k(en) op het bord gezet`,
+        );
+      }
+      log(`ritme: ${placed} taak/taken geplaatst`);
+    }
+  } catch (error) {
+    log(`ritme fout: ${String(error).slice(0, 120)}`);
   }
 }
 

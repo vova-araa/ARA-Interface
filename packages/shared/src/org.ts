@@ -34,13 +34,29 @@ export interface DataSource {
   configured: boolean;
 }
 
+/** Hoe vaak iets terugkomt. Fijner dan dit hoeft niet: de watchdog kijkt elke
+ *  vijf minuten, maar werk dat vaker dan dagelijks terugkomt is geen ritme
+ *  meer maar een monitor, en die staat in monitors.json. */
+export type Cadence = 'dag' | 'week' | 'maand';
+
+export interface Duty {
+  every: Cadence;
+  text: string;
+}
+
 export interface Playbook {
   /** Naam van de manager in het kantoor, bv. "Manager Ritplanning". */
   managerName: string;
   /** Vaste rollen op de vloer, ook als er nu niemand draait. */
   specialists: Specialist[];
   /** Terugkerend werk van deze tak. */
-  duties: string[];
+  /**
+   * Terugkerend werk, elk met zijn ritme. De cadans hoort bij de taak en niet
+   * ergens anders: een taak zonder ritme staat er wel, maar gebeurt nooit — en
+   * dat was precies de situatie. Acht managers met een functieomschrijving en
+   * geen enkele taak op het bord.
+   */
+  duties: Duty[];
   /** Wat NOOIT zelfstandig mag — altijd ESCALATE. */
   escalate: string[];
   /** Validatie vóór "done" (naast de projectchecks). */
@@ -138,10 +154,10 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Ritten van vandaag en morgen nalopen op gaten en dubbelboekingen',
-      'ETA-afwijkingen en niet-gemelde vertragingen opsporen',
-      'Facturen naast de uitgevoerde ritten leggen: niet gefactureerd, dubbel, verkeerd tarief',
-      'Bij elke vertraging een concept klaarzetten voor chauffeur en klant',
+      { every: 'dag', text: 'Ritten van vandaag en morgen nalopen op gaten en dubbelboekingen' },
+      { every: 'dag', text: 'ETA-afwijkingen en niet-gemelde vertragingen opsporen' },
+      { every: 'week', text: 'Facturen naast de uitgevoerde ritten leggen: niet gefactureerd, dubbel, verkeerd tarief' },
+      { every: 'dag', text: 'Bij elke vertraging een concept klaarzetten voor chauffeur en klant' },
     ],
     escalate: [
       'Databasemigraties op productie',
@@ -170,10 +186,10 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Wettelijke termijnen per voertuig en chauffeur bewaken — verlopen, 14, 30 en 60 dagen',
-      'Onderhoudsinterval tegen de kilometerstand houden en garagepunten volgen tot afmelding',
-      'Kosten per kilometer per voertuig volgen en uitschieters markeren',
-      'Beschikbaarheid van trailers bewaken: tekorten, stilstand en scheefstand tussen locaties',
+      { every: 'dag', text: 'Wettelijke termijnen per voertuig en chauffeur bewaken — verlopen, 14, 30 en 60 dagen' },
+      { every: 'week', text: 'Onderhoudsinterval tegen de kilometerstand houden en garagepunten volgen tot afmelding' },
+      { every: 'week', text: 'Kosten per kilometer per voertuig volgen en uitschieters markeren' },
+      { every: 'dag', text: 'Beschikbaarheid van trailers bewaken: tekorten, stilstand en scheefstand tussen locaties' },
     ],
     escalate: [
       'Schrijfacties op de productie-database',
@@ -205,11 +221,11 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Openstaande posities en risico aflezen uit wat de bot zelf wegschrijft',
-      'Blootstelling, drawdown en posities zonder stop toetsen aan de limieten',
-      'Elke afgesloten trade in het journaal zetten en periodiek evalueren',
-      'De agenda voor de komende dagen nalopen op events die XAU/USD raken',
-      'Afwijkingen tussen backtest en live signaleren; logging en storingen bewaken',
+      { every: 'dag', text: 'Openstaande posities en risico aflezen uit wat de bot zelf wegschrijft' },
+      { every: 'dag', text: 'Blootstelling, drawdown en posities zonder stop toetsen aan de limieten' },
+      { every: 'week', text: 'Elke afgesloten trade in het journaal zetten en periodiek evalueren' },
+      { every: 'week', text: 'De agenda voor de komende dagen nalopen op events die XAU/USD raken' },
+      { every: 'week', text: 'Afwijkingen tussen backtest en live signaleren; logging en storingen bewaken' },
     ],
     escalate: [
       'ELKE wijziging aan orderlogica, positiegrootte of stops',
@@ -246,12 +262,12 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Bewaakte munten volgen op de afgesproken niveaus',
-      'Concentratie per munt en per sector toetsen aan de streefverdeling',
-      'Elke nieuwe munt langs de veiligheidscheck vóór hij op de volglijst komt',
-      'Volgen waar de aandacht heen gaat per sector, en wat juist uit beeld raakt',
-      'On-chain signalen, unlocks en listings bij de portefeuille zoeken',
-      'Setups documenteren met ingang, stop en doel — als voorstel, niet als order',
+      { every: 'dag', text: 'Bewaakte munten volgen op de afgesproken niveaus' },
+      { every: 'week', text: 'Concentratie per munt en per sector toetsen aan de streefverdeling' },
+      { every: 'week', text: 'Elke nieuwe munt langs de veiligheidscheck vóór hij op de volglijst komt' },
+      { every: 'week', text: 'Volgen waar de aandacht heen gaat per sector, en wat juist uit beeld raakt' },
+      { every: 'dag', text: 'On-chain signalen, unlocks en listings bij de portefeuille zoeken' },
+      { every: 'week', text: 'Setups documenteren met ingang, stop en doel — als voorstel, niet als order' },
     ],
     escalate: [
       'ELKE wijziging aan orderlogica of positiegrootte',
@@ -288,9 +304,9 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Lopende campagnes en deliverables bijhouden',
-      'Assets consistent houden met de huisstijl van de klant',
-      'Klantsites periodiek nalopen op gebroken links, trage pagina\'s en SEO-gebreken',
+      { every: 'week', text: 'Lopende campagnes en deliverables bijhouden' },
+      { every: 'week', text: 'Assets consistent houden met de huisstijl van de klant' },
+      { every: 'week', text: 'Klantsites periodiek nalopen op gebroken links, trage pagina\'s en SEO-gebreken' },
     ],
     escalate: [
       'Publiceren naar productie van een klant, of naar een kanaal, mail of advertentie',
@@ -318,10 +334,10 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Aanvragen volgen: niets langer dan 24 uur onbeantwoord',
-      'Agenda bewaken op dubbele boekingen en op verkoopbare gaten',
-      'Site en boekingsflow werkend houden, boekingsflow altijd eerst op staging',
-      'Audio-tooling onderhouden',
+      { every: 'dag', text: 'Aanvragen volgen: niets langer dan 24 uur onbeantwoord' },
+      { every: 'dag', text: 'Agenda bewaken op dubbele boekingen en op verkoopbare gaten' },
+      { every: 'week', text: 'Site en boekingsflow werkend houden, boekingsflow altijd eerst op staging' },
+      { every: 'maand', text: 'Audio-tooling onderhouden' },
     ],
     escalate: [
       'Productie-deploy van de boekingsflow zelf',
@@ -349,10 +365,10 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Releaseplanning bijhouden en het pakket compleet maken tot aan de knop',
-      'Metadata driemaal controleren: credits, schrijvers, ISRC, releasedatum',
-      'Site en streaminglinks actueel houden, zeker rond een releasedatum',
-      'Promotiekanalen volgen en materiaal als concept klaarzetten',
+      { every: 'week', text: 'Releaseplanning bijhouden en het pakket compleet maken tot aan de knop' },
+      { every: 'week', text: 'Metadata driemaal controleren: credits, schrijvers, ISRC, releasedatum' },
+      { every: 'week', text: 'Site en streaminglinks actueel houden, zeker rond een releasedatum' },
+      { every: 'week', text: 'Promotiekanalen volgen en materiaal als concept klaarzetten' },
     ],
     escalate: [
       'Een release daadwerkelijk uitbrengen bij een distributeur of platform',
@@ -380,11 +396,11 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'These per positie actueel houden en het breekpunt expliciet benoemen',
-      'Kwartaalagenda en dividenddata van portefeuille en volglijst bijhouden',
-      'Weging per naam en per sector toetsen aan de streefverdeling',
-      'Voorstellen indienen via de risicomotor — nooit daarbuiten om',
-      'Elke aan- en verkoop in het journaal zetten met de these die eronder lag',
+      { every: 'week', text: 'These per positie actueel houden en het breekpunt expliciet benoemen' },
+      { every: 'week', text: 'Kwartaalagenda en dividenddata van portefeuille en volglijst bijhouden' },
+      { every: 'week', text: 'Weging per naam en per sector toetsen aan de streefverdeling' },
+      { every: 'week', text: 'Voorstellen indienen via de risicomotor — nooit daarbuiten om' },
+      { every: 'week', text: 'Elke aan- en verkoop in het journaal zetten met de these die eronder lag' },
     ],
     escalate: [
       'ELKE order buiten de risicomotor om',
@@ -412,8 +428,8 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       reporter,
     ],
     duties: [
-      'Openstaande bordtaken van deze tak afwerken',
-      'Periodiek nalopen op uitgelekte secrets en kwetsbare dependencies',
+      { every: 'dag', text: 'Openstaande bordtaken van deze tak afwerken' },
+      { every: 'maand', text: 'Periodiek nalopen op uitgelekte secrets en kwetsbare dependencies' },
     ],
     escalate: ['Alles wat naar buiten gaat, geld kost of onomkeerbaar is'],
     checks: ['de checks die het project zelf definieert'],
@@ -456,7 +472,7 @@ export function playbookPrompt(playbook: Playbook): string {
     `Vaste rollen op jouw vloer: ${playbook.specialists
       .map((s) => `${s.name} (${s.agent}${s.model === 'haiku' ? ', haiku' : ''}) — ${s.does}`)
       .join('; ')}.`,
-    `Terugkerend werk: ${playbook.duties.join('; ')}.`,
+    `Terugkerend werk: ${playbook.duties.map((d) => `${d.text} (${d.every})`).join('; ')}.`,
     `ALTIJD escaleren (taak failed met "ESCALATE: …"): ${playbook.escalate.join('; ')}.`,
     `Valideer vóór done: ${playbook.checks.join(', ')}.`,
   ];

@@ -396,7 +396,9 @@ export function OfficeOverlay(): JSX.Element | null {
                   <h4 className="office-sub-head">Terugkerend werk</h4>
                   <ul className="office-bullets">
                     {office.playbook.duties.map((d) => (
-                      <li key={d}>{d}</li>
+                      <li key={d.text}>
+                        {d.text} <span className="office-cadence">{d.every}</span>
+                      </li>
                     ))}
                   </ul>
 

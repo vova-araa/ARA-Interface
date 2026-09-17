@@ -44,7 +44,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 63 unit tests (shared 23 + collector 40) + de viewer-smoke
+pnpm test                    # 64 unit tests (shared 23 + collector 41) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 5 smoke-flows (desktop, iPhone, kantoor, acties)
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -196,6 +196,12 @@ Container/CI-bijzonderheden:
   is fast-forward-only, blijft van ongecommit werk af, herstart niet na een mislukte build,
   en meldt elke update via Telegram. Een verwerkt inbox-bestand komt nooit twee keer op het
   bord (vingerafdruk op de inhoud in `data/inbox-seen.json`).
+- **Terugkerend werk heeft een ritme, anders gebeurt het nooit.** Elke `duty` in het
+  playbook draagt zijn cadans (`dag` | `week` | `maand`); de watchdog zet hem op het bord
+  zodra hij aan de beurt is, met de cadans in de titel. `ARA_RHYTHM=1` zet het aan
+  (**standaard uit** — dit geeft uit zichzelf tokens uit), `ARA_RHYTHM_VENTURES=blex,traject`
+  beperkt het tot een paar takken. Het dagbudget gaat vóór het ritme, en een taak die nog
+  open staat krijgt nooit een tweede exemplaar (`data/rhythm.json`).
 
 ## Testen vóór elke push
 

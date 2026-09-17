@@ -610,6 +610,20 @@ html, body, #root {
 .office-bullets { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
 .office-bullets li { margin-bottom: 3px; }
 .office-bullets-warn li { color: #ffce7a; }
+/* Het ritme achter een taak. Klein en terzijde: het is de voetnoot bij het
+   werk, niet het werk zelf — maar het moet er staan, want een taak zonder
+   ritme is een taak die nooit gebeurt. */
+.office-cadence {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0 4px;
+  margin-left: 4px;
+  white-space: nowrap;
+}
 .office-bullet-open { color: #ffce7a; }
 
 /* Actielijst: wat op jou wacht, met de knop erbij. */

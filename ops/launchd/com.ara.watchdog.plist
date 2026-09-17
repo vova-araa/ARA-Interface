@@ -27,6 +27,10 @@
     <string>__AUTO_UPDATE__</string>
     <key>ARA_INBOX</key>
     <string>__INBOX__</string>
+    <key>ARA_RHYTHM</key>
+    <string>__RHYTHM__</string>
+    <key>ARA_RHYTHM_VENTURES</key>
+    <string>__RHYTHM_VENTURES__</string>
   </dict>
   <key>StartInterval</key>
   <integer>300</integer>

@@ -13,3 +13,4 @@ data/*.db-shm
 test-results/
 playwright-report/
 data/inbox-seen.json
+data/rhythm.json
