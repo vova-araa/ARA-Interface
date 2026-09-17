@@ -15,6 +15,10 @@
  * 6. needsHuman → Telegram (dedupe op sessie + inhoud).
  * 6b. Maandag: het handelsrapport van de afgelopen week (0 tokens).
  * 7. Eén keer per dag een levensteken, zodat stilte zélf het alarm is.
+ * 8. Auto-update: nieuwe commits op de eigen branch ophalen, bouwen, herstarten.
+ * 9. Inbox: taken die via git binnenkwamen op het bord zetten.
+ *    8 en 9 staan standaard uit — ze voeren werk uit dat niet vanaf deze Mac
+ *    gestart is, en dat hoort een bewuste keuze te zijn.
  *
  * Rem op kosten: elke spawn telt mee. Blijft dezelfde situatie na twee
  * pogingen open, dan stopt het spawnen en wordt de mens gevraagd. Is het
@@ -22,7 +26,8 @@
  *
  * Env: ARA_COLLECTOR_URL, ARA_TOKEN, ARA_REPO, ARA_LOCK_DIR,
  *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
- *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen).
+ *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen),
+ *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan).
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -765,6 +770,160 @@ if (process.env.ARA_DAILY_PING !== '0') {
     } catch (error) {
       log(`levensteken overgeslagen: ${String(error).slice(0, 80)}`);
     }
+  }
+}
+
+// ── 8. Auto-update: mijn eigen code bijwerken ────────────────────────────
+// Standaard uit. Aan betekent: wat er op de branch gepusht wordt, draait hier
+// binnen vijf minuten. Dat is prettig en het is gevaarlijk, dus elke stap
+// hieronder mag afhaken zonder iets kapot te maken.
+if (process.env.ARA_AUTO_UPDATE === '1') {
+  try {
+    const git = (...args) =>
+      execFileSync('git', args, { cwd: REPO, encoding: 'utf8', timeout: 60_000 }).trim();
+    // `git merge-base --is-ancestor` antwoordt met zijn exitcode, en
+    // execFileSync gooit bij alles wat niet 0 is. Zonder deze wikkel valt het
+    // gewone "nee" in de algemene catch en lijkt een herschreven branch op een
+    // storing.
+    const isAncestor = (a, b) => {
+      try {
+        git('merge-base', '--is-ancestor', a, b);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    // Ongecommit werk is werk van een mens. Daar blijven we vanaf — een
+    // fast-forward die het zou wegduwen weigert git terecht, maar dan staan we
+    // met een halve toestand; liever helemaal niet beginnen.
+    const dirty = git('status', '--porcelain');
+    if (dirty) {
+      log(`auto-update overgeslagen: ${dirty.split('\n').length} bestand(en) ongecommit`);
+    } else {
+      const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+      git('fetch', 'origin', branch);
+      const before = git('rev-parse', 'HEAD');
+      const remote = git('rev-parse', `origin/${branch}`);
+      if (before === remote) {
+        log('auto-update: al bij');
+      } else if (isAncestor(before, remote)) {
+        // Zit HEAD niet in de remote-historie, dan is de branch herschreven.
+        // Stilletjes meebewegen is dan precies het verkeerde: dat hoort een
+        // mens te zien, niet een watchdog op te lossen.
+        const log_lines = git('log', '--oneline', `${before}..${remote}`);
+        git('merge', '--ff-only', `origin/${branch}`);
+        log(`auto-update: ${before.slice(0, 7)} → ${remote.slice(0, 7)}`);
+
+        let ok = true;
+        try {
+          execFileSync('pnpm', ['install', '--silent'], { cwd: REPO, timeout: 10 * 60_000 });
+          execFileSync('pnpm', ['--filter', '@ara/viewer', 'build'], { cwd: REPO, timeout: 10 * 60_000 });
+        } catch (error) {
+          ok = false;
+          log(`auto-update: build mislukt, niet herstart — ${String(error).slice(0, 120)}`);
+          await alertOnce(
+            `autoupdate-fail-${remote.slice(0, 7)}`,
+            6 * 60 * 60 * 1000,
+            `🔴 ARA auto-update: build mislukt op ${remote.slice(0, 7)}\nDe draaiende versie is niet vervangen. Kijk in ~/Library/Logs/ara-world/`,
+          );
+        }
+        // Alleen herstarten na een geslaagde build: een kapotte build vervangen
+        // door een kapotte dienst maakt het erger, niet zichtbaarder.
+        if (ok) {
+          kickstart('com.ara.collector');
+          await alertOnce(
+            `autoupdate-${remote.slice(0, 7)}`,
+            6 * 60 * 60 * 1000,
+            `🔄 ARA bijgewerkt naar ${remote.slice(0, 7)}\n${log_lines.slice(0, 600)}`,
+          );
+        }
+      } else {
+        log('auto-update overgeslagen: branch is herschreven, fast-forward kan niet');
+        await alertOnce(
+          'autoupdate-diverged',
+          12 * 60 * 60 * 1000,
+          '⚠️ ARA auto-update kan niet: de branch is herschreven. Los het met de hand op.',
+        );
+      }
+    }
+  } catch (error) {
+    log(`auto-update fout: ${String(error).slice(0, 120)}`);
+  }
+}
+
+// ── 9. Inbox: taken die via git binnenkwamen ─────────────────────────────
+// Ook standaard uit. Zie ops/inbox/README.md voor de vorm.
+if (process.env.ARA_INBOX === '1') {
+  const inboxDir = path.join(REPO, 'ops', 'inbox');
+  const seenFile = path.join(REPO, 'data', 'inbox-seen.json');
+  let seen = {};
+  try {
+    seen = JSON.parse(fs.readFileSync(seenFile, 'utf8'));
+  } catch {
+    /* nog nooit iets verwerkt */
+  }
+
+  let files = [];
+  try {
+    files = fs.readdirSync(inboxDir).filter((f) => f.endsWith('.md') && f !== 'README.md');
+  } catch {
+    /* geen inbox-map: prima */
+  }
+
+  for (const file of files.sort()) {
+    const full = path.join(inboxDir, file);
+    let raw = '';
+    try {
+      raw = fs.readFileSync(full, 'utf8');
+    } catch {
+      continue;
+    }
+    // Op de inhoud, niet op de naam: een hernoemd bestand met dezelfde tekst
+    // is hetzelfde werk, en een gewijzigd bestand is nieuw werk.
+    const fingerprint = shortHash(raw);
+    if (seen[file] === fingerprint) continue;
+
+    const front = /^---\n([\s\S]*?)\n---\n?/.exec(raw);
+    const meta = {};
+    if (front) {
+      for (const line of front[1].split('\n')) {
+        const m = /^(\w+):\s*(.+)$/.exec(line.trim());
+        if (m) meta[m[1]] = m[2].trim();
+      }
+    }
+    const body = (front ? raw.slice(front[0].length) : raw).trim();
+    const title = meta.title ?? file.replace(/\.md$/, '');
+
+    try {
+      await api('/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          title,
+          detail: body,
+          assignee: meta.assignee ?? 'supervisor',
+          project: meta.project ?? '',
+          status: 'open',
+        }),
+      });
+      seen[file] = fingerprint;
+      log(`inbox: "${title}" op het bord voor ${meta.assignee ?? 'supervisor'}`);
+      // Werk dat vanzelf begint hoort niet ongezien te beginnen.
+      await alertOnce(
+        `inbox-${fingerprint}`,
+        24 * 60 * 60 * 1000,
+        `📥 Nieuwe taak van buiten: ${title}\nVoor: ${meta.assignee ?? 'supervisor'}`,
+      );
+    } catch (error) {
+      log(`inbox "${file}" mislukt: ${String(error).slice(0, 80)}`);
+    }
+  }
+
+  try {
+    fs.mkdirSync(path.dirname(seenFile), { recursive: true });
+    fs.writeFileSync(seenFile, `${JSON.stringify(seen, null, 2)}\n`);
+  } catch (error) {
+    log(`inbox-geheugen niet opgeslagen: ${String(error).slice(0, 80)}`);
   }
 }
 

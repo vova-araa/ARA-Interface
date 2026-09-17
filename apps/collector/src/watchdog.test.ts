@@ -104,3 +104,72 @@ test('watchdog stopt met spawnen na twee vruchteloze pogingen', async () => {
     store.close();
   }
 });
+
+test('inbox: een taak uit git komt op het bord, precies één keer', async () => {
+  const store = openStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-')), 'test.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+  // Een eigen repo-map: de echte ops/inbox van deze repo mag een test nooit
+  // aanraken, en data/inbox-seen.json ook niet.
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-repo-'));
+  fs.mkdirSync(path.join(repo, 'ops', 'inbox'), { recursive: true });
+  fs.writeFileSync(
+    path.join(repo, 'ops', 'inbox', 'taak.md'),
+    '---\ntitle: Controleer de bandenspanning\nassignee: manager:blex\nproject: truck-trailers\n---\n\nLoop de vloot langs en meld wat eruit springt.\n',
+  );
+
+  const run = (env: Record<string, string>): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const child = spawn('node', [path.join(REPO, 'scripts', 'watchdog.mjs')], {
+        env: {
+          ...process.env,
+          ARA_COLLECTOR_URL: base,
+          ARA_LOCK_DIR: lockDir,
+          ARA_REPO: repo,
+          ARA_WATCHDOG_NO_SPAWN: '1',
+          ARA_NOTIFY_DRYRUN: '1',
+          ARA_TELEGRAM_BOT_TOKEN: 'test',
+          ARA_TELEGRAM_CHAT_ID: 'test',
+          ARA_DAILY_PING: '0',
+          ...env,
+        },
+      });
+      let out = '';
+      child.stdout.on('data', (chunk) => (out += String(chunk)));
+      child.stderr.on('data', (chunk) => (out += String(chunk)));
+      child.on('error', reject);
+      child.on('close', () => resolve(out));
+    });
+
+  try {
+    // Zonder de schakelaar gebeurt er niets. Werk dat op een machine van de
+    // eigenaar draait mag nooit vanzelf beginnen omdat er een bestand verscheen.
+    await run({});
+    assert.equal(
+      store.listTasks({ status: 'open', limit: 10 }).length,
+      0,
+      'zonder ARA_INBOX=1 blijft de inbox ongelezen',
+    );
+
+    await run({ ARA_INBOX: '1' });
+    const open = store.listTasks({ status: 'open', limit: 10 });
+    assert.equal(open.length, 1);
+    assert.equal(open[0]!.title, 'Controleer de bandenspanning');
+    assert.equal(open[0]!.assignee, 'manager:blex', 'de frontmatter bepaalt wie het krijgt');
+    assert.match(open[0]!.detail, /bandenspanning|vloot/i, 'de opdracht zelf staat erbij');
+
+    // Tweede ronde: hetzelfde bestand mag het bord niet nog eens vullen, anders
+    // groeit één taak elke vijf minuten aan.
+    await run({ ARA_INBOX: '1' });
+    assert.equal(
+      store.listTasks({ status: 'open', limit: 10 }).length,
+      1,
+      'een verwerkt inbox-bestand komt niet nog eens op het bord',
+    );
+  } finally {
+    server.close();
+    store.close();
+  }
+});

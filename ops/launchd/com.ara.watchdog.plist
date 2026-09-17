@@ -21,6 +21,12 @@
     <string>__TG_TOKEN__</string>
     <key>ARA_TELEGRAM_CHAT_ID</key>
     <string>__TG_CHAT__</string>
+    <!-- Beide standaard leeg = uit. Ze laten werk draaien dat niet vanaf deze
+         Mac gestart is, dus de eigenaar zet ze zelf op 1 wanneer hij dat wil. -->
+    <key>ARA_AUTO_UPDATE</key>
+    <string>__AUTO_UPDATE__</string>
+    <key>ARA_INBOX</key>
+    <string>__INBOX__</string>
   </dict>
   <key>StartInterval</key>
   <integer>300</integer>

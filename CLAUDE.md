@@ -44,10 +44,11 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 36 unit tests (shared + collector, node:test via tsx)
-pnpm --filter @ara/viewer exec playwright test   # 4 smoke-flows (desktop, iPhone, kantoor)
+pnpm test                    # 63 unit tests (shared 23 + collector 40) + de viewer-smoke
+pnpm --filter @ara/viewer exec playwright test   # 5 smoke-flows (desktop, iPhone, kantoor, acties)
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
-#   anders test je een oude build (CI bouwt wél eerst).
+#   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
+#   collector op :4757 met een wegwerp-ARA_DATA_DIR; :4747 blijft onaangeroerd.
 pnpm fixture                 # demo-events in de db laden
 pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
@@ -188,6 +189,13 @@ Container/CI-bijzonderheden:
   bordresultaten; dagbudget in `org.json` (`tokenBudgetDaily`).
 - `watchdog.mjs` draait via launchd elke 5 min met 0 LLM-tokens; spawnt alléén agents
   bij incidenten of geplande taken. Niet ombouwen naar iets dat continu LLM-calls doet.
+- **Werk van buiten de Mac** loopt via git, want dat is de enige verbinding die er altijd is:
+  een `.md` in `ops/inbox/` wordt een bordtaak (frontmatter `title`/`assignee`/`project`),
+  en `ARA_AUTO_UPDATE=1` laat de watchdog nieuwe commits zelf ophalen, bouwen en herstarten.
+  **Beide standaard uit** — ze draaien werk dat niet vanaf deze Mac gestart is. Auto-update
+  is fast-forward-only, blijft van ongecommit werk af, herstart niet na een mislukte build,
+  en meldt elke update via Telegram. Een verwerkt inbox-bestand komt nooit twee keer op het
+  bord (vingerafdruk op de inhoud in `data/inbox-seen.json`).
 
 ## Testen vóór elke push
 
