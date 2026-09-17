@@ -16,16 +16,76 @@ const DISTRICT_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#ffffff', 
 });
 
 const TUFF_PINK = new THREE.Color('#e2a49a'); // Yerevan tuff
-const TUFF_DARK = new THREE.Color('#c98d84');
+const TUFF_DARK = new THREE.Color('#b87c73');
+const TUFF_PALE = new THREE.Color('#f0c4b4'); // uitgebleekt, waar de zon staat
+const STEPPE = new THREE.Color('#a8a06a'); // droog gras op de hoogvlakte
+const BASALT = new THREE.Color('#8a7268'); // kale rots
 const SEVAN_BLUE = new THREE.Color('#2e9cc7');
+const SEVAN_SHALLOW = new THREE.Color('#57c6d8');
 
 const LAKE_CENTER = { q: -2, r: 10 };
 const LAKE_RADIUS = 2;
 
 interface Tiles {
-  base: { pos: [number, number, number]; color: THREE.Color }[];
+  /** `lift` is de hoogte van deze tegel; zonder dat is de grond een badmat. */
+  base: { pos: [number, number, number]; color: THREE.Color; lift: number }[];
   district: { pos: [number, number, number]; color: THREE.Color; borderColor: THREE.Color }[];
-  water: { pos: [number, number, number] }[];
+  water: { pos: [number, number, number]; color: THREE.Color }[];
+}
+
+/**
+ * Waardenruis over een grover raster dan de tegels zelf, met smoothstep tussen
+ * de roosterpunten. Dat is het hele verschil tussen landschap en puin: een
+ * hash per tegel geeft buren die niets met elkaar te maken hebben, dus een
+ * veld losse zuilen. Hier hangt een tegel samen met zijn omgeving, en dan
+ * ontstaan er glooiingen.
+ *
+ * Deterministisch — dezelfde wereld ziet er op elke machine hetzelfde uit, en
+ * een screenshot van gisteren blijft vergelijkbaar met die van vandaag.
+ */
+function valueNoise(q: number, r: number, scale: number): number {
+  const at = (cq: number, cr: number): number => (stableHash(`terr:${cq}:${cr}`) % 1000) / 1000;
+  const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
+  const ease = (t: number): number => t * t * (3 - 2 * t);
+  const fq = q / scale;
+  const fr = r / scale;
+  const q0 = Math.floor(fq);
+  const r0 = Math.floor(fr);
+  const tq = ease(fq - q0);
+  const tr = ease(fr - r0);
+  return mix(
+    mix(at(q0, r0), at(q0 + 1, r0), tq),
+    mix(at(q0, r0 + 1), at(q0 + 1, r0 + 1), tq),
+    tr,
+  );
+}
+
+/**
+ * Hoogte uit samenhangende ruis, gesteente uit een eigen hash. Die twee apart
+ * houden is met opzet: één bron voor beide koppelt kleur aan hoogte en dan
+ * krijg je banden in plaats van vlekken.
+ */
+function terrainAt(hex: { q: number; r: number }, key: string, distance: number): {
+  lift: number;
+  color: THREE.Color;
+} {
+  // Twee octaven: de grove geeft de glooiing, de fijne haalt het vlakke eraf.
+  const height = valueNoise(hex.q, hex.r, 5) * 0.72 + valueNoise(hex.q, hex.r, 2) * 0.28;
+  const rock = (stableHash(`${key}:rock`) % 1000) / 1000;
+
+  // Naar de rand toe loopt het op: de hoogvlakte rond Yerevan. Dat houdt het
+  // oog ook binnen de wereld in plaats van er overheen te laten glijden.
+  const rim = Math.pow(distance / 13, 2.4);
+  const lift = -0.04 + height * 0.5 + rim * 1.1;
+
+  // Hoger is kaler. Geen regel, maar zo leest het: bleke tuff in de laagte,
+  // steppe halverwege, basalt op de hoogten.
+  const color = TUFF_PINK.clone().lerp(TUFF_DARK, 0.15 + height * 0.55);
+  if (rock > 0.86) color.lerp(BASALT, 0.45);
+  else if (rock > 0.64) color.lerp(STEPPE, 0.22 + rock * 0.18);
+  else if (rock < 0.16) color.lerp(TUFF_PALE, 0.45);
+  color.lerp(BASALT, Math.min(0.45, rim * 0.6));
+  return { lift, color };
 }
 
 function computeTiles(world: WorldConfig | null): Tiles {
@@ -57,20 +117,32 @@ function computeTiles(world: WorldConfig | null): Tiles {
     const key = axialKey(hex);
     const { x, z } = axialToWorld(hex);
     if (lake.has(key)) {
-      tiles.water.push({ pos: [x * HEX_SPACING, 0, z * HEX_SPACING] });
+      // Ondiep bij de oever, diep in het midden: één vlakke kleur leest als
+      // een sticker, een verloop leest als water.
+      const toEdge = Math.max(
+        Math.abs(hex.q - LAKE_CENTER.q),
+        Math.abs(hex.r - LAKE_CENTER.r),
+        Math.abs(hex.q + hex.r - LAKE_CENTER.q - LAKE_CENTER.r),
+      );
+      tiles.water.push({
+        pos: [x * HEX_SPACING, 0, z * HEX_SPACING],
+        color: SEVAN_BLUE.clone().lerp(SEVAN_SHALLOW, toEdge / Math.max(1, LAKE_RADIUS)),
+      });
       continue;
     }
     if (claimed.has(key)) continue;
-    const noise = (stableHash(key) % 100) / 100;
-    tiles.base.push({
-      pos: [x * HEX_SPACING, 0, z * HEX_SPACING],
-      // Basisgrond iets donkerder zodat de verhoogde platforms poppen.
-      color: TUFF_PINK.clone().lerp(TUFF_DARK, 0.35 + noise * 0.5),
-    });
+    const distance = Math.max(Math.abs(hex.q), Math.abs(hex.r), Math.abs(hex.q + hex.r));
+    const { lift, color } = terrainAt(hex, key, distance);
+    tiles.base.push({ pos: [x * HEX_SPACING, lift, z * HEX_SPACING], color, lift });
   }
   return tiles;
 }
 
+/**
+ * `y` is de basishoogte; een tegel die zelf een hoogte meebrengt (pos[1]) telt
+ * die erbij op. Zo blijven de platte lagen platte lagen en krijgt alleen het
+ * terrein zijn reliëf.
+ */
 function useInstances(
   items: { pos: [number, number, number]; color?: THREE.Color }[],
   y: number,
@@ -81,7 +153,7 @@ function useInstances(
     const matrix = new THREE.Matrix4();
     items.forEach((item, i) => {
       matrix.makeScale(1, scaleY, 1);
-      matrix.setPosition(item.pos[0], y, item.pos[2]);
+      matrix.setPosition(item.pos[0], y + item.pos[1], item.pos[2]);
       mesh.setMatrixAt(i, matrix);
       if (item.color) mesh.setColorAt(i, item.color);
     });
@@ -112,11 +184,15 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
       <instancedMesh
         key={`base-${tiles.base.length}`}
         args={[undefined, undefined, Math.max(1, tiles.base.length)]}
-        ref={useInstances(tiles.base, -0.08)}
+        // Het prisma is bewust veel te hoog (2.4) en hangt ver onder de wereld.
+        // Een tegel die omhoog komt mag geen gat onder zich laten zien, en een
+        // hoge zuil kost niets extra: het is dezelfde instance.
+        ref={useInstances(tiles.base, -1.05)}
         receiveShadow
+        castShadow
         material={BASE_MAT}
       >
-        <cylinderGeometry args={[0.98, 0.98, 0.46, 6]} />
+        <cylinderGeometry args={[0.98, 0.98, 2.4, 6]} />
       </instancedMesh>
 
       {/* Districten als dikke verhoogde platforms (referentie-look) */}

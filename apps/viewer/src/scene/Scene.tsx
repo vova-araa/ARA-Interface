@@ -324,7 +324,10 @@ export function Scene(): JSX.Element {
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
           <HueSaturation saturation={0.14} />
           <BrightnessContrast brightness={0.03} contrast={0.07} />
-          <TiltShift2 blur={0.12} />
+          {/* Was 0.12: dat vervaagde op een groot scherm de hele buitenrand tot
+              pap — precies wat er als "wazig" uitziet. Een diorama heeft een
+              vleugje scherptediepte nodig, geen waas. */}
+          <TiltShift2 blur={0.035} />
           <ChromaticAberration offset={CHROMATIC_OFFSET} radialModulation={false} modulationOffset={0} />
           <Vignette eskil={false} offset={0.22} darkness={0.5} />
           <Noise premultiply opacity={0.06} />
