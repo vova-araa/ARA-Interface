@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { openStore } from './db.ts';
 import { createCollector } from './server.ts';
+import { loadProjects } from './projects.ts';
 
 function tempDb(): string {
   return path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-test-')), 'test.db');
@@ -84,4 +85,29 @@ test('subagent lifecycle tracked on session', () => {
   agent = state.snapshot().sessions['s5']!.agents['ag1']!;
   assert.equal(agent.stopped, true);
   store.close();
+});
+
+// ── projects.json ────────────────────────────────────────────────────────
+test('projects.json: localPath en gitRemote tellen als path en repo', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-proj-'));
+  const file = path.join(dir, 'projects.json');
+  fs.writeFileSync(
+    file,
+    JSON.stringify({
+      projects: [
+        // Zoals de dev-project-manager-skill het schrijft.
+        { name: 'sharzi-tms', localPath: '/Users/x/code/sharzi', gitRemote: 'git@github.com:x/sharzi.git', notes: 'n' },
+        // Zoals een handgeschreven lijst het schrijft.
+        { name: 'vovara-site', path: '/Users/x/code/vovara', repo: 'x/vovara' },
+      ],
+    }),
+  );
+
+  const parsed = loadProjects(file);
+  assert.equal(parsed.length, 2);
+  // Zonder deze aliassen blijft de Gemeten-tab overal leeg zonder foutmelding.
+  assert.equal(parsed[0]!.path, '/Users/x/code/sharzi');
+  assert.equal(parsed[0]!.repo, 'git@github.com:x/sharzi.git');
+  assert.equal(parsed[1]!.path, '/Users/x/code/vovara');
+  assert.equal(parsed[1]!.repo, 'x/vovara');
 });

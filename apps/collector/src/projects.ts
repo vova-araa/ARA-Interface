@@ -20,9 +20,9 @@ export const DEMO_PROJECTS: ProjectEntry[] = [
   { name: 'vovara-site' },
 ];
 
-export function loadProjects(): ProjectEntry[] {
+export function loadProjects(file: string = PROJECTS_JSON_PATH): ProjectEntry[] {
   try {
-    const raw = JSON.parse(fs.readFileSync(PROJECTS_JSON_PATH, 'utf8')) as unknown;
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
     const list: unknown[] = Array.isArray(raw)
       ? raw
       : Array.isArray((raw as { projects?: unknown[] }).projects)
@@ -35,10 +35,15 @@ export function loadProjects(): ProjectEntry[] {
           const e = entry as Record<string, unknown>;
           const name = (e.name ?? e.repo ?? e.id) as string | undefined;
           if (!name) return null;
+          // De dev-project-manager-skill schrijft `localPath` en `gitRemote`;
+          // eerdere handgeschreven lijsten `path` en `repo`. Beide accepteren,
+          // anders blijft de Gemeten-tab leeg zonder dat iets kapot lijkt.
+          const repo = e.repo ?? e.gitRemote ?? e.git;
+          const dir = e.path ?? e.localPath;
           return {
             name: String(name),
-            repo: e.repo ? String(e.repo) : undefined,
-            path: e.path ? String(e.path) : undefined,
+            repo: repo ? String(repo) : undefined,
+            path: dir ? String(dir) : undefined,
             venture: e.venture ? String(e.venture) : undefined,
           };
         }
