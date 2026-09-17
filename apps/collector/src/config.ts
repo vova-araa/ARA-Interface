@@ -55,7 +55,15 @@ function findProjectsJson(): string {
   return found[0]?.file ?? direct;
 }
 
-export const PROJECTS_JSON_PATH = process.env.ARA_PROJECTS_JSON ?? findProjectsJson();
+/**
+ * Bij gebruik bepaald, niet bij het laden van de module: anders ligt het pad
+ * vast op het moment dat iets anders deze module toevallig als eerste
+ * importeerde, en verandert een gezette ARA_PROJECTS_JSON niets meer. Diezelfde
+ * les staat in trading.ts — een testopstelling die het pad zet is precies het
+ * geval waarin het misgaat.
+ */
+export const projectsJsonPath = (): string =>
+  process.env.ARA_PROJECTS_JSON ?? findProjectsJson();
 
 export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7-day ring buffer
 

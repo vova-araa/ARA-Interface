@@ -11,6 +11,16 @@ process.env.ARA_WORLD_CONFIG = path.join(
   fs.mkdtempSync(path.join(os.tmpdir(), 'ara-worldcfg-')),
   'world.config.json',
 );
+// Idem voor de projectlijst. Zonder dit leest de collector de echte
+// projects.json van de machine waarop de test draait, en hangt de uitkomst van
+// /org en /office af van wat daar toevallig in staat — op de Mac van de een
+// groen, bij de ander rood. Een leeg bestand laat de demo-projecten staan, en
+// díé zijn wel vast.
+process.env.ARA_PROJECTS_JSON = path.join(
+  fs.mkdtempSync(path.join(os.tmpdir(), 'ara-projects-')),
+  'projects.json',
+);
+
 const { openStore } = await import('./db.ts');
 const { createCollector } = await import('./server.ts');
 

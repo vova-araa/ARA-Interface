@@ -28,7 +28,7 @@ import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projec
 import { projectPulse } from './pulse.ts';
 import * as trading from './trading.ts';
 import { buildActions } from './actions.ts';
-import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, PROJECTS_JSON_PATH, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
+import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, projectsJsonPath, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
 export interface CollectorApp {
@@ -159,8 +159,9 @@ export function createCollector(store: EventStore): CollectorApp {
   let watchTimer: NodeJS.Timeout | null = null;
   function watchProjects(): void {
     try {
-      if (!fs.existsSync(PROJECTS_JSON_PATH)) return;
-      const watcher = fs.watch(PROJECTS_JSON_PATH, (eventType) => {
+      const file = projectsJsonPath();
+      if (!fs.existsSync(file)) return;
+      const watcher = fs.watch(file, (eventType) => {
         if (watchTimer) clearTimeout(watchTimer);
         watchTimer = setTimeout(rebuildWorld, 500);
         if (eventType === 'rename') {
@@ -172,6 +173,11 @@ export function createCollector(store: EventStore): CollectorApp {
         watcher.close();
         setTimeout(watchProjects, 5000);
       });
+      // De collector draait toch al door zolang de HTTP-server luistert. Deze
+      // watcher mag dus nooit op zichzelf een proces openhouden — anders sluit
+      // elk kort script dat de collector importeert (een test bijvoorbeeld)
+      // niet meer af, en dat merk je pas als CI blijft hangen.
+      watcher.unref();
     } catch {
       /* watching is optional */
     }

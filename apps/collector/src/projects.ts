@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { buildWorldConfig, type ProjectEntry, type WorldConfig } from '@ara/shared';
-import { PROJECTS_JSON_PATH, WORLD_CONFIG_PATH } from './config.ts';
+import { projectsJsonPath, WORLD_CONFIG_PATH } from './config.ts';
 
 /**
  * projects.json (dev-project-manager skill) is the source of truth for the
@@ -20,7 +20,7 @@ export const DEMO_PROJECTS: ProjectEntry[] = [
   { name: 'vovara-site' },
 ];
 
-export function loadProjects(file: string = PROJECTS_JSON_PATH): ProjectEntry[] {
+export function loadProjects(file: string = projectsJsonPath()): ProjectEntry[] {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as unknown;
     const list: unknown[] = Array.isArray(raw)
