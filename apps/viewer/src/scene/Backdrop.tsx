@@ -119,10 +119,15 @@ export function Backdrop(): JSX.Element {
       <mesh material={skyMaterial} renderOrder={-10}>
         <sphereGeometry args={[80, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
       </mesh>
-      {/* Ground plane far below the tiles, dusk-pink. */}
-      <mesh position={[0, -1.2, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-9}>
-        <circleGeometry args={[80, 32]} />
-        <meshBasicMaterial color="#b98d84" fog={false} />
+      {/* Het vlak onder de horizon. Dit stond op een vast roze (#b98d84) en
+          dat viel nooit op zolang de camera ver ingezoomd stond — je zag het
+          niet. Zodra de wereld in beeld past vult deze schijf van straal 80 het
+          hele frame, en dan is een vaste kleur een roze leegte die niets met
+          het dagdeel te maken heeft. Nu volgt hij de horizonkleur van hetzelfde
+          palet als de koepel, dus de twee sluiten op elkaar aan. */}
+      <mesh position={[0, -8.6, 0]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-9}>
+        <circleGeometry args={[120, 48]} />
+        <meshBasicMaterial color={daylight.stops[3]} fog={false} />
       </mesh>
 
       {/* Ararat: twee besneeuwde pieken, dichtbij genoeg om altijd de horizon

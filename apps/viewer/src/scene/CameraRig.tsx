@@ -14,10 +14,12 @@ const IDLE_DRIFT_AFTER_MS = 8000;
  * Hoeveel wereld er in beeld hoort te passen. Onder een ortho-camera is
  * zoom = pixels per wereldeenheid, dus een vaste zoom betekent: op een groot
  * scherm zie je meer wereld, op een klein scherm een postzegel. De wereld is
- * een schijf van 13 hexen (spacing 1.06), dus ~28 eenheden straal; 44 in beeld
- * laat het geheel zien met wat lucht eromheen.
+ * een schijf van 13 hexen (spacing 1.06), dus ~24 eenheden straal. 30 in beeld
+ * zet je in de wereld in plaats van erboven: de districten zijn leesbaar en je
+ * ziet nog steeds waar ze ten opzichte van elkaar liggen. Uitzoomen kan altijd
+ * met de muis; het startbeeld hoort het beeld te zijn waar je iets aan hebt.
  */
-const WORLD_UNITS_IN_VIEW = 44;
+const WORLD_UNITS_IN_VIEW = 30;
 const MIN_ZOOM = 13;
 const MAX_ZOOM = 46;
 

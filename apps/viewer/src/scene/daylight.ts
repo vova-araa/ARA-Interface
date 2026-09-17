@@ -13,16 +13,20 @@ export interface Daylight {
 }
 
 const PALETTES: Record<Daylight['period'], Omit<Daylight, 'period'>> = {
+  // De omgevingslichtwaarden lagen laag genoeg om de wereld 's avonds tot één
+  // paarse massa te maken. Dit ding moet vooral leesbaar zijn: je moet kunnen
+  // zien wélk district vastloopt, ook om half elf 's avonds. Sfeer komt uit de
+  // kleur van het licht, niet uit het weglaten ervan.
   night: {
     stops: ['#0b1026', '#18224a', '#2c3a5c', '#3b4a6b'],
-    ambient: 0.3,
-    directional: 0.5,
-    lightColor: '#9db8ff',
+    ambient: 0.52,
+    directional: 0.7,
+    lightColor: '#a8c0ff',
     fogColor: '#2c3a5c',
   },
   dawn: {
     stops: ['#2b3a67', '#7a6a9e', '#e8927c', '#f6c89f'],
-    ambient: 0.5,
+    ambient: 0.64,
     directional: 1.1,
     lightColor: '#ffe8cf',
     fogColor: '#e8b9a0',
@@ -36,8 +40,8 @@ const PALETTES: Record<Daylight['period'], Omit<Daylight, 'period'>> = {
   },
   dusk: {
     stops: ['#232b52', '#5d4a7e', '#d97b5f', '#e8b56b'],
-    ambient: 0.45,
-    directional: 0.9,
+    ambient: 0.66,
+    directional: 1.0,
     lightColor: '#ffd9b0',
     fogColor: '#c99a86',
   },
