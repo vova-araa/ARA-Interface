@@ -81,8 +81,21 @@ export interface ProjectEntry {
   venture?: string;
 }
 
-const DISTRICT_RING_RADIUS = 7; // distance of district centers from the hub
-const PROJECT_CLUSTER_RADIUS = 1; // each project = 7 hexes (center + ring)
+/**
+ * Hoe groot de wereld is, op één plek.
+ *
+ * Hij stond op een schijf van 13 hexen met districten op ring 7, en dat was
+ * vooral veel lege grond: je keek naar een postzegel stad in een leeg veld en
+ * elke sprong van district naar district was een reis. Kleiner maakt het een
+ * plek in plaats van een landkaart — en doorschakelen kost twee tellen.
+ *
+ * Deze getallen horen bij elkaar: de terreinschijf in de viewer, de sokkel
+ * eronder en de rustzoom van de camera worden er allemaal uit afgeleid. Eén
+ * ervan los aanpassen geeft een wereld die niet op zijn eigen grond past.
+ */
+export const WORLD_HEX_RADIUS = 8; // straal van de terreinschijf in hexen
+const DISTRICT_RING_RADIUS = 5; // afstand van districtharten tot de hub
+const PROJECT_CLUSTER_RADIUS = 1; // elk project = 7 hexen (hart + ring)
 
 /**
  * Deterministic world layout:

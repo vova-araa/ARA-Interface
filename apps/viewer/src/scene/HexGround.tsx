@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { axialToWorld, axialKey, hexDisc, stableHash, type WorldConfig } from '@ara/shared';
+import { axialToWorld, axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
 import { stylize } from './stylize.ts';
 
@@ -24,7 +24,9 @@ const SEVAN_BLUE = new THREE.Color('#2e9cc7');
 const SEVAN_SHALLOW = new THREE.Color('#57c6d8');
 const ROAD = new THREE.Color('#d8cdbd'); // aangestampt grind
 
-const LAKE_CENTER = { q: -2, r: 10 };
+// Het meer schoof mee naar binnen toen de wereld kromp: op r=10 lag het buiten
+// de nieuwe schijf en was het simpelweg weg.
+const LAKE_CENTER = { q: -2, r: 6 };
 const LAKE_RADIUS = 2;
 
 interface Tiles {
@@ -32,6 +34,8 @@ interface Tiles {
   base: { pos: [number, number, number]; color: THREE.Color; lift: number }[];
   district: { pos: [number, number, number]; color: THREE.Color; borderColor: THREE.Color }[];
   water: { pos: [number, number, number]; color: THREE.Color }[];
+  /** Hoe ver de buitenste tegel van het midden ligt, in wereldeenheden. */
+  extent: number;
   /** Wegen van de hub naar elk district; zonder die zweven ze los rond. */
   road: { pos: [number, number, number] }[];
 }
@@ -107,7 +111,7 @@ function terrainAt(hex: { q: number; r: number }, key: string, distance: number)
 
   // Naar de rand toe loopt het op: de hoogvlakte rond Yerevan. Dat houdt het
   // oog ook binnen de wereld in plaats van er overheen te laten glijden.
-  const rim = Math.pow(distance / 13, 2.4);
+  const rim = Math.pow(distance / WORLD_HEX_RADIUS, 2.4);
   const lift = -0.04 + height * 0.5 + rim * 1.1;
 
   // Hoger is kaler. Geen regel, maar zo leest het: bleke tuff in de laagte,
@@ -121,7 +125,7 @@ function terrainAt(hex: { q: number; r: number }, key: string, distance: number)
 }
 
 function computeTiles(world: WorldConfig | null): Tiles {
-  const tiles: Tiles = { base: [], district: [], water: [], road: [] };
+  const tiles: Tiles = { base: [], district: [], water: [], road: [], extent: 0 };
   const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
   const claimed = new Set<string>();
   const roadKeys = new Set<string>();
@@ -165,9 +169,12 @@ function computeTiles(world: WorldConfig | null): Tiles {
   }
 
   // Continuous terrain under everything.
-  for (const hex of hexDisc({ q: 0, r: 0 }, 13)) {
+  for (const hex of hexDisc({ q: 0, r: 0 }, WORLD_HEX_RADIUS)) {
     const key = axialKey(hex);
     const { x, z } = axialToWorld(hex);
+    // Vóór elke `continue`: ook meer- en districttegels horen bij de omvang
+    // van de wereld, en de sokkel moet ze allemaal dragen.
+    tiles.extent = Math.max(tiles.extent, Math.hypot(x * HEX_SPACING, z * HEX_SPACING));
     if (lake.has(key)) {
       // Ondiep bij de oever, diep in het midden: één vlakke kleur leest als
       // een sticker, een verloop leest als water.
@@ -310,7 +317,10 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
             gesteente staat in plaats van op een dienblad. Twaalf zijden, want
             een zeshoek reikt op zijn vlakke kanten maar tot r·cos30° en daar
             steken de buitenste tegels (~24) doorheen. */}
-        <cylinderGeometry args={[24.2, 16, 8.4, 12]} />
+        {/* Straal uit de gemeten uiterste tegel, niet uit een getal dat iemand
+            ooit heeft ingetikt: toen de wereld kromp stak de sokkel er als een
+            dienblad onderuit, en dat merk je pas op een screenshot. */}
+        <cylinderGeometry args={[tiles.extent + 1.1, (tiles.extent + 1.1) * 0.66, 8.4, 12]} />
         <meshStandardMaterial color="#6d5850" roughness={1} />
       </mesh>
 

@@ -12,10 +12,12 @@ function textTexture(text: string, accent: string): { texture: THREE.CanvasTextu
   let cached = textureCache.get(key);
   if (cached) return cached;
 
-  const dpr = 2;
-  const fontSize = 26;
-  const padX = 18;
-  const height = 44;
+  // Groter en met een echte rand: op een Retina-scherm onder een ortho-camera
+  // was 26px met 78% dekking een grijze veeg zodra er een gebouw achter stond.
+  const dpr = 3;
+  const fontSize = 34;
+  const padX = 22;
+  const height = 56;
   const measure = document.createElement('canvas').getContext('2d')!;
   measure.font = `600 ${fontSize}px -apple-system, sans-serif`;
   const width = Math.ceil(measure.measureText(text).width) + padX * 2;
@@ -27,16 +29,21 @@ function textTexture(text: string, accent: string): { texture: THREE.CanvasTextu
   ctx.scale(dpr, dpr);
   ctx.beginPath();
   ctx.roundRect(1, 1, width - 2, height - 2, 12);
-  ctx.fillStyle = 'rgba(13, 15, 18, 0.78)';
+  ctx.fillStyle = 'rgba(10, 12, 16, 0.92)';
   ctx.fill();
   ctx.strokeStyle = accent;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2.5;
   ctx.stroke();
   ctx.font = `600 ${fontSize}px -apple-system, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#e8eaf0';
+  // Donkere schaduw onder de letters: houdt ze leesbaar boven een lichte
+  // gevel én boven een donkere heuvel, zonder een tweede tekstlaag.
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#f4f6fa';
   ctx.fillText(text, width / 2, height / 2 + 1);
+  ctx.shadowBlur = 0;
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -63,12 +70,15 @@ function Label({
   return (
     <sprite
       position={position}
+      renderOrder={20}
       scale={[aspect * height, height, 1]}
       onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
       onPointerOver={onClick ? () => (document.body.style.cursor = 'pointer') : undefined}
       onPointerOut={onClick ? () => (document.body.style.cursor = 'default') : undefined}
     >
-      <spriteMaterial map={texture} transparent depthWrite={false} />
+      {/* Altijd bovenop: een label dat je achter een dak vandaan moet zoeken
+          is geen label. renderOrder houdt ze onderling in de juiste volgorde. */}
+      <spriteMaterial map={texture} transparent depthWrite={false} depthTest={false} />
     </sprite>
   );
 }
@@ -89,24 +99,32 @@ export function Labels({ world }: { world: WorldConfig }): JSX.Element {
     }[] = [];
     for (const district of world.districts) {
       const c = axialToWorld(district.center);
-      out.push({
-        key: `v-${district.venture.id}`,
-        text: district.venture.label,
-        accent: district.venture.color,
-        pos: [c.x * HEX_SPACING, 2.6, c.z * HEX_SPACING],
-        h: 0.62,
-      });
-      for (const project of district.projects) {
+      const projects = district.projects;
+      // Projectlabels van één district liggen dicht bij elkaar en botsten
+      // daardoor tot één zwarte veeg. Ze krijgen elk hun eigen hoogte — een
+      // trapje in plaats van een stapel. Dat werkt onder een ortho-camera
+      // beter dan horizontaal uitwijken, want horizontaal schuiven maakt niet
+      // meer duidelijk bij welk cluster een naam hoort.
+      const step = 0.46;
+      projects.forEach((project, i) => {
         const p = axialToWorld(project.center);
         out.push({
           key: `p-${project.name}`,
           text: project.name,
           accent: district.venture.color,
-          pos: [p.x * HEX_SPACING, 1.7, p.z * HEX_SPACING],
-          h: 0.4,
+          pos: [p.x * HEX_SPACING, 1.65 + i * step, p.z * HEX_SPACING],
+          h: 0.46,
           project: project.name,
         });
-      }
+      });
+      // De taknaam gaat boven het hoogste projectlabel uit, wat het ook is.
+      out.push({
+        key: `v-${district.venture.id}`,
+        text: district.venture.label,
+        accent: district.venture.color,
+        pos: [c.x * HEX_SPACING, 1.65 + Math.max(1, projects.length) * step + 0.5, c.z * HEX_SPACING],
+        h: 0.72,
+      });
     }
     return out;
   }, [world]);
