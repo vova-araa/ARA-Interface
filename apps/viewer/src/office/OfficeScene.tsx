@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { OfficeSnapshot, Station, StaffMember } from '@ara/shared';
@@ -138,6 +138,8 @@ function Desk({
     [valueText, tone, station.simulated],
   );
 
+  const [hovered, setHovered] = useState(false);
+
   useFrame(({ clock }) => {
     const t = clock.elapsedTime + index * 0.7;
     if (screen.current) {
@@ -151,7 +153,12 @@ function Desk({
   });
 
   return (
-    <group position={[x, 0, z]} onClick={(e) => { e.stopPropagation(); onSelect(station.id); }}>
+    <group
+      position={[x, 0, z]}
+      onClick={(e) => { e.stopPropagation(); onSelect(station.id); }}
+      onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+      onPointerOut={() => setHovered(false)}
+    >
       {/* blad + poten */}
       <mesh position={[0, 0.74, 0]} castShadow receiveShadow>
         <boxGeometry args={[2.5, 0.09, 1.25]} />
@@ -202,14 +209,22 @@ function Desk({
         </group>
       )}
 
-      {/* naamplaatje boven het bureau */}
-      <sprite position={[0, 1.95, 0]} scale={[1.45 * chip.aspect * 0.62, 0.62, 1]}>
-        <spriteMaterial map={chip.texture} transparent depthWrite={false} />
-      </sprite>
-      {/* zwevend resultaat */}
-      <sprite ref={valueSprite} position={[1.2, 2.45, 0]} scale={[0.95, 0.28, 1]}>
-        <spriteMaterial map={value.texture} transparent depthWrite={false} />
-      </sprite>
+      {/* Naamplaatje. Twaalf bureaus met elk een permanent zwevend label werd
+          één wolk waar niets meer uit te lezen viel — een kantoor vol post-its
+          over elkaar heen. Nu alleen wat je nodig hebt: het bureau waar je
+          overheen gaat, het bureau dat je koos, en alles wat om aandacht
+          vraagt. De rest heeft zijn scherm en zijn kleur, en de volledige
+          lijst staat rechts. */}
+      {(hovered || selected || station.status === 'alert') && (
+        <>
+          <sprite position={[0, 1.95, 0]} scale={[1.45 * chip.aspect * 0.62, 0.62, 1]} renderOrder={10}>
+            <spriteMaterial map={chip.texture} transparent depthWrite={false} depthTest={false} />
+          </sprite>
+          <sprite ref={valueSprite} position={[1.2, 2.45, 0]} scale={[0.95, 0.28, 1]} renderOrder={10}>
+            <spriteMaterial map={value.texture} transparent depthWrite={false} depthTest={false} />
+          </sprite>
+        </>
+      )}
 
       {/* selectie- en alarmring op de vloer */}
       {(selected || station.status === 'alert') && (
@@ -273,28 +288,52 @@ function Room({ office, accent }: { office: OfficeSnapshot; accent: string }): J
 
   return (
     <group>
-      {/* vloer */}
+      {/* Vloer. De hele ruimte stond op bijna-zwarte paarsen (#2b2050 en
+          donkerder); dan is er wel een kantoor maar zie je het niet. De waarden
+          liggen nu uit elkaar — vloer lichter dan de wanden, tapijt lichter dan
+          de vloer — zodat vorm uit contrast komt in plaats van uit belichting. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial color="#2b2050" roughness={0.9} />
+        <meshStandardMaterial color="#4a4570" roughness={0.9} />
       </mesh>
       {/* tapijtbaan per bureaurij + lichtstrip erboven */}
       {Array.from({ length: rows }, (_, r) => (
         <group key={r} position={[0, 0, rowZ(r)]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]} receiveShadow>
             <planeGeometry args={[COLS * DESK_X + 1.2, 2.5]} />
-            <meshStandardMaterial color="#3c2e6e" roughness={0.88} emissive="#2a1f52" emissiveIntensity={0.4} />
+            <meshStandardMaterial color="#5d5793" roughness={0.88} emissive="#3b3670" emissiveIntensity={0.35} />
           </mesh>
+          {/* TL-balk recht boven elke rij: leest als plafond zonder dat er een
+              plafond nodig is, en legt licht waar de bureaus staan. */}
+          <mesh position={[0, 4.6, 0]}>
+            {/* Smal en lager gehangen. Op 6,4 met volle breedte werden het
+                balken die dwars door het beeld sneden en meer aandacht trokken
+                dan de bureaus eronder — een lamp hoort licht te geven, niet de
+                hoofdrol te spelen. */}
+            <boxGeometry args={[COLS * DESK_X - 1.6, 0.07, 0.18]} />
+            <meshBasicMaterial color="#fff4de" toneMapped={false} />
+          </mesh>
+          <pointLight position={[0, 4.4, 0]} color="#ffeccd" intensity={7} distance={11} />
         </group>
       ))}
       {/* achterwand + linkerwand */}
       <mesh position={[0, 5, backZ]} receiveShadow>
         <planeGeometry args={[width, 10]} />
-        <meshStandardMaterial color="#241a45" roughness={0.95} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#3a3564" roughness={0.95} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Plint: een wand die in de vloer overloopt heeft geen bodem, en dan
+          zweeft de hele ruimte. */}
+      <mesh position={[0, 0.22, backZ + 0.06]}>
+        <boxGeometry args={[width, 0.44, 0.12]} />
+        <meshStandardMaterial color="#6b659b" roughness={0.8} />
       </mesh>
       <mesh position={[-width / 2, 5, 0]} rotation={[0, Math.PI / 2, 0]} receiveShadow>
         <planeGeometry args={[depth, 10]} />
-        <meshStandardMaterial color="#1f1740" roughness={0.95} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#332e59" roughness={0.95} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[-width / 2 + 0.06, 0.22, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[depth, 0.44, 0.12]} />
+        <meshStandardMaterial color="#6b659b" roughness={0.8} />
       </mesh>
 
       {/* muurschermen: groot hoofdscherm + feitenpaneel */}
@@ -359,8 +398,11 @@ export function OfficeScene({
 
   return (
     <group>
-      <ambientLight intensity={0.75} color="#c9bdff" />
-      <hemisphereLight args={['#b9a6ff', '#2a1f52', 0.7]} />
+      {/* Was paars getint (#c9bdff) en dat kleurde álles mee, ook de
+          zandkleurige bureaus en de gele figuren. Neutraal-warm licht laat de
+          accentkleur van de tak het werk doen in plaats van het te overstemmen. */}
+      <ambientLight intensity={0.95} color="#fff1e2" />
+      <hemisphereLight args={['#dcd2ff', '#4a4570', 0.85]} />
       <directionalLight
         position={[10, 16, 8]}
         intensity={1.5}
