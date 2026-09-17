@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { Dressing } from './Dressing.tsx';
 import type { OfficeSnapshot, Station, StaffMember } from '@ara/shared';
 import { chipTexture, valueTexture, headlineTexture, factsTexture, roomTexture, TONE_COLORS } from './textures.ts';
 
@@ -417,6 +418,8 @@ export function OfficeScene({
       <pointLight position={[0, 7, -depth / 2 + 3]} color={accent} intensity={26} distance={30} />
 
       <Room office={office} accent={accent} />
+      {/* Het meubilair dat deze werkvloer tot díé werkvloer maakt. */}
+      <Dressing office={office} accent={accent} width={width} depth={depth} />
 
       {office.stations.map((station, i) => (
         <Desk

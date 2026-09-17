@@ -31,6 +31,7 @@ import { TokenPillars } from './TokenPillars.tsx';
 import { AmbientLife } from './AmbientLife.tsx';
 import { DistrictLife } from './DistrictLife.tsx';
 import { Props } from './Props.tsx';
+import { Blocks } from './Blocks.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
 import { Drones } from './Drones.tsx';
@@ -303,6 +304,7 @@ export function Scene(): JSX.Element {
         )}
         {world && (
           <>
+            <Blocks world={world} />
             <Props world={world} />
             {!perfLow && <Crowd world={world} />}
             {!perfLow && <DistrictLife world={world} />}
