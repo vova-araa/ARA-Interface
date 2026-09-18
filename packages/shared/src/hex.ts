@@ -37,6 +37,19 @@ export function axialScale(a: Axial, k: number): Axial {
   return { q: a.q * k, r: a.r * k };
 }
 
+/**
+ * Hoeveel stappen van a naar b. In kubuscoördinaten is dat de grootste van de
+ * drie asverschillen — niet de euclidische afstand, want een hexraster kent
+ * geen diagonalen die korter zijn dan een stap.
+ */
+export function hexDistance(a: Axial, b: Axial): number {
+  return Math.max(
+    Math.abs(a.q - b.q),
+    Math.abs(a.r - b.r),
+    Math.abs(a.q + a.r - b.q - b.r),
+  );
+}
+
 /** Ring of hexes at a given radius around a center. Radius 0 → [center]. */
 export function hexRing(center: Axial, radius: number): Axial[] {
   if (radius === 0) return [center];

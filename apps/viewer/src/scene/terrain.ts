@@ -1,7 +1,8 @@
 import { axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS } from '@ara/shared';
 
 /**
- * De vorm van de wereld: waar het meer ligt en hoe hoog de grond is.
+ * De vorm van de wereld: hoe hoog de grond is, en waar het meer ligt (dat
+ * laatste komt uit shared, zie hieronder).
  *
  * Dit stond in zeven bestanden. Zeven kopieën van dezelfde twee getallen, elk
  * met een comment erboven dat ze gelijk moesten blijven — en dat is precies de
@@ -12,13 +13,11 @@ import { axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS } from '@ara/shared';
  * Eén bron. Wie de wereld verplaatst, verplaatst hem hier.
  */
 
-export const LAKE_CENTER = { q: -2, r: 6 };
-export const LAKE_RADIUS = 2;
-
-/** De hexen die onder water liggen. */
-export function lakeKeys(): Set<string> {
-  return new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
-}
+// Het meer staat in @ara/shared, niet hier: de layout in shared moet er
+// omheen bouwen (anders landt een projectplatform op het water en is het niet
+// aan te klikken) en de viewer moet het tekenen. Beide kanten hetzelfde meer,
+// dus één bron — dezelfde afspraak als bij de WorldState-reducer.
+export { LAKE_CENTER, LAKE_RADIUS, lakeKeys } from '@ara/shared';
 
 /**
  * Waardenruis over een grover raster dan de tegels zelf, met smoothstep tussen

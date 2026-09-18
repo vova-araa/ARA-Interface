@@ -2,8 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AraEventSchema, IncomingEventSchema } from './schema.ts';
 import { redactString, redactValue, capText } from './redact.ts';
-import { hexRing, hexDisc, placeOnFreeHex, axialKey, stableHash } from './hex.ts';
-import { buildWorldConfig, ventureForProject, placementForProject } from './world.ts';
+import { hexRing, hexDisc, hexDistance, placeOnFreeHex, axialKey, stableHash } from './hex.ts';
+import {
+  buildWorldConfig,
+  lakeKeys,
+  placementForProject,
+  ventureForProject,
+  WORLD_HEX_RADIUS,
+} from './world.ts';
 
 test('AraEventSchema accepts a valid event', () => {
   const event = AraEventSchema.parse({
@@ -77,6 +83,68 @@ test('buildWorldConfig places every project exactly once', () => {
   assert.deepEqual(names.sort(), ['blex-app', 'mystery', 'traject-tms', 'vovara-site']);
   const centers = config.districts.flatMap((d) => d.projects.map((p) => axialKey(p.center)));
   assert.equal(new Set(centers).size, centers.length);
+});
+
+/**
+ * De echte lijst, zoals hij op de Mac staat. Deze drie regels gingen eerder
+ * stuk op precies deze lijst: truck-and-trailer lag met 4 van zijn 7 hexen in
+ * het meer, en dat merkte niemand tot een districttegel een knop werd.
+ */
+const REAL_PROJECTS = [
+  { name: 'sharzi-tms' },
+  { name: 'blex' },
+  { name: 'truck-and-trailer' },
+  { name: 'elevate' },
+  { name: 'uprising' },
+  { name: 'vovara' },
+  { name: 'ara-interface' },
+];
+
+const allHexes = (config: ReturnType<typeof buildWorldConfig>) =>
+  config.districts.flatMap((d) => d.projects.flatMap((p) => p.hexes.map((h) => ({ h, p: p.name }))));
+
+test('geen project op het meer: die tegels worden niet getekend en zijn dus niet aan te klikken', () => {
+  const lake = lakeKeys();
+  const config = buildWorldConfig(REAL_PROJECTS, 123);
+  const wet = allHexes(config).filter(({ h }) => lake.has(axialKey(h)));
+  assert.deepEqual(wet.map(({ p }) => p), []);
+});
+
+test('geen project buiten de terreinschijf: een platform zonder grond eronder', () => {
+  const config = buildWorldConfig(REAL_PROJECTS, 123);
+  const floating = allHexes(config).filter(
+    ({ h }) => hexDistance(h, { q: 0, r: 0 }) > WORLD_HEX_RADIUS,
+  );
+  assert.deepEqual(floating.map(({ p }) => p), []);
+});
+
+test('geen twee projecten op dezelfde hex: die tegel weet niet welk kantoor hij opent', () => {
+  // Acht takken met elk twee projecten — ruim boven de echte lijst, want dit
+  // ging juist mis zodra de districten dichter op elkaar kwamen te liggen.
+  const many = ['tms', 'fleet', 'trading', 'crypto', 'creative', 'equities', 'data', 'ops'].flatMap(
+    (venture) => [0, 1].map((i) => ({ name: `${venture}-p${i}`, venture })),
+  );
+  const seen = new Map<string, string>();
+  const clashes: string[] = [];
+  for (const { h, p } of allHexes(buildWorldConfig(many, 123))) {
+    const key = axialKey(h);
+    const other = seen.get(key);
+    if (other) clashes.push(`${other} <-> ${p} op ${key}`);
+    seen.set(key, p);
+  }
+  assert.deepEqual(clashes, []);
+});
+
+test('placementForProject houdt een laat project ook uit het water', () => {
+  const lake = lakeKeys();
+  const config = buildWorldConfig(REAL_PROJECTS, 123);
+  // Genoeg late projecten om voorbij de eerste vrije ring te duwen.
+  const extra = new Set<string>();
+  for (let i = 0; i < 12; i++) {
+    const placement = placementForProject(config, `laat-project-${i}`, extra);
+    const wet = placement.hexes.filter((h) => lake.has(axialKey(h)));
+    assert.deepEqual(wet.map(axialKey), [], `laat-project-${i} ligt in het meer`);
+  }
 });
 
 test('doneToday counts each session once despite multiple completion events', async () => {

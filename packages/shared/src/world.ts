@@ -4,7 +4,17 @@
  * (or the /ara-map command); this module holds the types + defaults.
  */
 
-import { type Axial, axialKey, hexDisc, hexRing, placeOnFreeHex, stableHash } from './hex.ts';
+import {
+  type Axial,
+  axialKey,
+  hexDisc,
+  hexDistance,
+  hexRing,
+  placeOnFreeHex,
+  stableHash,
+} from './hex.ts';
+
+const ORIGIN: Axial = { q: 0, r: 0 };
 
 export interface VentureStyle {
   id: string;
@@ -100,6 +110,29 @@ export interface ProjectEntry {
  * ervan los aanpassen geeft een wereld die niet op zijn eigen grond past.
  */
 export const WORLD_HEX_RADIUS = 8; // straal van de terreinschijf in hexen
+
+/**
+ * Sevan. Deze twee getallen stonden aan de viewerkant, want daar wordt het
+ * water getekend — maar de layout moet ze óók kennen, en dat is geen
+ * verfraaiing.
+ *
+ * Wat er misging zolang alleen de viewer het meer kende: de layout zette
+ * projectclusters gewoon op het water. `HexGround` tekent die tegels niet, dus
+ * zo'n platform viel half weg — en sinds een districttegel de knop naar het
+ * kantoor is, zijn dat tegels waar je niet op kúnt drukken. Met de echte
+ * projectlijst lag truck-and-trailer met 4 van zijn 7 hexen in het meer.
+ *
+ * Dus ligt het meer hier, naast de straal van de wereld, en leest de viewer
+ * het uit `@ara/shared` — dezelfde afspraak als bij de WorldState-reducer: wat
+ * beide kanten moeten weten, staat één keer in shared.
+ */
+export const LAKE_CENTER: Axial = { q: -2, r: 6 };
+export const LAKE_RADIUS = 2;
+
+/** De hexen die onder water liggen; hier bouwt niemand. */
+export function lakeKeys(): Set<string> {
+  return new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
+}
 const DISTRICT_RING_RADIUS = 3.5; // afstand van districtharten tot de hub
 const PROJECT_CLUSTER_RADIUS = 1; // elk project = 7 hexen (hart + ring)
 
@@ -123,14 +156,24 @@ function placeClusterOnFreeHex(
   maxRadius = 64,
 ): Axial {
   const hash = stableHash(name);
-  for (let ring = 0; ring <= maxRadius; ring++) {
-    const candidates = hexRing(center, ring);
-    // Zelfde hash-rotatie als placeOnFreeHex: verschillende namen kiezen een
-    // andere plek op dezelfde ring, en altijd dezelfde bij dezelfde naam.
-    const offset = candidates.length > 0 ? hash % candidates.length : 0;
-    for (let i = 0; i < candidates.length; i++) {
-      const hex = candidates[(i + offset) % candidates.length]!;
-      if (hexDisc(hex, radius).every((h) => !taken.has(axialKey(h)))) return hex;
+  const fits = (hex: Axial, insideWorld: boolean): boolean =>
+    hexDisc(hex, radius).every(
+      (h) => !taken.has(axialKey(h)) && (!insideWorld || hexDistance(h, ORIGIN) <= WORLD_HEX_RADIUS),
+    );
+  // Eerst binnen de wereld zoeken, pas daarna erbuiten. Zonder die volgorde
+  // schuift een cluster bij een volle wereld het terrein af: de tegels bestaan
+  // dan wel in de config maar staan nergens op, en een platform in de lucht is
+  // niet aan te klikken.
+  for (const insideWorld of [true, false]) {
+    for (let ring = 0; ring <= maxRadius; ring++) {
+      const candidates = hexRing(center, ring);
+      // Zelfde hash-rotatie als placeOnFreeHex: verschillende namen kiezen een
+      // andere plek op dezelfde ring, en altijd dezelfde bij dezelfde naam.
+      const offset = candidates.length > 0 ? hash % candidates.length : 0;
+      for (let i = 0; i < candidates.length; i++) {
+        const hex = candidates[(i + offset) % candidates.length]!;
+        if (fits(hex, insideWorld)) return hex;
+      }
     }
   }
   // Wereld vol — stapelen op het hart is lelijk maar voorspelbaar; crashen niet.
@@ -151,6 +194,9 @@ export function buildWorldConfig(
   const hidden = new Set(opts.hiddenVentures ?? []);
   const taken = new Set<string>();
   for (const hex of hexDisc({ q: 0, r: 0 }, 2)) taken.add(axialKey(hex)); // reserve hub
+  // Het meer telt als bezet: op water bouw je niet, en tegels die HexGround
+  // niet tekent zijn tegels waar niemand op kan drukken.
+  for (const key of lakeKeys()) taken.add(key);
 
   const byVenture = new Map<string, ProjectEntry[]>();
   const explicitVentures = new Set<string>();
@@ -237,6 +283,7 @@ export function placementForProject(
     return { name: projectName, venture: 'misc', center, hexes: hexDisc(center, 1) };
   }
   const taken = new Set<string>(extraTaken);
+  for (const key of lakeKeys()) taken.add(key);
   for (const district of config.districts) {
     taken.add(axialKey(district.center));
     for (const project of district.projects)
