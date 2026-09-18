@@ -190,6 +190,12 @@ export interface OfficeLayout {
   screen: { x: number; y: number; w: number; factsX: number; factsY: number; factsW: number };
 }
 
+/** Eén regel op een plaatje; `does` is een zin en een chip is geen alinea. */
+function capLine(text: string, max = 46): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
 /** Verhouding van de canvas-textures; hardcoded maten zouden ze uitrekken. */
 const HEAD_RATIO = 3.8 / 14;
 const FACTS_RATIO = 3.6 / 6.2;
@@ -371,7 +377,8 @@ function zoneOfSlots(
   label: string,
   tone: string,
   slots: DeskSlot[],
-  pad = 1.9,
+  pad = 1.7,
+  padZ = 1.25,
 ): Zone | null {
   if (slots.length === 0) return null;
   let minX = Infinity;
@@ -394,7 +401,7 @@ function zoneOfSlots(
     y,
     z: (minZ + maxZ) / 2,
     w: maxX - minX + pad * 2,
-    d: maxZ - minZ + pad * 2,
+    d: maxZ - minZ + padZ * 2,
     tone,
   };
 }
@@ -1386,6 +1393,133 @@ function AlertRings({ points }: { points: { x: number; y: number; z: number }[] 
   return <instancedMesh ref={mesh} args={[G_RING, MAT_GLOW_FLAT, n]} frustumCulled={false} />;
 }
 
+/* =========================== werk in beweging =========================== */
+
+/**
+ * Wat er in deze tak gebeurt, als beweging.
+ *
+ * Elk kantoor toonde dezelfde twaalf bureaus met dezelfde schermen; het vak
+ * zat in één prop in de hoek en verder nergens. Hier loopt het werk zelf over
+ * de vloer: per werkplek die aan het werk is gaat er iets van het bureau naar
+ * het punt waar het vak samenkomt — de koersenwand, de kluis, de kaarttafel,
+ * het werkvak, de cabine, het podium, de researchwand.
+ *
+ * Alles hangt aan echte status, niets speelt door:
+ *   working → er gaat iets heen en weer
+ *   alert   → het blijft halverwege steken en pulseert rood
+ *   done    → het ligt stil op het eindpunt
+ *   idle    → er is niets te zien
+ * Een vloer waar niets beweegt is dus een vloer waar niets gebeurt, en dat is
+ * precies wat je wil kunnen zien.
+ */
+interface CarrierSpec {
+  geo: THREE.BufferGeometry;
+  size: [number, number, number];
+  color: string;
+  /** Hoe hoog het werk boven de vloer komt: over de grond of door de lucht. */
+  hop: number;
+  spin: number;
+  speed: number;
+}
+
+const CARRIERS: Record<OfficeKind, CarrierSpec> = {
+  // Een order is een briefje dat naar het bord gaat.
+  trading: { geo: G_BOX, size: [0.5, 0.03, 0.34], color: '#ffd75e', hop: 1.7, spin: 0.6, speed: 0.26 },
+  // Een munt gaat de kluis in, en de kluis is het middelpunt van de vloer.
+  crypto: { geo: G_HEX, size: [0.34, 0.07, 0.34], color: '#f7931a', hop: 2.1, spin: 3.4, speed: 0.22 },
+  // Een these is papier: laag, traag, en het blijft liggen waar het aankomt.
+  equities: { geo: G_BOX, size: [0.46, 0.04, 0.34], color: '#e8dfc4', hop: 0.8, spin: 0.2, speed: 0.12 },
+  // Een rit rijdt over de vloer naar de kaarttafel; die vliegt niet.
+  tms: { geo: G_BOX, size: [0.42, 0.2, 0.26], color: '#ff6b5e', hop: 0.12, spin: 0, speed: 0.2 },
+  // Een onderdeel gaat over de hal naar het werkvak.
+  fleet: { geo: G_BOX, size: [0.42, 0.28, 0.42], color: '#c9a227', hop: 0.14, spin: 0, speed: 0.17 },
+  design: { geo: G_BOX, size: [0.6, 0.03, 0.44], color: '#ff9b7a', hop: 1.2, spin: 1.1, speed: 0.19 },
+  studio: { geo: G_BOX, size: [0.32, 0.22, 0.32], color: '#ffd9a8', hop: 0.9, spin: 0.8, speed: 0.21 },
+  music: { geo: G_CYL, size: [0.36, 0.05, 0.36], color: '#d7a7ff', hop: 1.5, spin: 2.6, speed: 0.24 },
+  generic: { geo: G_BOX, size: [0.36, 0.24, 0.3], color: '#c9c0ef', hop: 0.7, spin: 0.5, speed: 0.18 },
+};
+
+function WorkFlow({
+  layout,
+  stations,
+}: {
+  layout: OfficeLayout;
+  stations: Station[];
+}): JSX.Element | null {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const spec = CARRIERS[layout.kind] ?? CARRIERS.generic;
+  const flights = useMemo(() => {
+    const target = layout.focus ?? { x: layout.dress.x, z: layout.dress.z };
+    return stations
+      .map((st, i) => ({ st, slot: layout.desks[i] }))
+      .filter((e) => e.slot && e.st.status !== 'idle')
+      .map((e) => {
+        const slot = e.slot!;
+        // Elke werkplek loopt op zijn eigen tempo, maar wel altijd hetzelfde
+        // tempo: de fase komt uit het id van de werkplek.
+        const h = stableHash(e.st.id);
+        return {
+          status: e.st.status,
+          x0: slot.x,
+          y0: slot.y + 0.9,
+          z0: slot.z,
+          x1: target.x,
+          y1: 0.9,
+          z1: target.z,
+          phase: (h % 1000) / 1000,
+          rate: spec.speed * (0.8 + ((h >> 10) % 100) / 250),
+        };
+      });
+  }, [stations, layout, spec.speed]);
+
+  useLayoutEffect(() => {
+    const im = mesh.current;
+    if (!im) return;
+    flights.forEach((_, i) => im.setColorAt(i, _col.set(spec.color)));
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  }, [flights, spec.color]);
+
+  useFrame(({ clock }) => {
+    const im = mesh.current;
+    if (!im) return;
+    const now = clock.elapsedTime;
+    for (let i = 0; i < flights.length; i += 1) {
+      const f = flights[i]!;
+      let t: number;
+      if (f.status === 'done') t = 1;
+      else if (f.status === 'alert') t = 0.45 + Math.sin(now * 4) * 0.015;
+      else {
+        const raw = (now * f.rate + f.phase) % 2;
+        t = raw <= 1 ? raw : 2 - raw;
+      }
+      const arc = Math.sin(Math.PI * Math.min(1, Math.max(0, t)));
+      _g.position.set(
+        f.x0 + (f.x1 - f.x0) * t,
+        f.y0 + (f.y1 - f.y0) * t + arc * spec.hop,
+        f.z0 + (f.z1 - f.z0) * t,
+      );
+      _g.rotation.set(0, now * spec.spin + f.phase * 6, f.status === 'alert' ? 0.4 : 0);
+      _g.scale.set(spec.size[0], spec.size[1], spec.size[2]);
+      _g.updateMatrix();
+      im.setMatrixAt(i, _g.matrix);
+      if (f.status === 'alert') {
+        im.setColorAt(i, _col.set('#ff6b6b').multiplyScalar(0.7 + Math.sin(now * 5) * 0.5));
+      }
+    }
+    im.instanceMatrix.needsUpdate = true;
+    if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  });
+
+  if (flights.length === 0) return null;
+  return (
+    <instancedMesh
+      ref={mesh}
+      args={[spec.geo, MAT_GLOW, flights.length]}
+      frustumCulled={false}
+    />
+  );
+}
+
 /* ============================== de keten =============================== */
 
 /** Waar iemand van de staf staat en hoe hoog hij staat. */
@@ -1693,6 +1827,17 @@ function ZoneMarks({
   const edges = useMemo<Brick[]>(() => {
     const out: Brick[] = [];
     for (const z of zones) {
+      // Een gebied dat helemaal binnen een ander valt (de binnenring van een
+      // hoefijzer) krijgt geen eigen rand: twee geneste rechthoeken lezen als
+      // ruis in plaats van als twee gebieden. Het bordje blijft wél staan.
+      const nested = zones.some(
+        (o) =>
+          o !== z &&
+          o.w * o.d > z.w * z.d &&
+          Math.abs(o.x - z.x) + z.w / 2 <= o.w / 2 + 0.01 &&
+          Math.abs(o.z - z.z) + z.d / 2 <= o.d / 2 + 0.01,
+      );
+      if (nested) continue;
       const t = 0.13;
       out.push({ x: z.x, y: z.y + 0.016, z: z.z - z.d / 2, w: z.w, h: 0.02, d: t, color: z.tone });
       out.push({ x: z.x, y: z.y + 0.016, z: z.z + z.d / 2, w: z.w, h: 0.02, d: t, color: z.tone });
@@ -1904,10 +2049,14 @@ function Room({
   office,
   layout,
   accent,
+  openBoard,
+  onBoard,
 }: {
   office: OfficeSnapshot;
   layout: OfficeLayout;
   accent: string;
+  openBoard: 'head' | 'facts' | null;
+  onBoard: (b: 'head' | 'facts' | null) => void;
 }): JSX.Element {
   const { width, depth, wallH, palette: p } = layout;
   const backZ = -depth / 2;
@@ -2248,14 +2397,55 @@ function Room({
       {/* Muurschermen: het grote hoofdscherm en het feitenpaneel. Deze twee
           dragen de kop met ≈ als de cijfers ingevuld zijn; ze schalen mee met de
           wandhoogte maar worden nooit kleiner dan leesbaar. */}
-      <mesh position={[layout.screen.x, layout.screen.y, backZ + 0.42]}>
-        <planeGeometry args={[layout.screen.w, layout.screen.w * HEAD_RATIO]} />
-        <meshBasicMaterial map={head.texture} transparent toneMapped={false} />
-      </mesh>
-      <mesh position={[layout.screen.factsX, layout.screen.factsY, backZ + 0.42]}>
-        <planeGeometry args={[layout.screen.factsW, layout.screen.factsW * FACTS_RATIO]} />
-        <meshBasicMaterial map={facts.texture} transparent toneMapped={false} />
-      </mesh>
+      {/* Deze twee borden zijn de grootste vlakken in de ruimte en ze zien
+          eruit als knoppen. Ze zijn het nu ook: aanklikken zet het bord groot
+          en leesbaar midden in de zaal, nog een keer klikken vouwt het terug.
+          Op de wand is de tekst bij deze camerastand niet te lezen — een bord
+          dat je moet inzoomen om te lezen is geen bord. */}
+      <group
+        onClick={(e) => {
+          e.stopPropagation();
+          onBoard(openBoard === 'head' ? null : 'head');
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = '';
+        }}
+      >
+        <mesh position={[layout.screen.x, layout.screen.y, backZ + 0.36]}>
+          <planeGeometry args={[layout.screen.w + 0.4, layout.screen.w * HEAD_RATIO + 0.4]} />
+          <meshBasicMaterial color={accent} toneMapped={false} transparent opacity={openBoard === 'head' ? 0.75 : 0.28} />
+        </mesh>
+        <mesh position={[layout.screen.x, layout.screen.y, backZ + 0.42]}>
+          <planeGeometry args={[layout.screen.w, layout.screen.w * HEAD_RATIO]} />
+          <meshBasicMaterial map={head.texture} transparent toneMapped={false} />
+        </mesh>
+      </group>
+      <group
+        onClick={(e) => {
+          e.stopPropagation();
+          onBoard(openBoard === 'facts' ? null : 'facts');
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = '';
+        }}
+      >
+        <mesh position={[layout.screen.factsX, layout.screen.factsY, backZ + 0.36]}>
+          <planeGeometry args={[layout.screen.factsW + 0.35, layout.screen.factsW * FACTS_RATIO + 0.35]} />
+          <meshBasicMaterial color={accent} toneMapped={false} transparent opacity={openBoard === 'facts' ? 0.75 : 0.28} />
+        </mesh>
+        <mesh position={[layout.screen.factsX, layout.screen.factsY, backZ + 0.42]}>
+          <planeGeometry args={[layout.screen.factsW, layout.screen.factsW * FACTS_RATIO]} />
+          <meshBasicMaterial map={facts.texture} transparent toneMapped={false} />
+        </mesh>
+      </group>
 
       {/* Overleghok, in de achterhoek. Glas op de twee camerazijden, dichte
           panelen op de andere twee: zo staat het in elk vloerplan overeind. */}
@@ -2289,6 +2479,41 @@ function Room({
           <meshStandardMaterial color={p.desk} roughness={0.6} />
         </mesh>
       </group>
+
+      {openBoard && (
+        <group
+          position={[0, wallH * 0.55, -depth / 4]}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBoard(null);
+          }}
+        >
+          <mesh position={[0, 0, -0.06]}>
+            <planeGeometry
+              args={
+                openBoard === 'head'
+                  ? [width * 0.82 + 0.6, width * 0.82 * HEAD_RATIO + 0.6]
+                  : [width * 0.5 + 0.5, width * 0.5 * FACTS_RATIO + 0.5]
+              }
+            />
+            <meshBasicMaterial color="#120c26" toneMapped={false} transparent opacity={0.94} />
+          </mesh>
+          <mesh>
+            <planeGeometry
+              args={
+                openBoard === 'head'
+                  ? [width * 0.82, width * 0.82 * HEAD_RATIO]
+                  : [width * 0.5, width * 0.5 * FACTS_RATIO]
+              }
+            />
+            <meshBasicMaterial
+              map={openBoard === 'head' ? head.texture : facts.texture}
+              transparent
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      )}
     </group>
   );
 }
@@ -2320,6 +2545,7 @@ export function OfficeScene({
   (window as unknown as Record<string, unknown>).__araGl = dbgGl;
   (window as unknown as Record<string, unknown>).__araScene = dbgScene;
   const [hoveredDesk, setHoveredDesk] = useState<number | null>(null);
+  const [openBoard, setOpenBoard] = useState<'head' | 'facts' | null>(null);
   const [hoveredSeat, setHoveredSeat] = useState<number | null>(null);
   const spec = useMemo(() => officeSpec(office.kind), [office.kind]);
 
@@ -2505,7 +2731,13 @@ export function OfficeScene({
         distance={26}
       />
 
-      <Room office={office} layout={layout} accent={accent} />
+      <Room
+        office={office}
+        layout={layout}
+        accent={accent}
+        openBoard={openBoard}
+        onBoard={setOpenBoard}
+      />
       {/* Het meubilair dat deze werkvloer tot díé werkvloer maakt. */}
       <Dressing office={office} accent={accent} layout={layout} />
 
@@ -2553,6 +2785,7 @@ export function OfficeScene({
       <Bricks bricks={parts.dividers} material={MAT_FADE} />
       <DeskScreens parts={parts} stations={office.stations} />
       <AlertRings points={alerts} />
+      <WorkFlow layout={layout} stations={office.stations} />
 
       <ChainFloor
         seats={seats}
@@ -2601,34 +2834,57 @@ export function OfficeScene({
         );
       })}
 
-      {/* De keten draagt wél vaste plaatjes: chief, supervisor, manager en —
-          als hij er is — ops. Dat zijn er hooguit vier en juist die vier moet
-          je zonder aanwijzen kunnen lezen. De vaste rollen krijgen hun naam
-          als je ze aanwijst of kiest. */}
+      {/* Iedereen op de strook draagt zijn rol, altijd. Een kantoor met twaalf
+          identieke poppetjes vertelt je niet wie de facturatie-controleur is
+          en wie de keuringsbewaking; dat is precies wat je van een bezetting
+          wil weten. De keten (chief, supervisor, manager, ops) krijgt een groot
+          plaatje, de vaste rollen een klein naamplaatje — en wie je aanwijst of
+          kiest krijgt de regel erbij die zegt waar die rol voor is (`does`). */}
       {seats.map((s, i) => {
-        const show = s.named || hoveredSeat === i || selectedId === s.member.id;
-        if (!show) return null;
+        const focus = hoveredSeat === i || selectedId === s.member.id;
         const vacant = s.member.live === false;
+        const line = focus ? (s.member.does ?? s.member.status) : s.named ? s.member.status : '';
         const chip = chipTexture(
           s.member.name,
-          vacant ? 'vaste rol · leeg' : s.member.status,
-          vacant ? '#7d76b8' : TIER_COLOR[s.tier],
+          vacant && !focus ? 'vaste rol · leeg' : capLine(line),
+          vacant ? '#8d85c9' : TIER_COLOR[s.tier],
         );
-        const h = s.named ? 0.6 : 0.5;
+        const h = focus ? 0.62 : s.named ? 0.56 : 0.34;
         return (
           <sprite
             key={s.member.id}
-            position={[s.x, s.y + 0.14 + (s.named ? 1.9 : 1.5), s.z]}
+            position={[s.x, s.y + 0.14 + (focus || s.named ? 1.85 : 1.25), s.z]}
             scale={[1.5 * chip.aspect * h, h, 1]}
-            renderOrder={11}
+            renderOrder={focus ? 12 : 11}
           >
             <spriteMaterial
               map={chip.texture}
               transparent
-              opacity={vacant ? 0.72 : 1}
+              opacity={vacant && !focus ? 0.7 : 1}
               depthWrite={false}
               depthTest={false}
             />
+          </sprite>
+        );
+      })}
+
+      {/* En aan de bureaus: wie daar zit. Het bordje op het bureau draagt de
+          entiteit ("Truck 53"), niet de persoon — dus zonder dit zie je wel wat
+          er behandeld wordt maar nooit door wie. Alleen werkplekken waar
+          werkelijk een agent aan hangt krijgen er een; er wordt geen naam
+          verzonnen voor een leeg bureau. */}
+      {office.stations.map((st, i) => {
+        const slot = layout.desks[i];
+        if (!st.agentName || !slot) return null;
+        const chip = chipTexture(st.agentName, '', accent);
+        return (
+          <sprite
+            key={`who-${st.id}`}
+            position={[slot.x, slot.y + 1.42, slot.z]}
+            scale={[1.5 * chip.aspect * 0.3, 0.3, 1]}
+            renderOrder={8}
+          >
+            <spriteMaterial map={chip.texture} transparent opacity={0.9} depthWrite={false} />
           </sprite>
         );
       })}
