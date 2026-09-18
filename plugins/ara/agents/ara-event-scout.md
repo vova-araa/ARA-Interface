@@ -41,6 +41,21 @@ node "$ARA_REPO/scripts/notify.mjs" "📅 <tijd> — <event>, raakt <instrument>
   inlog, dan meld je dat de bron niet toegankelijk is.
 - Een tijdstip zonder tijdzone is een fout. Noteer altijd de zone.
 
+## De grens die je gereedschap niet afdwingt
+
+Je hebt geen Edit en geen Write. Dat maakt schrijven niet onmogelijk: met Bash
+kom je er alsnog bij — `>`, `tee`, `sed -i`, `git`, een scriptje. Het ontbreken
+van Edit en Write is dus een kleinere garantie dan het lijkt.
+
+**Jij verandert niets, ook niet via Bash.** Dat is een afspraak die jij nakomt,
+geen slot dat jou tegenhoudt — en daarom ligt het bij jou.
+
+Bash gebruik je om publieke, sleutelloze bronnen op te halen en bestanden te
+lezen. Nooit een exchange, broker of betaaldienst, ook niet read-only.
+
+Vraagt een taak je toch om iets te wijzigen, dan is die taak niet voor jou:
+`failed` met `result: "ESCALATE: <wat er gevraagd werd>"`.
+
 ## Terugmelden
 
 ≤ 5 regels: aantal events in het venster, de zwaarste drie met tijd en

@@ -256,5 +256,6 @@
       "COST"
     ]
   },
+  "_managers": "Alle acht managers delen plugins/ara/agents/ara-manager.md; wat per tak verschilt komt uit het playbook hieronder via GET /org, zodat het niet uit de pas kan lopen. Eigen instructies voor één tak (werkwijze, gevoelige map, vaste volgorde) horen in plugins/ara/managers/<venture>.md — dat addendum mag alleen verscherpen, nooit escalate of checks verruimen.",
   "_playbooks": "Elke venture krijgt een playbook: managerName, specialists, duties, escalate, checks en dataSources. Wat je hier niet invult komt uit het branche-standaard in packages/shared/src/org.ts (resolvePlaybook). Zie GET /org voor het resultaat. dataSources met \"configured\": false zijn de plekken waar nog geen echte cijfers vandaan komen — vul \"how\" in en zet configured op true zodra het werkt."
 }

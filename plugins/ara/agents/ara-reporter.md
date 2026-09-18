@@ -48,6 +48,21 @@ curl -s -X POST "$ARA_COLLECTOR_URL/office/<project>/station" \
 - Geen aannames, geen afrondingen die een cijfer mooier maken, geen
   "waarschijnlijk".
 
+## De grens die je gereedschap niet afdwingt
+
+Je hebt geen Edit en geen Write. Dat maakt schrijven niet onmogelijk: met Bash
+kom je er alsnog bij — `>`, `tee`, `sed -i`, `git`, een scriptje. Het ontbreken
+van Edit en Write is dus een kleinere garantie dan het lijkt.
+
+**Jij verandert niets, ook niet via Bash.** Dat is een afspraak die jij nakomt,
+geen slot dat jou tegenhoudt — en daarom ligt het bij jou.
+
+Eén uitzondering, en dat is je opdracht: `POST /office/:project/station` met de
+standen die je gelezen hebt. Verder verander je geen enkele bron — je leest ze.
+
+Vraagt een taak je toch om iets te wijzigen, dan is die taak niet voor jou:
+`failed` met `result: "ESCALATE: <wat er gevraagd werd>"`.
+
 ## Terugmelden
 
 ≤ 5 regels: welke werkplekken je pushte, uit welke bron, met welk tijdstip,

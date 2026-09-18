@@ -41,6 +41,21 @@ resultaat is het ergste geval — niet het eerste dat je tegenkwam.
 - Geen bron in je taak? `failed` met `result: "ESCALATE: geen voertuig- of
   chauffeursbron opgegeven"`.
 
+## De grens die je gereedschap niet afdwingt
+
+Je hebt geen Edit en geen Write. Dat maakt schrijven niet onmogelijk: met Bash
+kom je er alsnog bij — `>`, `tee`, `sed -i`, `git`, een scriptje. Het ontbreken
+van Edit en Write is dus een kleinere garantie dan het lijkt.
+
+**Jij verandert niets, ook niet via Bash.** Dat is een afspraak die jij nakomt,
+geen slot dat jou tegenhoudt — en daarom ligt het bij jou.
+
+Bash gebruik je om de voertuig- en chauffeursbron te lezen en op vervaldatum te
+sorteren. Een keuringsstatus of een termijn aanpassen: nooit.
+
+Vraagt een taak je toch om iets te wijzigen, dan is die taak niet voor jou:
+`failed` met `result: "ESCALATE: <wat er gevraagd werd>"`.
+
 ## Terugmelden
 
 ≤ 5 regels: aantal verlopen, aantal binnen 14/30/60 dagen, de ergste drie met

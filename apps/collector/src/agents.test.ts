@@ -328,3 +328,120 @@ test('agents: alleen de rollen die zelf mogen spawnen hebben de Agent-tool', () 
     }
   }
 });
+
+/**
+ * Geen Edit/Write in de frontmatter is minder hard dan het lijkt. Een rol met
+ * Bash schrijft alsnog: `> bestand`, `tee`, `sed -i`, `git checkout`, een
+ * scriptje. Empirisch vastgesteld — ara-risk-guard, read-only op papier, zette
+ * zonder moeite een bestand neer. De frontmatter kan dat niet dichtzetten
+ * zolang de rol Bash nodig heeft om te lezen.
+ *
+ * Wat dan wél kan: de rol de echte grens laten kennen. "Jij schrijft niet, ook
+ * niet via Bash" is een afspraak, geen slot — en precies dát verschil moet in
+ * het rolbestand staan. Een rol die zichzelf een garantie toedicht die er niet
+ * is, gaat er op het verkeerde moment op vertrouwen.
+ */
+const BASH_BOUNDARY = /ook niet via Bash/i;
+/**
+ * Claims die suggereren dat het gereedschap het schrijven onmogelijk maakt:
+ * "je kunt het niet", "je kunt geen limiet aanpassen", "geen omissie maar de
+ * garantie zelf". Zinnen lopen in deze bestanden over regels heen, dus toetsen
+ * we op tekst met de regeleindes eruit — per zin, zodat "kun je een cijfer niet
+ * vinden" geen valse treffer wordt.
+ */
+const FALSE_GUARANTEE =
+  /k[uú]n(?:t|nen)?\b[^.]{0,80}\b(?:niet|geen)\b[^.]{0,80}\b(?:schrijv|wijzig|aanpass|verander|muteren|neerzetten)/i;
+const OLD_GUARANTEE = /geen omissie maar de garantie/i;
+/** "je kunt het niet" — de kaalste vorm van dezelfde onjuiste belofte. */
+const IMPOSSIBLE = /k[uú]nt? het niet\b/i;
+const flatten = (body: string) => body.replace(/\s+/g, ' ');
+
+test('agents: read-only met Bash benoemt de grens die het gereedschap niet afdwingt', () => {
+  for (const agent of loadAgents()) {
+    if (agent.tools.includes('Edit') || agent.tools.includes('Write')) continue;
+    if (!agent.tools.includes('Bash')) continue;
+    assert.match(
+      agent.body,
+      BASH_BOUNDARY,
+      `${agent.name} heeft Bash maar geen Edit/Write: hij kán schrijven. Benoem die grens letterlijk ("ook niet via Bash"), anders belooft het rolbestand iets wat het gereedschap niet waarmaakt`,
+    );
+    assert.match(
+      agent.body,
+      /afspraak/i,
+      `${agent.name} moet benoemen dat zijn schrijfgrens een afspraak is en geen slot — anders vertrouwt hij op een garantie die er niet is`,
+    );
+    for (const claim of [FALSE_GUARANTEE, OLD_GUARANTEE, IMPOSSIBLE]) {
+      assert.doesNotMatch(
+        flatten(agent.body),
+        claim,
+        `${agent.name} presenteert zijn schrijfgrens als iets wat het gereedschap afdwingt; met Bash kan hij wél schrijven`,
+      );
+    }
+  }
+});
+
+test('agents: elke rol verwijst alleen naar rollen die bestaan', () => {
+  // `ara-creative` stond nog in de rollentabel van de manager nadat het bestand
+  // was gesplitst en verwijderd. Een manager die zo'n rol spawnt, krijgt een
+  // fout terug en de taak blijft liggen.
+  const agents = loadAgents();
+  const known = new Set(agents.map((a) => a.name));
+  for (const agent of agents) {
+    for (const match of agent.body.matchAll(/`(ara-[a-z0-9-]+)`/g)) {
+      const ref = match[1]!;
+      assert.ok(
+        known.has(ref),
+        `${agent.file} verwijst naar \`${ref}\`, maar dat rolbestand bestaat niet`,
+      );
+    }
+  }
+});
+
+test('agents: elke uitvoerende rol kan zijn bordtaak afsluiten en zoeken vóór lezen', () => {
+  // Een rol zonder TaskUpdate kan zijn eigen escalatie niet op het bord zetten:
+  // hij weigert netjes en niemand merkt het. Grep hoort bij dezelfde discipline
+  // — wie Read heeft maar niet kan zoeken, leest hele bestanden.
+  const leadership = new Set(['ara-chief', 'ara-supervisor', 'ara-manager', 'ara-ops-manager']);
+  for (const agent of loadAgents()) {
+    if (!leadership.has(agent.name)) {
+      assert.ok(
+        agent.tools.includes('TaskUpdate'),
+        `${agent.name} mist TaskUpdate — dan kan hij zijn taak niet op failed + ESCALATE zetten`,
+      );
+    }
+    if (agent.tools.includes('Read')) {
+      assert.ok(
+        agent.tools.includes('Grep'),
+        `${agent.name} heeft Read maar geen Grep — Grep vóór Read is de token-regel uit org.json`,
+      );
+    }
+  }
+});
+
+test('agents: managers delen één rolbestand; tak-specifieke inhoud komt uit /org', () => {
+  // Acht managers, één bestand: de tak-inhoud (specialisten, duties, escalate,
+  // checks, databronnen) komt bij het starten uit GET /org en kan dus niet uit
+  // de pas lopen met org.json. Wat een manager daarnaast nodig heeft, staat in
+  // een optionele addendum-map — maar alleen voor een venture die bestaat.
+  const raw = fs.readFileSync(path.join(AGENTS_DIR, 'ara-manager.md'), 'utf8');
+  assert.match(raw, /\/org/, 'de manager moet zijn playbook uit GET /org halen');
+  assert.doesNotMatch(
+    raw,
+    /^\|\s*(Ritplanner|Marktanalist|Wagenparkbeheer)\b/m,
+    'vakrollen per tak horen in het playbook (org.json → GET /org), niet in een tabel in ara-manager.md — twee lijsten lopen uit de pas',
+  );
+
+  const dir = path.join(REPO, 'plugins/ara/managers');
+  assert.match(raw, /plugins\/ara\/managers/, 'de manager moet weten waar zijn addendum staat');
+  if (!fs.existsSync(dir)) return;
+  const org = JSON.parse(fs.readFileSync(path.join(REPO, 'plugins/ara/org.json'), 'utf8')) as {
+    ventures: { id: string }[];
+  };
+  const ids = new Set(org.ventures.map((v) => v.id));
+  for (const file of fs.readdirSync(dir).filter((f) => f.endsWith('.md'))) {
+    assert.ok(
+      ids.has(file.replace(/\.md$/, '')),
+      `plugins/ara/managers/${file} hoort bij geen enkele venture uit org.json — een addendum dat niemand leest`,
+    );
+  }
+});

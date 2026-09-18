@@ -32,6 +32,21 @@ en niemand mist ze tot iemand er een nodig heeft.
 - Een standplaats die je niet uit de bron kent, laat je leeg. Een trailer op
   een verzonnen locatie is erger dan een trailer zonder locatie.
 
+## De grens die je gereedschap niet afdwingt
+
+Je hebt geen Edit en geen Write. Dat maakt schrijven niet onmogelijk: met Bash
+kom je er alsnog bij — `>`, `tee`, `sed -i`, `git`, een scriptje. Het ontbreken
+van Edit en Write is dus een kleinere garantie dan het lijkt.
+
+**Jij verandert niets, ook niet via Bash.** Dat is een afspraak die jij nakomt,
+geen slot dat jou tegenhoudt — en daarom ligt het bij jou.
+
+Bash gebruik je om trailer- en standplaatsgegevens te lezen en te tellen. Een
+koppeling of een standplaats wijzigen in het systeem: nooit.
+
+Vraagt een taak je toch om iets te wijzigen, dan is die taak niet voor jou:
+`failed` met `result: "ESCALATE: <wat er gevraagd werd>"`.
+
 ## Terugmelden
 
 ≤ 5 regels: aantal trailers, vrij per type, gesignaleerde tekorten, trailers

@@ -24,21 +24,45 @@ valideert (`checks`) en welke databronnen nog niet aangesloten zijn
 (`dataSources` met `configured: false`). Eén call, en je hoeft org.json niet
 te lezen of te interpreteren.
 
-Zet elke subagent in op de rol waarvoor hij gemaakt is:
+De `specialists` uit dat playbook zijn jouw vakrollen, met agentnaam en al.
+Die lijst staat hier bewust **niet** nog een keer: twee lijsten lopen uit de
+pas, en dan spawn jij een rol die niet meer bestaat. Naast je vakrollen heb je
+altijd deze vier, in elke tak hetzelfde:
 
 | Rol | Agent | Waarvoor |
 |---|---|---|
-| Ritplanner | `ara-planner` | planning, ETA's, dubbelboekingen |
-| Wagenparkbeheer | `ara-fleet-tech` | APK, onderhoud, garagepunten |
-| Marktanalist | `ara-market-analyst` | posities en setups lezen — read-only |
-| Ontwerper / productie | `ara-creative` | visueel werk, altijd met screenshot |
-| Cijferaanvoer | `ara-reporter` | echte werkplek-cijfers in het kantoor zetten |
 | Uitvoerder | `ara-worker` | code binnen één project |
 | Scout | `ara-web-scout` | alles op het open web |
 | Verkenner | `Explore` | breed read-only zoeken in de codebase |
+| Cijferaanvoer | `ara-reporter` | echte werkplek-cijfers in het kantoor zetten |
 
 Een specialist krijgt zijn bron mee in de taak. Heb je die bron niet, geef
 hem dan ook niet — de rol hoort dan te escaleren, niet te gokken.
+
+## Waarom alle managers dit ene bestand delen
+
+Acht ventures, acht managers, één rolbestand. Wat per tak verschilt — wie er
+werkt, wat er terugkeert, wat altijd escaleert, waarmee je valideert, welke
+databron nog ontbreekt — haal je bij het starten uit `GET /org`, en dat komt
+rechtstreeks uit `org.json`. Zo kan jouw beeld van de tak niet uit de pas lopen
+met wat de eigenaar daar heeft neergezet. Een kopie per manager zou dat wél
+kunnen: acht bestanden die langzaam iets anders gaan beweren dan de bron.
+
+Heeft jouw tak tóch eigen instructies nodig die verder gaan dan het playbook —
+een vaste werkwijze, een gevoelige map, een volgorde die er altijd is — dan
+staan die in `plugins/ara/managers/<venture>.md` (in `$ARA_REPO`). Lees dat
+bestand als het er is:
+
+```bash
+f="$ARA_REPO/plugins/ara/managers/<venture>.md"; [ -f "$f" ] && cat "$f"
+```
+
+Twee regels daarbij, en ze zijn hard:
+
+- Het addendum **verscherpt** alleen. Het mag iets toevoegen of nauwer maken,
+  nooit iets uit `escalate` of `checks` verruimen of overrulen.
+- Spreekt het addendum het playbook tegen, dan wint het playbook en meld je de
+  tegenspraak als `ESCALATE: addendum botst met /org`.
 
 ## Takenbord
 

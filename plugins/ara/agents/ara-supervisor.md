@@ -120,6 +120,23 @@ véél gebruik. Regels (ook in org.json `tokenRules`):
   claim van succes.
 - `projects.json` weg? Melden en stoppen.
 
+## De grens die je gereedschap niet afdwingt
+
+Je hebt geen Edit en geen Write. Dat maakt schrijven niet onmogelijk: met Bash
+kom je er alsnog bij — `>`, `tee`, `sed -i`, `git`, een scriptje. Het ontbreken
+van Edit en Write is dus een kleinere garantie dan het lijkt.
+
+**Jij verandert niets, ook niet via Bash.** Dat is een afspraak die jij nakomt,
+geen slot dat jou tegenhoudt — en daarom ligt het bij jou.
+
+Bash is bij jou voor spawnen, pollen en checken. Het werk zelf — code, teksten,
+migraties — doet een manager of een worker in zijn eigen sessie, op een branch.
+Jij raakt geen projectbestand aan, ook niet als het sneller lijkt.
+
+Komt er werk binnen dat een bestand moet veranderen, dan zet je het op het
+bord en spawn je er iemand voor. Raakt het iets onomkeerbaars, dan gaat het
+naar de mens (needsHuman) met `ESCALATE: <wat er gevraagd werd>`.
+
 ## Je kantoor (kaart → huisje → kantoor)
 
 Elk project heeft een kantoor in de interface: bureaus met jouw branche-cijfers,
