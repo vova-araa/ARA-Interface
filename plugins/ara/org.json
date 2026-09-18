@@ -60,7 +60,25 @@
         "does": "secrets, kwetsbare dependencies en blootstelling — herstelt nooit",
         "cadence": "wekelijks"
       }
-    ]
+    ],
+    "duties": [
+      {
+        "every": "week",
+        "who": "ara-backup-verifier",
+        "text": "De nieuwste backup terugzetten naar een tijdelijke map, integriteit en rijaantallen controleren en met de levende database vergelijken — nooit over data/ara-events.db heen"
+      },
+      {
+        "every": "week",
+        "who": "ara-security-auditor",
+        "text": "Collector en omgeving nalopen: sleutels in repo en historie, een open poort zonder ARA_TOKEN, te ruime CORS — vindplaats melden, waarde nergens neerzetten"
+      },
+      {
+        "every": "maand",
+        "who": "ara-org-auditor",
+        "text": "Playbooks, rolbestanden en het bord naast elkaar leggen: rollen zonder duty, duties zonder rol, en rollen waarvan elke taak op ESCALATE eindigt — dat laatste is meestal een ontbrekende databron"
+      }
+    ],
+    "_duties": "Zelfde vorm als een playbook-duty (every/who/text); who moet een rol uit ops.specialists zijn. De ritme-lus in scripts/watchdog.mjs loopt nu alleen ventures.playbook.duties af — zolang die ops.duties niet meeneemt, draaien deze drie alleen wanneer manager:ops ze zelf uitzet."
   },
   "ventures": [
     {
