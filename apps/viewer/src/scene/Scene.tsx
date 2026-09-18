@@ -34,6 +34,7 @@ import { Props } from './Props.tsx';
 import { Blocks } from './Blocks.tsx';
 import { Traffic } from './Traffic.tsx';
 import { Herd } from './Herd.tsx';
+import { Doves } from './Doves.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
 import { Drones } from './Drones.tsx';
@@ -295,6 +296,7 @@ export function Scene(): JSX.Element {
         <Landmarks world={world} />
         <AmbientLife />
         {!perfLow && <Weather />}
+        {!perfLow && <Doves />}
         {/* Abrikozenbloesem-drift overdag/schemer (niet 's nachts). */}
         {!perfLow && daylight.period !== 'night' && <Petals />}
         {/* Vuurvliegjes zodra het schemert/nacht is; goudstof overdag boven de hub. */}
