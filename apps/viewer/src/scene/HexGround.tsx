@@ -1,20 +1,49 @@
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialToWorld, axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
 import { buildRoads } from './roads.ts';
-import { stylize } from './stylize.ts';
+import { stylize, tickSurface } from './stylize.ts';
 
 // Gedeelde gestileerde materialen voor de platforms (rim + koele schaduw).
+// De korrel zit in de shader en niet in een texture: er zijn hier duizenden
+// instances van één materiaal, dus een texture zou de hele wereld hetzelfde
+// patroon geven én een bind per frame kosten. Een hash van de wereldpositie
+// herhaalt zich niet en kost geen enkele draw call.
 const BASE_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.95 }), {
   rimStrength: 0.35,
   shadowStrength: 0.3,
+  // Tuff is poreus vulkanisch steen; de vlekken lopen over tegelgrenzen heen
+  // zodat het terrein één gesteente lijkt en geen verzameling losse plaatjes.
+  grain: 0.26,
+  mottle: 0.1,
+  roughVary: 0.18,
 });
 const DISTRICT_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }), {
   rimStrength: 0.5,
   shadowStrength: 0.28,
+  // Bewerkt oppervlak: minder korrel dan de ruwe grond, anders leest een
+  // district niet meer als iets wat iemand heeft aangelegd.
+  grain: 0.11,
+  roughVary: 0.1,
 });
+// De sokkel is het gesteente waar de wereld op staat — grof, gevlekt en
+// gelaagd. Eén vlakke kleur maakte er een geverfd blok van.
+const ROCK_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#6d5850', roughness: 1 }), {
+  rimStrength: 0.22,
+  shadowStrength: 0.34,
+  grain: 0.3,
+  mottle: 0.22,
+  strata: 0.18,
+  roughVary: 0.14,
+});
+// Sevan: glans plus een lopende golfnormaal. Het water beweegt dus in het
+// licht en niet in de geometrie — de tegels blijven exact waar ze staan.
+const WATER_MAT = stylize(
+  new THREE.MeshStandardMaterial({ color: '#2e9cc7', roughness: 0.15, metalness: 0.1 }),
+  { rim: '#cdefff', rimStrength: 0.4, shadowStrength: 0.12, waves: 1, waveSpeed: 0.85 },
+);
 
 const TUFF_PINK = new THREE.Color('#e2a49a'); // Yerevan tuff
 const TUFF_DARK = new THREE.Color('#b87c73');
@@ -188,15 +217,13 @@ function useInstances(
 
 export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element {
   const tiles = useMemo(() => computeTiles(world), [world]);
-  const waterRef = useRef<THREE.MeshStandardMaterial>(null);
 
   useFrame(({ clock }) => {
-    if (waterRef.current) {
-      const t = clock.elapsedTime;
-      waterRef.current.color
-        .copy(SEVAN_BLUE)
-        .offsetHSL(0, 0, Math.sin(t * 1.4) * 0.03);
-    }
+    const t = clock.elapsedTime;
+    WATER_MAT.color.copy(SEVAN_BLUE).offsetHSL(0, 0, Math.sin(t * 1.4) * 0.03);
+    // Eén uniform per frame voor het hele meer; de golven zelf kosten niets
+    // extra's, ze rekenen mee in fragmenten die toch al getekend worden.
+    tickSurface(WATER_MAT, t);
   });
 
   // Hexagonal prism: cylinder with 6 radial segments; rotate 30° so flat side faces camera nicely.
@@ -279,7 +306,7 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
             ooit heeft ingetikt: toen de wereld kromp stak de sokkel er als een
             dienblad onderuit, en dat merk je pas op een screenshot. */}
         <cylinderGeometry args={[tiles.extent + 1.1, (tiles.extent + 1.1) * 0.66, 8.4, 12]} />
-        <meshStandardMaterial color="#6d5850" roughness={1} />
+        <primitive object={ROCK_MAT} attach="material" />
       </mesh>
 
       {/* Wegen: dezelfde prisma's, andere kleur, een haar hoger zodat de rand
@@ -299,9 +326,9 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
         key={`water-${tiles.water.length}`}
         args={[undefined, undefined, Math.max(1, tiles.water.length)]}
         ref={useInstances(tiles.water, -0.06)}
+        material={WATER_MAT}
       >
         <cylinderGeometry args={[0.98, 0.98, 0.22, 6]} />
-        <meshStandardMaterial ref={waterRef} color="#2e9cc7" roughness={0.15} metalness={0.1} />
       </instancedMesh>
     </group>
   );
