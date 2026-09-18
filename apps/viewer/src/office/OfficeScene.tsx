@@ -2587,11 +2587,6 @@ export function OfficeScene({
     [office.kind, office.stations.length],
   );
   const { width, depth, palette } = layout;
-  // TEMP-DEBUG
-  const dbgGl = useThree((s) => s.gl);
-  const dbgScene = useThree((s) => s.scene);
-  (window as unknown as Record<string, unknown>).__araGl = dbgGl;
-  (window as unknown as Record<string, unknown>).__araScene = dbgScene;
   const [hoveredDesk, setHoveredDesk] = useState<number | null>(null);
   const [openBoard, setOpenBoard] = useState<'head' | 'facts' | null>(null);
   const [hoveredSeat, setHoveredSeat] = useState<number | null>(null);
