@@ -6,7 +6,18 @@ import { useAra, type ChatMsg, type LatencyStat, type LiveStatus } from './store
  * Arrives once via ?token=… in the URL, then lives in localStorage.
  * EventSource can't set headers, so the token rides as a query param.
  */
-function getToken(): string {
+/** Zet het token dat bij deze collector hoort (leeg = geen token nodig). */
+export function setToken(raw: string): void {
+  try {
+    const token = raw.trim();
+    if (token) localStorage.setItem('ara.token', token);
+    else localStorage.removeItem('ara.token');
+  } catch {
+    /* privémodus: dan houdt het op bij deze sessie */
+  }
+}
+
+export function getToken(): string {
   try {
     const fromUrl = new URLSearchParams(location.search).get('token');
     if (fromUrl) {
@@ -19,10 +30,62 @@ function getToken(): string {
   }
 }
 
+/**
+ * Waar de collector draait.
+ *
+ * Normaal is dat dezelfde herkomst als de viewer zelf — de collector serveert
+ * de gebouwde viewer, dus een pad zonder host klopt gewoon. Maar de viewer kan
+ * ook ergens anders staan dan de collector: als losse pagina in de Claude-app
+ * op de telefoon bijvoorbeeld, terwijl de collector op de Mac draait en via het
+ * tailnet bereikbaar is. Dan moet hij weten waar hij moet aankloppen.
+ *
+ * Komt één keer binnen via ?api=https://…, daarna uit localStorage. Alleen
+ * http en https: een pagina die elk schema slikt kan via een geprepareerde
+ * link naar javascript: of data: worden gestuurd, en dan bepaalt de link wat
+ * er in jouw sessie uitgevoerd wordt.
+ */
+function sanitizeBase(raw: string): string {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.origin + url.pathname.replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
+
+export function apiBase(): string {
+  try {
+    const fromUrl = new URLSearchParams(location.search).get('api');
+    if (fromUrl !== null) {
+      // ?api= zonder waarde betekent: terug naar dezelfde herkomst.
+      const clean = fromUrl ? sanitizeBase(fromUrl) : '';
+      if (clean) localStorage.setItem('ara.api', clean);
+      else localStorage.removeItem('ara.api');
+      return clean;
+    }
+    return sanitizeBase(localStorage.getItem('ara.api') ?? '');
+  } catch {
+    return '';
+  }
+}
+
+/** Zet de collector op een ander adres (of leeg = weer dezelfde herkomst). */
+export function setApiBase(raw: string): void {
+  try {
+    const clean = sanitizeBase(raw.trim());
+    if (clean) localStorage.setItem('ara.api', clean);
+    else localStorage.removeItem('ara.api');
+  } catch {
+    /* privémodus: dan houdt het op bij deze sessie */
+  }
+}
+
 export function withToken(path: string): string {
+  const url = apiBase() + path;
   const token = getToken();
-  if (!token) return path;
-  return path + (path.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
+  if (!token) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token);
 }
 
 /** Live wiring: /world + /state hydration and the SSE stream with reconnect. */

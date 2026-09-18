@@ -1,4 +1,4 @@
-import type { WorldSnapshot } from '@ara/shared';
+import { isEscalated, type WorldSnapshot } from '@ara/shared';
 import type { EventStore } from './db.ts';
 
 /**
@@ -137,7 +137,7 @@ export function buildActions(input: ActionInput): Action[] {
 
   // ── Escalaties en incidenten van het bord ──────────────────────────────
   for (const task of store.listTasks({ status: 'open', limit: 100 })) {
-    const escalated = task.result.startsWith('ESCALATE') || task.detail.includes('ESCALATE:');
+    const escalated = isEscalated(task);
     const incident = task.assignee === 'manager:ops';
     if (!escalated && !incident) continue;
     actions.push({

@@ -593,8 +593,9 @@ export function createCollector(store: EventStore): CollectorApp {
     const venture = VENTURES.find((v) => v.id === placement.venture) ?? VENTURES[VENTURES.length - 1]!;
     const snapshot = state.snapshot();
     const sessions = Object.values(snapshot.sessions).filter((s) => s.project === project);
+    const TASK_LIMIT = 40;
     const tasks = store
-      .listTasks({ project, limit: 40 })
+      .listTasks({ project, limit: TASK_LIMIT })
       .map((t) => ({
         id: t.id,
         title: t.title,
@@ -603,6 +604,9 @@ export function createCollector(store: EventStore): CollectorApp {
         assignee: t.assignee,
         createdBy: t.createdBy,
         updatedAt: t.updatedAt,
+        // Een weigering staat in het resultaat, niet in de titel; zonder dit
+        // veld kan het kantoor geen escalatie van gewoon werk onderscheiden.
+        result: t.result,
       }));
     const overrides: StationOverride[] = [];
     for (const row of store.listStations(project)) {
@@ -641,6 +645,7 @@ export function createCollector(store: EventStore): CollectorApp {
         venture,
         sessions,
         tasks,
+        taskLimit: TASK_LIMIT,
         entities: officeEntities(venture.id),
         overrides,
         pulse,

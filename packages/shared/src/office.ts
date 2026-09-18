@@ -157,6 +157,8 @@ export interface OfficeSnapshot {
   measured: Metric[];
   /** true = de grafiek op de muur is een ingevuld verloop, geen meting. */
   chartEstimated: boolean;
+  /** Het bord van dit project: waar dit kantoor nu daadwerkelijk aan werkt. */
+  work: OfficeWork;
   now: number;
 }
 
@@ -319,6 +321,55 @@ export interface BoardTaskLite {
   assignee: string;
   createdBy: string;
   updatedAt: number;
+  /** Wat de agent terugmeldde; leeg zolang de taak open staat. */
+  result?: string;
+}
+
+/**
+ * Een weigering begint met ESCALATE: op de eerste regel — de keten zoekt
+ * letterlijk op dat woord. Die regel staat hier omdat de actielijst en het
+ * kantoor hem allebei nodig hebben, en twee lezingen van "wacht dit op een
+ * mens" is er één te veel: dan staat een escalatie in de ene lijst wel en in
+ * de andere niet, en vertrouw je geen van beide meer.
+ */
+export function isEscalated(task: { result?: string; detail?: string }): boolean {
+  return (task.result ?? '').startsWith('ESCALATE') || (task.detail ?? '').includes('ESCALATE:');
+}
+
+/** Een bordtaak zoals het kantoor hem toont. */
+export interface OfficeTask {
+  id: string;
+  title: string;
+  status: string;
+  assignee: string;
+  createdBy: string;
+  updatedAt: number;
+  /** true = deze taak wacht op een mens, niet op een agent. */
+  escalated: boolean;
+  /** De rol uit `staff` waar deze taak bij hoort, als hij te plaatsen is. */
+  staffId?: string;
+  /** Eén regel uit result of detail; leeg als er niets te zeggen valt. */
+  note?: string;
+}
+
+/**
+ * Wat dit kantoor daadwerkelijk aan het doen is.
+ *
+ * De werkvloer toonde tot nu toe werkplekken en bemensing, maar niet het werk:
+ * je zag wie er zat, niet waar hij mee bezig was. Dit is het bord van dit ene
+ * project, met de escalaties apart — die wachten op jou en horen niet tussen
+ * de rest te verdwijnen.
+ */
+export interface OfficeWork {
+  escalations: OfficeTask[];
+  open: OfficeTask[];
+  /** Vandaag afgerond. Geen schatting: geteld op updatedAt. */
+  doneToday: number;
+  /**
+   * true = er kwamen precies zoveel taken terug als de limiet toeliet, dus
+   * `open` is een ondergrens. Het kantoor zegt dan "≥", net als de kaart.
+   */
+  truncated: boolean;
 }
 
 export interface StationOverride {
@@ -336,6 +387,12 @@ export interface StationOverride {
 export const STATION_STALE_MS = 30 * 60 * 1000;
 
 export interface OfficeInput {
+  /**
+   * De limiet waarmee de aanroeper `tasks` ophaalde. Kwam dat aantal exact
+   * terug, dan is het bord een ondergrens; zonder dit getal kan het kantoor
+   * dat niet weten en doet het alsof het alles ziet.
+   */
+  taskLimit?: number;
   project: string;
   venture: VentureStyle;
   sessions: SessionState[];
@@ -352,6 +409,13 @@ export interface OfficeInput {
 }
 
 /** Deterministische pseudo-waarde in [0,1) voor een sleutel. */
+/** Middernacht van de dag waar `now` in valt, in lokale tijd. */
+function startOfToday(now: number): number {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function rnd(key: string): number {
   return (stableHash(key) % 10_000) / 10_000;
 }
@@ -488,6 +552,36 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       sessionId: a.sessionId,
     })),
   ];
+
+  // ── Het bord van dit project ───────────────────────────────────────────
+  // Een kantoor liet zien wie er zat, niet waar hij mee bezig was. Dit zijn de
+  // echte taken; er wordt hier niets ingevuld, dus een leeg bord blijft leeg.
+  const staffIdFor = (assignee: string): string | undefined =>
+    staff.find((m) => m.id === assignee || m.agent === assignee)?.id;
+  const firstLine = (text: string): string | undefined => {
+    const line = text.split('\n').find((l) => l.trim().length > 0)?.trim();
+    return line ? (line.length > 160 ? `${line.slice(0, 159)}…` : line) : undefined;
+  };
+  const asOfficeTask = (t: BoardTaskLite): OfficeTask => ({
+    id: t.id,
+    title: t.title,
+    status: t.status,
+    assignee: t.assignee,
+    createdBy: t.createdBy,
+    updatedAt: t.updatedAt,
+    escalated: isEscalated(t),
+    staffId: staffIdFor(t.assignee),
+    note: firstLine(t.result ?? '') ?? firstLine(t.detail),
+  });
+  const live = tasks.filter((t) => t.status !== 'done' && t.status !== 'failed');
+  const work: OfficeWork = {
+    escalations: live.filter((t) => isEscalated(t)).map(asOfficeTask),
+    open: live.filter((t) => !isEscalated(t)).map(asOfficeTask),
+    doneToday: tasks.filter((t) => t.status === 'done' && t.updatedAt >= startOfToday(now)).length,
+    // De aanroeper haalt met een limiet op; komt dat aantal exact terug, dan is
+    // dit een ondergrens en zegt het kantoor "≥" in plaats van een getal.
+    truncated: input.taskLimit !== undefined && tasks.length >= input.taskLimit,
+  };
 
   // ── Feitenfeed: echte bordtaken + echte sessie-gebeurtenissen ──────────
   const facts: OfficeFact[] = tasks
@@ -634,6 +728,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
     realStations,
     staleStations,
     chartEstimated: true, // het verloop is een invulling zolang niets het voedt
+    work,
     now,
   };
 }

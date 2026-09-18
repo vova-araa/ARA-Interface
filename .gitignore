@@ -14,3 +14,4 @@ test-results/
 playwright-report/
 data/inbox-seen.json
 data/rhythm.json
+dist-artifact/
