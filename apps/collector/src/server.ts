@@ -397,6 +397,9 @@ export function createCollector(store: EventStore): CollectorApp {
       cacheReadTokens: num(body.cacheReadTokens),
       cacheCreateTokens: num(body.cacheCreateTokens),
       model: String(body.model ?? ''),
+      // Gezet door de watchdog bij het spawnen en doorgegeven door usage.mjs.
+      // Leeg = de eigenaar startte deze sessie zelf.
+      spawnedBy: capText(String(body.spawnedBy ?? ''), 60) ?? '',
     });
     res.json({ ok: true });
   });

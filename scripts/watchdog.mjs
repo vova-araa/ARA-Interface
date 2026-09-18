@@ -158,16 +158,25 @@ function spawnAttempts(signature, { increment = false } = {}) {
 async function budgetExceeded() {
   try {
     const { usage, budget } = await api('/usage');
-    const used = usage.reduce(
-      (sum, row) => sum + row.inputTokens + row.outputTokens + row.cacheCreateTokens,
-      0,
-    );
+    // Alleen wat ARA zelf startte. Het handwerk van de eigenaar staat in
+    // dezelfde tabel, en dat meetellen betekende dat een dag zelf ontwikkelen
+    // zijn agents stilzette terwijl die niets hadden uitgegeven. Gemeten op de
+    // dag dat dit gebouwd werd: 15,9 miljoen tokens tegen een budget van 2
+    // miljoen, waarvan 14,1 miljoen cache-creatie uit één ontwikkelsessie.
+    //
+    // agentTokens is invoer + uitvoer + cache-creatie van die sessies; het
+    // cache-deel staat er apart bij zodat de som te lezen blijft in plaats van
+    // als één onverklaarbaar groot getal in het log te staan.
+    const used = usage.reduce((sum, row) => sum + (row.agentTokens ?? 0), 0);
+    const usedCache = usage.reduce((sum, row) => sum + (row.agentCacheCreateTokens ?? 0), 0);
     if (budget > 0 && used >= budget) {
-      log(`dagbudget bereikt (${used}/${budget}) — geen nieuwe agents deze tick`);
+      log(
+        `dagbudget bereikt (${used}/${budget}, waarvan ${usedCache} cache-creatie) — geen nieuwe agents deze tick`,
+      );
       await alertOnce(
         `budget-${new Date().toISOString().slice(0, 10)}`,
         12 * 60 * 60 * 1000,
-        `🟠 ARA World — dagbudget bereikt\n${used.toLocaleString('nl-NL')} van ${budget.toLocaleString('nl-NL')} tokens gebruikt. Er worden vandaag geen nieuwe agents meer gestart.`,
+        `🟠 ARA World — dagbudget bereikt\n${used.toLocaleString('nl-NL')} van ${budget.toLocaleString('nl-NL')} tokens door agents gebruikt (waarvan ${usedCache.toLocaleString('nl-NL')} cache-creatie). Er worden vandaag geen nieuwe agents meer gestart.\nJe eigen Claude Code-werk telt hier niet in mee.`,
       );
       return true;
     }
@@ -271,6 +280,11 @@ function spawnClaude(name, prompt, { agent, tools } = {}) {
     cwd: REPO,
     detached: true,
     stdio: ['ignore', logFile, logFile],
+    // Stempel op de sessie die we hier starten. `usage.mjs` geeft hem door aan
+    // de collector, en daarmee weet het dagbudget het verschil tussen wat ARA
+    // zelf uitgeeft en wat de eigenaar achter zijn eigen Mac verstookt. Zonder
+    // dat telde alles mee en zette een dag handwerk de hele organisatie stil.
+    env: { ...process.env, ARA_SPAWNED_ROLE: agent ?? name },
   });
   // Een sessie die meteen omvalt (niet ingelogd, limiet, onbekende agent) mag
   // niet stil blijven: dat is precies het geval waarin niemand iets merkt.

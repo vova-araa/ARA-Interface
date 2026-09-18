@@ -628,3 +628,75 @@ test('opruimen raakt het handelsspoor niet aan', async () => {
     store.close();
   }
 });
+
+test('/usage: het dagbudget telt alleen sessies die ARA zelf startte', async () => {
+  const { server, base } = boot();
+  try {
+    // De eigenaar zelf aan het werk: veel tokens, geen spawnedBy. Dit was de
+    // hele bug — een dag handwerk zette zijn eigen agents stil terwijl die
+    // niets hadden uitgegeven.
+    await fetch(`${base}/usage`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        sessionId: 'mens-1',
+        cwd: '/tmp/proj-a',
+        inputTokens: 5_000,
+        outputTokens: 1_500_000,
+        cacheCreateTokens: 14_000_000,
+      }),
+    });
+    // Een agent die ARA startte.
+    await fetch(`${base}/usage`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({
+        sessionId: 'agent-1',
+        cwd: '/tmp/proj-a',
+        inputTokens: 1_000,
+        outputTokens: 2_000,
+        cacheCreateTokens: 7_000,
+        spawnedBy: 'ara-qa-verifier',
+      }),
+    });
+
+    const res = (await (await fetch(`${base}/usage?from=0`)).json()) as {
+      usage: {
+        inputTokens: number;
+        outputTokens: number;
+        cacheCreateTokens: number;
+        agentTokens: number;
+        agentCacheCreateTokens: number;
+      }[];
+    };
+    const total = res.usage.reduce((sum, r) => sum + r.inputTokens + r.outputTokens + r.cacheCreateTokens, 0);
+    const agent = res.usage.reduce((sum, r) => sum + r.agentTokens, 0);
+    const agentCache = res.usage.reduce((sum, r) => sum + r.agentCacheCreateTokens, 0);
+
+    assert.equal(agent, 10_000, 'alleen de agent-sessie telt tegen het budget');
+    assert.equal(agentCache, 7_000, 'het cache-deel staat apart zodat de som te lezen blijft');
+    assert.ok(total > 15_000_000, 'het totaal blijft zichtbaar — we verbergen het verbruik niet');
+  } finally {
+    server.close();
+  }
+});
+
+test('/usage: een latere post zonder stempel maakt van een agent geen mens', async () => {
+  const { server, base } = boot();
+  try {
+    const post = (body: Record<string, unknown>) =>
+      fetch(`${base}/usage`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+    await post({ sessionId: 's1', cwd: '/tmp/p', outputTokens: 100, spawnedBy: 'ara-manager' });
+    // Dezelfde sessie post opnieuw, maar de env-variabele is weg (hook opnieuw
+    // geladen, andere shell). Zonder bescherming zou dit verbruik stilletjes
+    // naar de eigenaar verhuizen en uit het budget verdwijnen.
+    await post({ sessionId: 's1', cwd: '/tmp/p', outputTokens: 300 });
+
+    const res = (await (await fetch(`${base}/usage?from=0`)).json()) as {
+      usage: { agentTokens: number }[];
+    };
+    assert.equal(res.usage.reduce((sum, r) => sum + r.agentTokens, 0), 300);
+  } finally {
+    server.close();
+  }
+});

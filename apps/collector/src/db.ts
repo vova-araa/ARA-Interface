@@ -50,6 +50,12 @@ export interface SessionUsage {
   cacheReadTokens: number;
   cacheCreateTokens: number;
   model: string;
+  /**
+   * De rol die ARA zelf startte (`ara-manager`, `ara-qa-verifier`, …), leeg
+   * als de eigenaar deze sessie zelf begon. Bepaalt of dit verbruik tegen het
+   * dagbudget van de agents telt.
+   */
+  spawnedBy?: string;
 }
 
 export interface UsageSummaryRow {
@@ -59,6 +65,15 @@ export interface UsageSummaryRow {
   outputTokens: number;
   cacheReadTokens: number;
   cacheCreateTokens: number;
+  /**
+   * Alleen het verbruik van sessies die ARA zelf startte (invoer + uitvoer +
+   * cache-creatie). Dit is het getal waar het dagbudget tegen afgezet hoort te
+   * worden — de rest is handwerk van de eigenaar en hoort zijn agents niet
+   * stil te zetten.
+   */
+  agentTokens: number;
+  /** Het cache-creatie-deel daarvan, apart zodat de som te lezen blijft. */
+  agentCacheCreateTokens: number;
 }
 
 /** Door agents aangeleverde werkplek-data voor een kantoor. */
@@ -317,6 +332,25 @@ export function openStore(dbPath = DB_PATH): EventStore {
     CREATE INDEX IF NOT EXISTS idx_paper_open ON paper_positions(closed_at);
   `);
 
+  /**
+   * Wie deze sessie gestart heeft. Leeg = de eigenaar zelf achter zijn Mac.
+   *
+   * Zonder dit onderscheid telde het dagbudget álle Claude Code-sessies op de
+   * machine, dus ook een dag handwerk van de eigenaar — en dan zetten zijn
+   * eigen agents zichzelf stil terwijl ze niets hadden uitgegeven. Gemeten:
+   * 15,9 miljoen tokens tegen een budget van 2 miljoen, waarvan 14,1 miljoen
+   * cache-creatie uit één ontwikkelsessie.
+   *
+   * Als losse migratie, want deze kolommen komen bij bestaande databases erbij.
+   */
+  for (const table of ['usage', 'usage_days']) {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN spawned_by TEXT NOT NULL DEFAULT ''`);
+    } catch {
+      /* kolom bestaat al — dat is de normale toestand na de eerste start */
+    }
+  }
+
   const insertStmt = db.prepare(
     'INSERT OR REPLACE INTO events (id, ts, kind, session_id, project, json) VALUES (?, ?, ?, ?, ?, ?)',
   );
@@ -473,11 +507,12 @@ export function openStore(dbPath = DB_PATH): EventStore {
         output: Math.max(0, usage.outputTokens - (prev?.output_tokens ?? 0)),
         cacheRead: Math.max(0, usage.cacheReadTokens - (prev?.cache_read_tokens ?? 0)),
         cacheCreate: Math.max(0, usage.cacheCreateTokens - (prev?.cache_create_tokens ?? 0)),
+        spawnedBy: usage.spawnedBy ?? '',
       };
       db.transaction(() => {
         db.prepare(`
-          INSERT INTO usage (session_id, project, updated_at, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, model)
-          VALUES (@sessionId, @project, @updatedAt, @inputTokens, @outputTokens, @cacheReadTokens, @cacheCreateTokens, @model)
+          INSERT INTO usage (session_id, project, updated_at, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, model, spawned_by)
+          VALUES (@sessionId, @project, @updatedAt, @inputTokens, @outputTokens, @cacheReadTokens, @cacheCreateTokens, @model, @spawnedBy)
           ON CONFLICT(session_id) DO UPDATE SET
             project = excluded.project,
             updated_at = excluded.updated_at,
@@ -485,17 +520,22 @@ export function openStore(dbPath = DB_PATH): EventStore {
             output_tokens = excluded.output_tokens,
             cache_read_tokens = excluded.cache_read_tokens,
             cache_create_tokens = excluded.cache_create_tokens,
-            model = excluded.model
-        `).run(usage);
+            model = excluded.model,
+            -- Eén keer gezet blijft gezet: een latere post zonder de env-variabele
+            -- (bv. na een herstart van de hook) mag een agent-sessie niet stilletjes
+            -- terugzetten naar "de eigenaar deed dit zelf".
+            spawned_by = CASE WHEN excluded.spawned_by = '' THEN spawned_by ELSE excluded.spawned_by END
+        `).run({ ...usage, spawnedBy: usage.spawnedBy ?? '' });
         db.prepare(`
-          INSERT INTO usage_days (day, session_id, project, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens)
-          VALUES (@day, @sessionId, @project, @input, @output, @cacheRead, @cacheCreate)
+          INSERT INTO usage_days (day, session_id, project, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, spawned_by)
+          VALUES (@day, @sessionId, @project, @input, @output, @cacheRead, @cacheCreate, @spawnedBy)
           ON CONFLICT(day, session_id) DO UPDATE SET
             project = excluded.project,
             input_tokens = input_tokens + excluded.input_tokens,
             output_tokens = output_tokens + excluded.output_tokens,
             cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
-            cache_create_tokens = cache_create_tokens + excluded.cache_create_tokens
+            cache_create_tokens = cache_create_tokens + excluded.cache_create_tokens,
+            spawned_by = CASE WHEN excluded.spawned_by = '' THEN spawned_by ELSE excluded.spawned_by END
         `).run(delta);
       })();
     },
@@ -507,7 +547,12 @@ export function openStore(dbPath = DB_PATH): EventStore {
                  SUM(input_tokens) AS inputTokens,
                  SUM(output_tokens) AS outputTokens,
                  SUM(cache_read_tokens) AS cacheReadTokens,
-                 SUM(cache_create_tokens) AS cacheCreateTokens
+                 SUM(cache_create_tokens) AS cacheCreateTokens,
+                 -- Alleen wat ARA zelf startte telt tegen het dagbudget van de
+                 -- agents; handwerk van de eigenaar staat in dezelfde tabel maar
+                 -- hoort zijn eigen organisatie niet stil te zetten.
+                 SUM(CASE WHEN spawned_by <> '' THEN input_tokens + output_tokens + cache_create_tokens ELSE 0 END) AS agentTokens,
+                 SUM(CASE WHEN spawned_by <> '' THEN cache_create_tokens ELSE 0 END) AS agentCacheCreateTokens
           FROM usage_days
           WHERE day >= ?
           GROUP BY project

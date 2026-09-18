@@ -72,6 +72,9 @@ await fetch(`${collector}/usage`, {
     cacheReadTokens: cacheRead,
     cacheCreateTokens: cacheCreate,
     model,
+    // Gezet door de watchdog bij het spawnen; leeg als de eigenaar deze sessie
+    // zelf begon. Bepaalt of dit verbruik tegen het agent-dagbudget telt.
+    spawnedBy: process.env.ARA_SPAWNED_ROLE ?? '',
   }),
   signal: AbortSignal.timeout(3000),
 }).catch(() => {});
