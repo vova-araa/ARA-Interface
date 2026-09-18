@@ -1,6 +1,14 @@
 import type { AraEvent, SessionState, WorldSnapshot } from './schema.ts';
 
-const SESSION_TTL_MS = 6 * 60 * 60 * 1000; // hide sessions idle > 6h from "running"
+/**
+ * Hoe lang een stille sessie nog als "draaiend" telt.
+ *
+ * Geëxporteerd omdat de viewer dezelfde grens nodig heeft: de bovenbalk, de
+ * pods en de districtborden moeten hetzelfde aantal noemen. Twee kopieën van
+ * dit getal betekent vroeg of laat twee verschillende antwoorden op dezelfde
+ * vraag, en dan is geen van beide meer te vertrouwen.
+ */
+export const SESSION_TTL_MS = 6 * 60 * 60 * 1000;
 // Sessies die zó lang niets deden verdwijnen ook uit het geheugen en /state.
 const SESSION_RETENTION_MS = 48 * 60 * 60 * 1000;
 const PRUNE_THRESHOLD = 400;

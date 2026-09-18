@@ -25,6 +25,7 @@ import { Landmarks } from './Landmarks.tsx';
 import { Pods } from './Pods.tsx';
 import { Figures } from './Figures.tsx';
 import { EffectsLayer } from './EffectsLayer.tsx';
+import { DistrictStats } from './DistrictStats.tsx';
 import { Labels } from './Labels.tsx';
 import { useDaylight, type Daylight } from './daylight.ts';
 import { TokenPillars } from './TokenPillars.tsx';
@@ -337,6 +338,11 @@ export function Scene(): JSX.Element {
             {!perfLow && <DistrictLife world={world} />}
             {!perfLow && <Drones world={world} />}
             <Labels world={world} />
+            {/* Cijfers hóren op de kaart, niet alleen binnen een kantoor: wie
+                naar de wereld kijkt wil zien waar iets van hem gevraagd wordt
+                zonder eerst ergens naar binnen te lopen. Regelt zijn eigen
+                zuinige stand (compact op lodFar/perfLow), dus geen guard. */}
+            <DistrictStats world={world} />
             <TokenPillars world={world} />
             <Pods world={world} />
             <Figures world={world} />
