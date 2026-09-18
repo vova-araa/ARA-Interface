@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialToWorld, axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
+import { buildRoads } from './roads.ts';
 import { stylize } from './stylize.ts';
 
 // Gedeelde gestileerde materialen voor de platforms (rim + koele schaduw).
@@ -38,35 +39,6 @@ interface Tiles {
   extent: number;
   /** Wegen van de hub naar elk district; zonder die zweven ze los rond. */
   road: { pos: [number, number, number] }[];
-}
-
-/**
- * Rechte lijn over het hex-raster van a naar b, in kubuscoördinaten
- * geïnterpoleerd en teruggerond. Dat geeft een aaneengesloten pad — met alleen
- * axiale interpolatie krijg je gaten waar de afronding twee keer dezelfde
- * tegel kiest.
- */
-function hexLine(a: { q: number; r: number }, b: { q: number; r: number }): { q: number; r: number }[] {
-  const dist = Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.q + a.r - b.q - b.r));
-  const out: { q: number; r: number }[] = [];
-  for (let i = 0; i <= dist; i += 1) {
-    const t = dist === 0 ? 0 : i / dist;
-    const q = a.q + (b.q - a.q) * t;
-    const r = a.r + (b.r - a.r) * t;
-    const sAxis = -q - r;
-    let rq = Math.round(q);
-    let rr = Math.round(r);
-    const rs = Math.round(sAxis);
-    // De as met de grootste afrondfout wordt uit de andere twee afgeleid,
-    // anders valt de som niet meer op nul en ligt de tegel naast het pad.
-    const dq = Math.abs(rq - q);
-    const dr = Math.abs(rr - r);
-    const ds = Math.abs(rs - sAxis);
-    if (dq > dr && dq > ds) rq = -rr - rs;
-    else if (dr > ds) rr = -rq - rs;
-    out.push({ q: rq, r: rr });
-  }
-  return out;
 }
 
 /**
@@ -148,24 +120,10 @@ function computeTiles(world: WorldConfig | null): Tiles {
       }
     }
 
-    // Wegen vanaf de hub in het midden naar het hart van elk district. Alles
-    // straalt vanuit één punt, wat klopt met wat de hub in deze wereld is —
-    // en het maakt van losse eilanden een plek waar je doorheen kunt.
-    for (const district of world.districts) {
-      const hexes = district.projects.flatMap((project) => project.hexes);
-      if (hexes.length === 0) continue;
-      const centre = {
-        q: Math.round(hexes.reduce((sum, h) => sum + h.q, 0) / hexes.length),
-        r: Math.round(hexes.reduce((sum, h) => sum + h.r, 0) / hexes.length),
-      };
-      for (const hex of hexLine({ q: 0, r: 0 }, centre)) {
-        const key = axialKey(hex);
-        // Een weg loopt niet dóór een district of het meer heen; hij houdt op
-        // waar hij aankomt.
-        if (claimed.has(key) || lake.has(key)) continue;
-        roadKeys.add(key);
-      }
-    }
+    // Wegen vanaf de hub naar het hart van elk district; het net zelf staat in
+    // roads.ts omdat het verkeer erover rijdt en die twee hetzelfde net moeten
+    // gebruiken.
+    for (const key of buildRoads(world, { claimed, lake }).tiles) roadKeys.add(key);
   }
 
   // Continuous terrain under everything.
