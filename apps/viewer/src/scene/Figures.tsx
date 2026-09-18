@@ -472,6 +472,10 @@ function FigureCrowd({ figures }: { figures: FigureInfo[] }): JSX.Element {
             }}
             args={[ICON_GEO, iconMaterial(icon), MAX_FIGURES]}
             frustumCulled={false}
+            // Nieuw aangekoppeld begint een instanced mesh op zijn volle
+            // capaciteit met eenheidsmatrices — tweehonderd iconen op de
+            // oorsprong. De frame-lus zet het aantal goed, maar pas daarna.
+            onUpdate={(mesh) => (mesh.count = 0)}
           />
         ))}
       {/* speech bubbles with toolSummary (LOD: uit wanneer ver uitgezoomd) */}
