@@ -1000,9 +1000,12 @@ function Room({
         </>
       )}
 
+      {/* De pit: het lichte vlak waar de bogen omheen staan. Hij blijft binnen
+          de wanden — een vloervlak dat door een wand heen loopt verraadt dat de
+          ruimte geen ruimte is. */}
       {layout.shell === 'controlroom' && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, -2.6]} receiveShadow>
-          <circleGeometry args={[9.4, 40]} />
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, -1]} receiveShadow>
+          <circleGeometry args={[8.2, 40]} />
           <meshStandardMaterial color={p.mark} roughness={0.9} />
         </mesh>
       )}
