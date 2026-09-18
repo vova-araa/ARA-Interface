@@ -16,8 +16,8 @@ import { STATUS_COLORS } from '../util.ts';
 
 /** Halve breedte van de wereld in wereldeenheden; de hexschijf past hier net in. */
 const EXTENT = 16;
-/** Hoogstens ~16 keer per seconde tekenen: dit is een kaartje, geen animatie. */
-const FRAME_MS = 62;
+/** Hoogstens tien keer per seconde tekenen: dit is een kaartje, geen animatie. */
+const FRAME_MS = 100;
 
 type Pt = [number, number];
 
@@ -45,14 +45,27 @@ function hexPath(path: Path2D, cx: number, cz: number, radius: number, size: num
   path.closePath();
 }
 
-/** Alles wat alleen verandert als de wereldkaart zelf verandert. */
+/**
+ * De onderlaag — grond en districten — als plaatje.
+ *
+ * Die laag is ruim tweehonderd hexen en verandert alleen als de wereldkaart
+ * zelf verandert, dus tekenen we hem één keer en zetten hem daarna als bitmap
+ * neer. Deze machine rendert de wereld zonder GPU; een kaartje dat elke tel
+ * tweehonderd paden opnieuw vult, haalt frames weg bij precies het beeld dat
+ * het samenvat.
+ */
 interface WorldPaths {
   key: string;
-  ground: Path2D;
-  districts: { color: string; shape: Path2D; center: Pt; label: string }[];
+  base: HTMLCanvasElement;
 }
 
-function buildPaths(world: WorldConfig, size: number): WorldPaths {
+function buildPaths(world: WorldConfig, size: number, dpr: number): WorldPaths {
+  const base = document.createElement('canvas');
+  base.width = Math.round(size * dpr);
+  base.height = Math.round(size * dpr);
+  const ctx = base.getContext('2d')!;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
   const ground = new Path2D();
   // De grond is de hexschijf waar de wereld ook echt op staat — dezelfde
   // straal als de terreinschijf in de scene. Zo herken je de vorm terug:
@@ -63,7 +76,12 @@ function buildPaths(world: WorldConfig, size: number): WorldPaths {
     hexPath(ground, x * HEX_SPACING, z * HEX_SPACING, 0.98, size);
   }
 
-  const districts = world.districts.map((district) => {
+  // Donker en vlak: alles wat er later overheen komt moet eruit springen.
+  ctx.fillStyle = 'rgba(232, 234, 240, 0.07)';
+  ctx.fill(ground);
+
+  // Districten in hun takkleur — de vorm van de stad, niet één stip per tak.
+  for (const district of world.districts) {
     const shape = new Path2D();
     for (const project of district.projects) {
       for (const hex of project.hexes) {
@@ -71,16 +89,14 @@ function buildPaths(world: WorldConfig, size: number): WorldPaths {
         hexPath(shape, x * HEX_SPACING, z * HEX_SPACING, 0.92, size);
       }
     }
-    const c = axialToWorld(district.center);
-    return {
-      color: district.venture.color,
-      shape,
-      center: toMap(c.x * HEX_SPACING, c.z * HEX_SPACING, size),
-      label: district.venture.label,
-    };
-  });
+    ctx.fillStyle = `${district.venture.color}3d`;
+    ctx.fill(shape);
+    ctx.strokeStyle = `${district.venture.color}7a`;
+    ctx.lineWidth = 0.6;
+    ctx.stroke(shape);
+  }
 
-  return { key: `${world.generatedAt}:${size}`, ground, districts };
+  return { key: `${world.generatedAt}:${size}:${dpr}`, base };
 }
 
 /**
@@ -229,21 +245,10 @@ export function Minimap(): JSX.Element | null {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, size, size);
 
-      const key = `${current.generatedAt}:${size}`;
-      if (!paths || paths.key !== key) paths = buildPaths(current, size);
-
-      // 1. De grond. Donker en vlak: alles wat erboven ligt moet eruit springen.
-      ctx.fillStyle = 'rgba(232, 234, 240, 0.07)';
-      ctx.fill(paths.ground);
-
-      // 2. Districten in hun takkleur — de vorm van de stad, niet één stip.
-      for (const district of paths.districts) {
-        ctx.fillStyle = `${district.color}3d`;
-        ctx.fill(district.shape);
-        ctx.strokeStyle = `${district.color}7a`;
-        ctx.lineWidth = 0.6;
-        ctx.stroke(district.shape);
-      }
+      // 1+2. Grond en districten: één keer getekend, daarna een bitmap.
+      const key = `${current.generatedAt}:${size}:${dpr}`;
+      if (!paths || paths.key !== key) paths = buildPaths(current, size, dpr);
+      ctx.drawImage(paths.base, 0, 0, size, size);
 
       // 3. De hub in het midden.
       const [hx, hy] = toMap(0, 0, size);
@@ -265,10 +270,10 @@ export function Minimap(): JSX.Element | null {
         for (const [x, y] of poly.slice(1)) shape.lineTo(x, y);
         shape.closePath();
         veil.addPath(shape);
-        ctx.fillStyle = 'rgba(8, 10, 13, 0.45)';
+        ctx.fillStyle = 'rgba(8, 10, 13, 0.55)';
         ctx.fill(veil, 'evenodd');
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.62)';
+        ctx.lineWidth = 1.1;
         ctx.stroke(shape);
         // Het middelpunt van je blik: waar je camera op staat.
         const [tx, ty] = toMap(view.target[0], view.target[1], size);
@@ -299,9 +304,16 @@ export function Minimap(): JSX.Element | null {
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
+          // Donker randje: een blauwe stip op een geel district verdwijnt
+          // zonder, en dit kaartje is te klein om iets te laten verdwijnen.
+          const r = pass === 1 ? 3 : 2.2;
+          ctx.fillStyle = 'rgba(8, 10, 13, 0.75)';
+          ctx.beginPath();
+          ctx.arc(px, py, r + 1, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.arc(px, py, pass === 1 ? 3 : 2.2, 0, Math.PI * 2);
+          ctx.arc(px, py, r, 0, Math.PI * 2);
           ctx.fill();
           if (session.sessionId === selectedRef.current) {
             // De gekozen sessie: een witte ring, zodat de kaart en het paneel
