@@ -157,9 +157,10 @@ export function ThreadPanel(): JSX.Element | null {
       <div className="chips">
         <button
           className={`chip ${filterVenture === null ? 'chip-active' : ''}`}
+          title="Alle takken tonen"
           onClick={() => setFilterVenture(null)}
         >
-          All
+          Alles
         </button>
         {activeVentures.map((v) => (
           <button
@@ -223,7 +224,9 @@ export function ThreadPanel(): JSX.Element | null {
               <span className="thread-project-name">{group.project}</span>
               <span className="thread-project-meta">
                 {group.live > 0 && <span className="thread-live">{group.live} actief</span>}
-                <span className="thread-age">{ageString(group.latest)}</span>
+                <span className="thread-age" title="Laatste teken van leven uit dit project">
+                  {ageString(group.latest)} geleden
+                </span>
               </span>
             </div>
             <div
@@ -265,13 +268,15 @@ export function ThreadPanel(): JSX.Element | null {
                           {STATUS_LABEL[session.status]}
                         </span>
                         {tool && (
-                          <span className="thread-tool">
+                          <span className="thread-tool" title={`Laatste gereedschap: ${tool}`}>
                             {toolIcon(tool)} {session.lastToolSummary?.slice(0, 34) || tool}
                           </span>
                         )}
                       </span>
                     </span>
-                    <span className="thread-meta">{ageString(session.lastSeenAt)}</span>
+                    <span className="thread-meta" title="Laatste gebeurtenis in deze sessie">
+                      {ageString(session.lastSeenAt)}
+                    </span>
                   </button>
                 );
               })}

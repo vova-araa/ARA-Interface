@@ -2,11 +2,11 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { axialToWorld, stableHash, type WorldConfig } from '@ara/shared';
+import { LAKE_CENTER, axialToWorld, stableHash, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
 import { stylize } from './stylize.ts';
-import { groundTop } from './terrain.ts';
+import { WATER_TOP, groundTop } from './terrain.ts';
 import { applyWind } from './wind.ts';
 
 /**
@@ -238,6 +238,13 @@ const PLAZA_LZ = 1.9;
 const PLAZA_R = 2.05;
 const PLAZA_TOP = 0.07;
 
+/**
+ * Waar de vlaggenmast op het plateau staat. Links van Moeder Armenië, iets naar
+ * voren, zodat de doek naar buiten waait en niet over haar heen valt.
+ */
+const FLAG_X = -0.72;
+const FLAG_Z = -3.35;
+
 const CASCADE_GEO = merge([
   ...Array.from({ length: TERRACES }, (_, i) => {
     const w = terraceWidth(i);
@@ -268,6 +275,13 @@ const CASCADE_GEO = merge([
   ]),
   part(cyl(PLAZA_R + 0.16, PLAZA_R + 0.2, 0.62, 12), TUFF_DEEP, [0, PLAZA_TOP - 0.35, PLAZA_LZ]),
   part(cyl(PLAZA_R, PLAZA_R + 0.06, 0.66, 12), TUFF_CREAM, [0, PLAZA_TOP - 0.33, PLAZA_LZ]),
+  // De vlaggenmast. Hij staat hier en niet bij de vlag zelf, omdat een mast
+  // niet beweegt: in deze samengevoegde geometrie kost hij geen tekenopdracht,
+  // als los meshje wel. Vier eenheden hoog, want de vlag moet bóven Moeder
+  // Armenië uitkomen — daaronder hangt hij tegen haar sokkel en zie je hem net
+  // zo min als eerst.
+  part(cyl(0.032, 0.045, 4.0, 6), STEEL, [FLAG_X, CASCADE_TOP + 2.0, FLAG_Z]),
+  part(ball(0.07, 6, 5), TUFF_OCHRE, [FLAG_X, CASCADE_TOP + 4.02, FLAG_Z]),
 ]);
 
 /**
@@ -285,6 +299,42 @@ const MOTHER_GEO = merge([
   part(box(0.52, 0.09, 0.1), PATINA, [0, 1.92, 0.14]),
   part(ball(0.12, 8, 6), PATINA, [0, 2.26, 0]),
   part(box(0.05, 1.05, 0.035), STEEL, [0, 1.86, 0.22], [0, 0, Math.PI / 2]),
+]);
+
+/**
+ * Sevanavank op het schiereiland van Sevan.
+ *
+ * Het meer was een vlek blauw en verder niets — "je ziet niet dat dat Sevan
+ * is". Water dat als water leest is de ene helft van dat antwoord (dat zit in
+ * HexGround), dít is de andere: twee zwarte tufkerkjes met kegeldak op een
+ * rotspunt die vanaf de westoever het water in steekt. Dat beeld staat op elke
+ * ansichtkaart van Armenië; wie het kent, weet meteen welk meer dit is.
+ *
+ * Eén samengevoegde geometrie, één tekenopdracht, en hij blijft staan op lage
+ * kwaliteit: dit is identiteit, geen versiering.
+ */
+const SEVANAVANK_GEO = merge([
+  // De rots: een klip die uit het water komt, breder aan de voet.
+  part(cyl(0.82, 1.12, 1.0, 6), SLATE, [0, 0.02, 0]),
+  part(cyl(0.72, 0.84, 0.16, 6), PATINA, [0, 0.58, 0]),
+  // Trap vanaf het water naar de kerkjes — de trap ís het schiereiland-verhaal.
+  part(box(0.3, 0.1, 0.16), TUFF_CREAM, [0.52, 0.12, 0.56]),
+  part(box(0.3, 0.1, 0.16), TUFF_CREAM, [0.46, 0.25, 0.46]),
+  part(box(0.3, 0.1, 0.16), TUFF_CREAM, [0.4, 0.38, 0.36]),
+  part(box(0.3, 0.1, 0.16), TUFF_CREAM, [0.34, 0.51, 0.26]),
+  // Surb Astvatsatsin (de grootste): kruisvorm, tamboer, kegeldak.
+  part(box(0.46, 0.34, 0.34), TUFF_SHADE, [0.2, 0.83, -0.12]),
+  part(box(0.32, 0.34, 0.46), TUFF_SHADE, [0.2, 0.83, -0.12]),
+  part(cyl(0.13, 0.14, 0.22, 8), TUFF_DEEP, [0.2, 1.1, -0.12]),
+  part(cone(0.19, 0.26, 8), BASALT, [0.2, 1.33, -0.12]),
+  // Surb Arakelots, kleiner en iets lager op de rots.
+  part(box(0.34, 0.28, 0.26), TUFF_SHADE, [-0.34, 0.78, 0.16]),
+  part(box(0.24, 0.28, 0.34), TUFF_SHADE, [-0.34, 0.78, 0.16]),
+  part(cyl(0.1, 0.11, 0.18, 8), TUFF_DEEP, [-0.34, 1.0, 0.16]),
+  part(cone(0.15, 0.22, 8), BASALT, [-0.34, 1.19, 0.16]),
+  // Khachkar bij de trap: het kruissnijwerk in het klein, maar de omtrek zegt
+  // genoeg op deze afstand.
+  part(box(0.13, 0.3, 0.05), TUFF_OCHRE, [0.5, 0.75, 0.1]),
 ]);
 
 /**
@@ -450,30 +500,167 @@ function DistrictGlow({ kind }: { kind: string }): JSX.Element | null {
   }
 }
 
+// ── De Armeense driekleur ────────────────────────────────────────────────────
+
+/**
+ * De vlag was 0,5 bij 0,3 met strepen van 0,1 hoog. Op de rustzoom (~33 px per
+ * wereldeenheid) is dat drie strepen van drie pixels op een monument dat zelf
+ * al druk is: een veeg rood-blauw-oranje, en van een afstand niet eens dat.
+ * Erger nog draaide de hele doek ±0,25 rad om zijn eigen as, dus de helft van
+ * de tijd stond hij op zijn kant en was hij één lijn.
+ *
+ * Nu: 1,45 bij 0,9 — de echte 2:1 verhouding van de vlag, strepen van 10 pixels
+ * op de rustzoom — met de doek stil naar de camera gericht. De hub staat een
+ * kwartslag gedraaid (HUB_YAW) en de camera kijkt vanaf +x/+z, dus een doek met
+ * zijn normaal langs de lokale +z kijkt de camera recht aan. Wapperen doet hij
+ * om de mást, over een kleine hoek, zodat hij nooit meer op zijn kant komt.
+ *
+ * Eén tekenopdracht: de drie banen zitten in één geometrie met de kleuren in de
+ * hoekpunten, inclusief de plooien (donkerder in het dal van de golf).
+ */
+const FLAG_W = 1.45;
+const FLAG_H = 0.9;
+const FLAG_SEG = 14;
+const FLAG_BANDS = ['#d90012', '#0033a0', '#f2a800'] as const;
+
+const FLAG_GEO = ((): THREE.BufferGeometry => {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const color = new THREE.Color();
+  // De golf groeit naar de vrije rand: bij de mast zit de doek vast.
+  const wave = (x: number): number => Math.sin((x / FLAG_W) * 7.4) * 0.11 * Math.abs(x / FLAG_W);
+  const band = FLAG_H / 3;
+
+  for (let s = 0; s < 3; s += 1) {
+    const top = FLAG_H / 2 - s * band;
+    const bottom = top - band;
+    color.set(FLAG_BANDS[s]!);
+    for (let i = 0; i < FLAG_SEG; i += 1) {
+      // De doek hangt vanaf de mast (x=0) naar -x; zo waait hij van Moeder
+      // Armenië weg in plaats van over haar heen.
+      const x0 = -FLAG_W * (i / FLAG_SEG);
+      const x1 = -FLAG_W * ((i + 1) / FLAG_SEG);
+      const z0 = wave(x0);
+      const z1 = wave(x1);
+      // Plooi-schaduw uit de helling van de golf: zonder dat is een vlag een
+      // sticker, met dat is het doek.
+      const shade = (z: number, x: number): number =>
+        0.82 + 0.18 * Math.cos((x / FLAG_W) * 7.4) - Math.abs(z) * 0.5;
+      const corners: [number, number, number, number][] = [
+        [x0, top, z0, shade(z0, x0)],
+        [x1, top, z1, shade(z1, x1)],
+        [x1, bottom, z1, shade(z1, x1)],
+        [x0, bottom, z0, shade(z0, x0)],
+      ];
+      for (const [a, b, c] of [
+        [0, 2, 1],
+        [0, 3, 2],
+      ] as const) {
+        for (const k of [a, b, c]) {
+          const [x, y, z, lit] = corners[k]!;
+          positions.push(x, y, z);
+          colors.push(color.r * lit, color.g * lit, color.b * lit);
+        }
+      }
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+})();
+
+/**
+ * Vlak en onbelicht, net als de Ark op de berghelling: de kleuren van een vlag
+ * zijn het hele punt, en een doek dat in de schaduw van de berg grijs wordt is
+ * geen vlag meer. De plooien zitten al in de hoekpunten.
+ */
+const FLAG_MATERIAL = new THREE.MeshBasicMaterial({
+  vertexColors: true,
+  side: THREE.DoubleSide,
+  fog: false,
+});
+
 /** Wapperende Armeense driekleur op het plateau van de Cascade. */
 function ArmenianFlag(): JSX.Element {
-  const flag = useRef<THREE.Group>(null);
+  const flag = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
-    if (flag.current) {
-      flag.current.rotation.y = Math.sin(clock.elapsedTime * 2.2) * 0.25;
-      flag.current.scale.x = 1 + Math.sin(clock.elapsedTime * 4.5) * 0.06;
-    }
+    const mesh = flag.current;
+    if (!mesh) return;
+    const t = clock.elapsedTime;
+    // Om de mast, niet om zichzelf: ±0,12 rad houdt de doek altijd naar de
+    // camera gekeerd. Een tweede, tragere as geeft het optillen van de zoom.
+    mesh.rotation.y = Math.sin(t * 1.7) * 0.12;
+    mesh.rotation.z = Math.sin(t * 2.6) * 0.045;
   });
   return (
-    <group>
-      <mesh position={[0, 0.55, 0]}>
-        <cylinderGeometry args={[0.022, 0.028, 1.1, 6]} />
-        <meshStandardMaterial color="#d8d3cc" metalness={0.4} />
-      </mesh>
-      <group ref={flag} position={[0.26, 0.92, 0]}>
-        {(['#d90012', '#0033a0', '#f2a800'] as const).map((color, i) => (
-          <mesh key={color} position={[0, 0.1 - i * 0.1, 0]}>
-            <planeGeometry args={[0.5, 0.1]} />
-            <meshStandardMaterial color={color} side={THREE.DoubleSide} />
-          </mesh>
-        ))}
-      </group>
-    </group>
+    <mesh
+      ref={flag}
+      geometry={FLAG_GEO}
+      material={FLAG_MATERIAL}
+      position={[0, 0, 0]}
+      dispose={null}
+    />
+  );
+}
+
+/**
+ * Waar het schiereiland ligt: de westoever van Sevan, afgeleid van LAKE_CENTER
+ * uit shared. Twee hexen naar het westen is precies de rand van het meer — het
+ * schiereiland raakt dus de wal, zoals het echte.
+ */
+const SEVANAVANK_POS = ((): [number, number, number] => {
+  const { x, z } = axialToWorld({ q: LAKE_CENTER.q - 2, r: LAKE_CENTER.r });
+  // Net onder de waterlijn: de klip komt ~0,4 boven het water uit en de rest
+  // verdwijnt eronder, zodat hij in het meer staat in plaats van erop.
+  return [x * HEX_SPACING, WATER_TOP - 0.15, z * HEX_SPACING];
+})();
+
+/**
+ * "Sevan" boven het water.
+ *
+ * De kerkjes zeggen het tegen wie Armenië kent; deze sprite zegt het tegen de
+ * rest, en op een telefoon (rustzoom ~14 px per wereldeenheid) is hij het enige
+ * dat het nog zegt. Canvas-sprite, geen font-fetch — dezelfde afspraak als
+ * Labels.tsx, waar dit label thuishoort zodra iemand die twee samenvoegt.
+ */
+const SEVAN_LABEL = ((): { texture: THREE.CanvasTexture; aspect: number } => {
+  const dpr = 3;
+  const width = 108;
+  const height = 42;
+  const canvas = document.createElement('canvas');
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(dpr, dpr);
+  ctx.beginPath();
+  ctx.roundRect(1, 1, width - 2, height - 2, 10);
+  ctx.fillStyle = 'rgba(8, 26, 40, 0.86)';
+  ctx.fill();
+  ctx.strokeStyle = '#68d5d4';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.font = '600 24px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+  ctx.shadowBlur = 5;
+  ctx.fillStyle = '#e8fbff';
+  ctx.fillText('Sevan', width / 2, height / 2 + 1);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return { texture, aspect: width / height };
+})();
+
+function SevanLabel(): JSX.Element {
+  return (
+    <sprite position={[0, 2.35, 0]} renderOrder={20} scale={[SEVAN_LABEL.aspect * 0.42, 0.42, 1]}>
+      <spriteMaterial map={SEVAN_LABEL.texture} transparent depthWrite={false} depthTest={false} />
+    </sprite>
   );
 }
 
@@ -789,9 +976,25 @@ export function Landmarks({ world }: { world: WorldConfig | null }): JSX.Element
           castShadow={shadows}
           dispose={null}
         />
-        <group position={[-0.85, CASCADE_TOP, -CASCADE_DEPTH - 0.35]}>
+        {/* De doek hangt aan de top van de mast die in CASCADE_GEO zit; die
+            twee hoogtes komen daarom uit dezelfde constanten. */}
+        <group position={[FLAG_X, CASCADE_TOP + 3.5, FLAG_Z]}>
           <ArmenianFlag />
         </group>
+      </group>
+
+      {/* Sevanavank op zijn rots in het meer. Vast punt, geen veld: er is maar
+          één Sevan en hij hangt aan LAKE_CENTER uit shared, niet aan een getal
+          dat hier los staat. Blijft ook op lage kwaliteit staan — identiteit. */}
+      <group position={SEVANAVANK_POS} rotation={[0, 0.34, 0]}>
+        <mesh
+          geometry={SEVANAVANK_GEO}
+          material={STONE_MATERIAL}
+          castShadow={shadows}
+          receiveShadow={shadows}
+          dispose={null}
+        />
+        <SevanLabel />
       </group>
 
       <Instanced name="khachkar" items={field.khachkars} geometry={KHACHKAR_GEO} material={STONE_MATERIAL} shadows={shadows} />

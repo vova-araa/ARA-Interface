@@ -18,6 +18,11 @@ function fmt(n: number): string {
   return String(n);
 }
 
+/** "1 sessies" stond er letterlijk. */
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 interface VentureCard {
   id: string;
   label: string;
@@ -38,8 +43,13 @@ function MiniSpark({ hours }: { hours: ProjectHourStats[] }): JSX.Element {
   for (const row of hours) byHour.set(row.hour, (byHour.get(row.hour) ?? 0) + row.events);
   const bars = Array.from({ length: 24 }, (_, i) => byHour.get(nowHour - 23 + i) ?? 0);
   const max = Math.max(1, ...bars);
+  const total = bars.reduce((sum, v) => sum + v, 0);
   return (
-    <div className="ov-spark">
+    <div
+      className="ov-spark"
+      title={`Gebeurtenissen per uur, laatste 24 uur (${total} in totaal, drukste uur ${max})`}
+      aria-label={`Activiteit per uur over de laatste 24 uur: ${total} gebeurtenissen`}
+    >
       {bars.map((v, i) => (
         <span key={i} style={{ height: `${v ? Math.max(10, (v / max) * 100) : 4}%` }} />
       ))}
@@ -136,33 +146,60 @@ export function OverviewPanel(): JSX.Element | null {
   return (
     <div className="overview">
       <div className="ov-header">
-        <b>Overzicht</b>
+        <b>Overzicht per tak</b>
         <span className="ov-sub">
-          {snapshot.counters.running} bezig · {snapshot.counters.needsHuman} wachten op jou ·{' '}
-          {snapshot.counters.doneToday} af vandaag
+          {plural(snapshot.counters.running, 'sessie bezig', 'sessies bezig')} ·{' '}
+          {snapshot.counters.needsHuman} wachten op jou · {snapshot.counters.doneToday} af vandaag ·
+          alles geteld uit de sessiestroom
         </span>
-        <button className="btn" onClick={() => setOpen(false)}>✕</button>
+        <button className="btn" onClick={() => setOpen(false)} aria-label="Overzicht sluiten">
+          ✕
+        </button>
       </div>
       <div className="ov-grid">
-        {cards.length === 0 && <div className="empty">Nog geen activiteit vandaag.</div>}
+        {cards.length === 0 && (
+          <div className="empty">
+            <div className="empty-title">Nog geen activiteit vandaag</div>
+            <div className="empty-hint">
+              Een tak verschijnt hier zodra er een sessie draait, tokens verbruikt zijn of er een
+              taak openstaat.
+            </div>
+          </div>
+        )}
         {cards.map((card) => (
-          <button key={card.id} className="ov-card" style={{ borderColor: card.color }} onClick={() => jumpTo(card)}>
+          <button
+            key={card.id}
+            className="ov-card"
+            style={{ borderColor: card.color }}
+            onClick={() => jumpTo(card)}
+            title={`Naar de laatste sessie van ${card.label}`}
+          >
             <div className="ov-card-head">
               <span className="ov-dot" style={{ background: card.color }} />
               <b>{card.label}</b>
-              {card.lastActivity > 0 && <span className="ov-age">{ageString(card.lastActivity)}</span>}
+              {card.lastActivity > 0 && (
+                <span className="ov-age">{ageString(card.lastActivity)} geleden</span>
+              )}
             </div>
             <MiniSpark hours={card.hours} />
+            <div className="ov-spark-legend">activiteit per uur · laatste 24 uur</div>
+            {/* Stond hier als "0 ⚠", "⚡ 0" en "☷ 3 open": drie tekens die je
+                alleen begrijpt als je ze zelf hebt bedacht. */}
             <div className="ov-stats">
-              <span>{card.sessions.length} sessies</span>
+              <span>{plural(card.sessions.length, 'sessie', 'sessies')}</span>
               <span>{card.running} bezig</span>
-              <span className={card.needsHuman ? 'stat-urgent' : ''}>{card.needsHuman} ⚠</span>
-              <span className={card.errors ? 'stat-urgent' : ''}>{card.errors} fouten</span>
+              <span className={card.needsHuman ? 'stat-urgent' : ''}>
+                {card.needsHuman} wacht op jou
+              </span>
+              <span className={card.errors ? 'stat-urgent' : ''}>
+                {plural(card.errors, 'fout', 'fouten')}
+              </span>
             </div>
             <div className="ov-stats">
-              <span>⚡ {fmt(card.tokens)}</span>
-              <span>☷ {card.openTasks} open</span>
+              <span>{fmt(card.tokens)} tokens vandaag</span>
+              <span>{plural(card.openTasks, 'taak open', 'taken open')}</span>
             </div>
+            <span className="ov-card-cta">klik: vlieg naar de laatste sessie →</span>
           </button>
         ))}
       </div>

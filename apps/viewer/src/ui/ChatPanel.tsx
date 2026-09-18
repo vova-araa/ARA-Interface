@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { VENTURES, ventureForProject, type StaffMember, type WorldSnapshot } from '@ara/shared';
 import { loadTasks, withToken, type BoardTask } from '../api.ts';
 import { useAra, type ChatMsg } from '../store.ts';
@@ -32,6 +32,32 @@ export interface ChatTarget {
   kind: ChatTargetKind;
   venture?: string;
   color?: string;
+}
+
+/**
+ * Een bord-assignee in mensentaal.
+ *
+ * Op het bord staat een agent-id: `ara-fleet-cost`, `manager:blex`, `worker-7`.
+ * Dat is precies genoeg om een agent te wekken en precies te weinig om te weten
+ * wie dat is. Hier wordt het een naam met een functie erin — en waar het id een
+ * tak noemt, de naam van die tak, want "blex" staat nergens op de kaart.
+ */
+export function roleLabel(assignee: string | undefined): string {
+  const id = (assignee ?? '').trim();
+  if (!id) return 'nog niemand';
+  if (id === 'chief') return 'ARA Chief';
+  if (id === 'supervisor') return 'Supervisor';
+  if (id === 'user' || id === 'jij') return 'jij';
+  if (id === 'manager:ops') return 'Ops-manager';
+  if (id.startsWith('manager:')) {
+    const venture = id.slice('manager:'.length);
+    const match = VENTURES.find((v) => v.id === venture);
+    return match ? `Manager ${match.label}` : `Manager ${venture}`;
+  }
+  // `ara-fleet-cost` → "Fleet cost". Het voorvoegsel zegt alleen dat het een
+  // ARA-rol is, en dat weet je al omdat je naar ARA kijkt.
+  const bare = id.replace(/^ara-/, '').replace(/[-_]/g, ' ');
+  return bare.charAt(0).toUpperCase() + bare.slice(1);
 }
 
 /**
@@ -239,6 +265,38 @@ async function postMessage(input: {
   }
 }
 
+/**
+ * Het overleg openen van buiten dit bestand.
+ *
+ * Het paneel houdt zijn eigen open-stand bij (App.tsx geeft hem niets mee), en
+ * dat was prima toen de enige ingang de knop rechtsonder was. Maar die knop is
+ * één klein rondje op een wereldkaart: wie de leiding zoekt, zoekt hem in de
+ * strook waar de andere panelen ook staan. Een gebeurtenis op window is genoeg
+ * om die twee te verbinden zonder de gedeelde store te hoeven aanpassen.
+ */
+const CHAT_OPEN_EVENT = 'ara:chat-open';
+const CHAT_STATE_EVENT = 'ara:chat-state';
+let chatIsOpen = false;
+
+export function openLeadershipChat(target?: string): void {
+  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT, { detail: { target, open: true } }));
+}
+
+export function closeLeadershipChat(): void {
+  window.dispatchEvent(new CustomEvent(CHAT_OPEN_EVENT, { detail: { open: false } }));
+}
+
+export function isLeadershipChatOpen(): boolean {
+  return chatIsOpen;
+}
+
+/** Abonneer op open/dicht; geeft de opzegger terug. */
+export function onLeadershipChatState(fn: (open: boolean) => void): () => void {
+  const handler = (e: Event): void => fn((e as CustomEvent<{ open: boolean }>).detail.open);
+  window.addEventListener(CHAT_STATE_EVENT, handler);
+  return () => window.removeEventListener(CHAT_STATE_EVENT, handler);
+}
+
 export interface ChatPanelProps {
   /** Laat weg voor een paneel dat zijn eigen knop meebrengt. */
   open?: boolean;
@@ -314,6 +372,35 @@ export function ChatPanel({ open: openProp, onOpenChange, target: targetProp }: 
   useEffect(() => {
     if (targetProp) setTargetId(targetProp);
   }, [targetProp]);
+
+  // Van buiten geopend (de tabstrook, of een knop die een rol meegeeft).
+  useEffect(() => {
+    const onOpen = (e: Event): void => {
+      const detail = (e as CustomEvent<{ target?: string; open?: boolean }>).detail ?? {};
+      if (detail.open === false) {
+        setOpen(false);
+        return;
+      }
+      if (detail.target) setTargetId(detail.target);
+      setOpen(true);
+    };
+    window.addEventListener(CHAT_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(CHAT_OPEN_EVENT, onOpen);
+  }, [setOpen]);
+
+  // En terug: de strook tekent zijn tab actief zolang dit paneel open staat.
+  // Boven een kantoor telt het als dicht — daar rendert dit paneel niets.
+  const visible = open && !officeProject;
+  useEffect(() => {
+    chatIsOpen = visible;
+    window.dispatchEvent(new CustomEvent(CHAT_STATE_EVENT, { detail: { open: visible } }));
+    return () => {
+      if (visible) {
+        chatIsOpen = false;
+        window.dispatchEvent(new CustomEvent(CHAT_STATE_EVENT, { detail: { open: false } }));
+      }
+    };
+  }, [visible]);
 
   // En andersom: opent er via de balk een ander paneel, dan wijkt het gesprek.
   useEffect(() => {
@@ -429,55 +516,77 @@ export function ChatPanel({ open: openProp, onOpenChange, target: targetProp }: 
 
   if (!open) {
     return (
-      <>
-        <PanelStyle />
-        <button
-          type="button"
-          className="hq-fab"
-          title="Overleg met de leiding (c)"
-          aria-label="Overleg met de leiding"
-          onClick={() => setOpen(true)}
-        >
-          <span aria-hidden="true">💬</span>
-          {waitingTotal > 0 && <em className="hq-fab-badge">{waitingTotal}</em>}
-        </button>
-      </>
+      <button
+        type="button"
+        className="hq-fab"
+        title="Overleg met de leiding — chief, supervisor en de acht managers (toets c)"
+        aria-label="Overleg met de leiding"
+        onClick={() => setOpen(true)}
+      >
+        <span className="hq-fab-icon" aria-hidden="true">
+          💬
+        </span>
+        {/* Een rondje met een emoji vertelt niet wie eronder zit. Op een scherm
+            dat breed genoeg is staat er gewoon wat het is; op een telefoon
+            blijft het het rondje, want daar telt elke duimbreedte. */}
+        <span className="hq-fab-label">Overleg met de leiding</span>
+        {waitingTotal > 0 && (
+          <em className="hq-fab-badge" title={`${waitingTotal} vraag/vragen van jou nog onbeantwoord`}>
+            {waitingTotal}
+          </em>
+        )}
+      </button>
     );
   }
 
+  const leaders = targets.filter((t) => t.kind !== 'manager');
+  const managers = targets.filter((t) => t.kind === 'manager');
+
+  const targetButton = (t: ChatTarget): JSX.Element => {
+    const p = presenceFor(t, liveIds, tasks);
+    return (
+      <button
+        key={t.id}
+        type="button"
+        role="tab"
+        aria-selected={t.id === target.id}
+        className={`hq-target ${t.id === target.id ? 'hq-target-on' : ''}`}
+        style={{ '--venture': t.color ?? 'var(--accent)' } as CSSProperties}
+        title={`${t.label} — ${t.sub}. ${p.note}`}
+        onClick={() => setTargetId(t.id)}
+      >
+        <span className={`hq-dot hq-dot-${p.state}`} />
+        {t.label}
+        {p.waiting > 0 && <em className="hq-target-wait">{p.waiting}</em>}
+      </button>
+    );
+  };
+
   return (
     <>
-      <PanelStyle />
       <section className="hq-chat" aria-label="Overleg met de leiding">
         <header className="hq-chat-head">
           <div className="hq-chat-title">
-            <strong>Overleg</strong>
-            <span>je praat met de leiding; workers werken via hun manager</span>
+            <strong>Overleg met de leiding</strong>
+            <span>chief, supervisor en de manager van elke tak — workers werken via hun manager</span>
           </div>
           <button type="button" className="hq-x" onClick={() => setOpen(false)} aria-label="Sluiten">
             ✕
           </button>
         </header>
 
+        {/* Eén veegstrook met tien namen betekende dat zeven managers buiten
+            beeld stonden zonder dat iets dat verklapte. Ze passen gewoon, in
+            twee groepen: wie overal over gaat, en wie over één tak gaat. */}
         <div className="hq-targets" role="tablist" aria-label="Gesprekspartner">
-          {targets.map((t) => {
-            const p = presenceFor(t, liveIds, tasks);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={t.id === target.id}
-                className={`hq-target ${t.id === target.id ? 'hq-target-on' : ''}`}
-                style={t.id === target.id && t.color ? { borderColor: t.color } : undefined}
-                onClick={() => setTargetId(t.id)}
-              >
-                <span className={`hq-dot hq-dot-${p.state}`} />
-                {t.label}
-                {p.waiting > 0 && <em className="hq-target-wait">{p.waiting}</em>}
-              </button>
-            );
-          })}
+          <span className="hq-targets-head">altijd bereikbaar</span>
+          <div className="hq-targets-row">{leaders.map(targetButton)}</div>
+          {managers.length > 0 && (
+            <>
+              <span className="hq-targets-head">per tak</span>
+              <div className="hq-targets-row">{managers.map(targetButton)}</div>
+            </>
+          )}
         </div>
 
         <p className={`hq-presence hq-presence-${presence.state}`}>
@@ -490,7 +599,8 @@ export function ChatPanel({ open: openProp, onOpenChange, target: targetProp }: 
         <div className="hq-list" ref={listRef}>
           {messages.length === 0 && (
             <p className="hq-empty">
-              Nog geen gesprek met {target.label}. {target.sub}.
+              Nog geen gesprek met {target.label} — {target.sub}. Wat je stuurt komt als taak op zijn
+              bord, dus het blijft staan tot hij het oppakt.
             </p>
           )}
           {messages.map((m) => (
@@ -521,154 +631,5 @@ export function ChatPanel({ open: openProp, onOpenChange, target: targetProp }: 
         </div>
       </section>
     </>
-  );
-}
-
-/**
- * TIJDELIJK IN DE COMPONENT — dit blok hoort in theme.css.
- * Het staat hier omdat er nu iemand anders in theme.css werkt; verhuizen is
- * knippen-plakken, want alle klassen zijn genaamruimd (hq-*) en gebruiken
- * dezelfde variabelen als de rest van de interface.
- */
-function PanelStyle(): JSX.Element {
-  return (
-    <style>{`
-.hq-fab {
-  position: fixed;
-  right: calc(12px + var(--safe-r, 0px));
-  bottom: calc(14px + var(--safe-b, 0px));
-  width: 48px; height: 48px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; line-height: 1;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: rgba(22, 25, 31, 0.94);
-  color: var(--text);
-  backdrop-filter: blur(12px);
-  cursor: pointer;
-  z-index: 19;
-}
-.hq-fab:hover { border-color: var(--accent); }
-.hq-fab-badge {
-  position: absolute; top: -3px; right: -3px;
-  background: var(--amber); color: #1a1a1a;
-  border-radius: 999px; padding: 0 6px;
-  font-size: 11px; font-style: normal; font-weight: 600;
-}
-.hq-chat {
-  position: fixed;
-  right: calc(12px + var(--safe-r, 0px));
-  bottom: calc(12px + var(--safe-b, 0px));
-  width: min(380px, calc(100vw - 24px));
-  max-height: min(70vh, 560px);
-  display: flex; flex-direction: column;
-  background: rgba(22, 25, 31, 0.96);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  backdrop-filter: blur(12px);
-  overflow: hidden;
-  z-index: 19;
-}
-.hq-chat-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border);
-}
-.hq-chat-title { display: flex; flex-direction: column; min-width: 0; }
-.hq-chat-title span { color: var(--text-dim); font-size: 11px; }
-.hq-x {
-  flex: 0 0 auto; min-width: 34px; min-height: 34px;
-  background: transparent; color: var(--text-dim);
-  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-}
-.hq-x:hover { color: var(--text); border-color: var(--accent); }
-/* Eén rij die je opzij veegt: tien gesprekspartners wrappen kost de halve
-   hoogte van het paneel, en wrappen op een telefoon geeft horizontale drift. */
-.hq-targets {
-  display: flex; gap: 6px; padding: 8px 10px;
-  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
-  border-bottom: 1px solid var(--border);
-}
-.hq-targets::-webkit-scrollbar { display: none; }
-.hq-target {
-  flex: 0 0 auto;
-  display: inline-flex; align-items: center; gap: 6px;
-  min-height: 34px; padding: 4px 10px;
-  background: var(--surface-2); color: var(--text-dim);
-  border: 1px solid var(--border); border-radius: 999px;
-  font-size: 12px; white-space: nowrap; cursor: pointer;
-}
-.hq-target-on { color: var(--text); background: var(--surface); }
-.hq-target-wait {
-  font-style: normal; background: var(--amber); color: #1a1a1a;
-  border-radius: 999px; padding: 0 5px; font-size: 10px;
-}
-.hq-dot { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; }
-.hq-dot-live { background: #3ddc97; }
-.hq-dot-waking { background: var(--amber); }
-.hq-dot-away { background: #5d6675; }
-.hq-presence {
-  display: flex; align-items: flex-start; gap: 7px;
-  margin: 0; padding: 8px 12px;
-  font-size: 11.5px; line-height: 1.35; color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-}
-.hq-presence .hq-dot { margin-top: 4px; }
-.hq-presence strong { color: var(--text); font-weight: 600; }
-.hq-presence-away { color: #a9a08f; }
-.hq-list { flex: 1; min-height: 90px; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-.hq-empty { color: var(--text-dim); font-size: 12px; margin: 6px 0; }
-.hq-msg {
-  display: flex; flex-direction: column; gap: 2px;
-  max-width: 88%; padding: 7px 10px; border-radius: 12px;
-  font-size: 13px; overflow-wrap: anywhere;
-}
-.hq-msg-me { align-self: flex-end; background: rgba(255, 107, 87, 0.16); border: 1px solid rgba(255, 107, 87, 0.35); }
-.hq-msg-them { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
-.hq-msg-from { color: var(--text-dim); font-size: 10.5px; text-transform: lowercase; }
-.hq-msg-ack { color: var(--text-dim); font-size: 10.5px; font-style: italic; }
-.hq-error { margin: 0; padding: 6px 12px; font-size: 12px; color: var(--amber); }
-.hq-input { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--border); }
-.hq-input input {
-  flex: 1; min-width: 0; min-height: 36px; padding: 6px 10px;
-  background: var(--surface-2); color: var(--text);
-  border: 1px solid var(--border); border-radius: 10px; font-size: 14px;
-}
-.hq-input input:focus { border-color: var(--accent); outline: none; }
-.hq-input button {
-  flex: 0 0 auto; min-height: 36px; padding: 6px 14px;
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
-}
-.hq-input button:hover:not(:disabled) { border-color: var(--accent); }
-.hq-input button:disabled { opacity: 0.5; cursor: default; }
-
-@media (max-width: 800px) {
-  /* Duimmaat (--tap) voor alles wat je indrukt, en het paneel als bottom sheet
-     over de volle breedte: rechts uitlijnen op 390px laat een strook wereld
-     over waar je per ongeluk de camera mee versleept. */
-  .hq-fab { width: var(--tap, 44px); height: var(--tap, 44px); right: calc(10px + var(--safe-r, 0px)); }
-  .hq-chat {
-    left: 0; right: 0; bottom: 0;
-    width: auto; max-height: none;
-    height: calc(72dvh + var(--safe-b, 0px));
-    border-radius: 16px 16px 0 0;
-    border-left: none; border-right: none; border-bottom: none;
-    padding-bottom: var(--safe-b, 0px);
-  }
-  .hq-target { min-height: var(--tap, 44px); font-size: 13px; padding: 4px 12px; }
-  .hq-x { min-width: var(--tap, 44px); min-height: var(--tap, 44px); }
-  /* Onder 16px zoomt iOS het hele scherm in zodra je het veld aantikt. */
-  .hq-input input { font-size: 16px; min-height: var(--tap, 44px); }
-  .hq-input button { min-height: var(--tap, 44px); min-width: 72px; }
-}
-
-/* Telefoon liggend: breed genoeg voor de desktop-indeling, maar 390px hoog.
-   Een sheet van 72dvh laat daar niets over, dus blijft het een kolom rechts —
-   met de 40px die de rest van de interface in deze stand ook aanhoudt. */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  .hq-chat { width: min(340px, 44vw); max-height: calc(100dvh - 24px); }
-  .hq-target, .hq-x, .hq-input input, .hq-input button { min-height: 40px; }
-}
-`}</style>
   );
 }

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { loadTasks } from '../api.ts';
 import { useAra, useViewSnapshot } from '../store.ts';
+import {
+  closeLeadershipChat,
+  isLeadershipChatOpen,
+  onLeadershipChatState,
+  openLeadershipChat,
+} from './ChatPanel.tsx';
 
 interface Tab {
   key: string;
@@ -38,8 +44,14 @@ export function SideTabs(): JSX.Element | null {
   const demo = useAra((s) => s.demo);
   const snapshot = useViewSnapshot();
   const [openTasks, setOpenTasks] = useState(0);
+  const [waitingChats, setWaitingChats] = useState(0);
+  // Het overleg heeft geen plek in de gedeelde store (het paneel regelt zijn
+  // eigen stand), dus luistert de strook mee. Zonder dit zou de tab die je net
+  // indrukte meteen weer inactief lijken.
+  const [chatOpen, setChatOpen] = useState(isLeadershipChatOpen);
+  useEffect(() => onLeadershipChatState(setChatOpen), []);
 
-  const anyOpen = panelOpen || boardOpen || actionsOpen || overviewOpen;
+  const anyOpen = panelOpen || boardOpen || actionsOpen || overviewOpen || chatOpen;
 
   // Het bord was de enige tab zonder teller, en dat is precies de tab waarvan
   // je wilt weten of er iets op staat zonder ernaartoe te klikken. Alleen
@@ -49,7 +61,18 @@ export function SideTabs(): JSX.Element | null {
     let alive = true;
     const refresh = (): void =>
       void loadTasks().then((tasks) => {
-        if (alive) setOpenTasks(tasks.filter((t) => t.status === 'open' || t.status === 'claimed').length);
+        if (!alive) return;
+        setOpenTasks(tasks.filter((t) => t.status === 'open' || t.status === 'claimed').length);
+        // Vragen van jou aan de leiding waar nog niemand op antwoordde: dat is
+        // het enige getal dat de Overleg-tab hoort te dragen.
+        setWaitingChats(
+          tasks.filter(
+            (t) =>
+              t.title.startsWith('CHAT:') &&
+              t.createdBy === 'user' &&
+              (t.status === 'open' || t.status === 'claimed'),
+          ).length,
+        );
       });
     refresh();
     const timer = setInterval(refresh, 60_000);
@@ -65,22 +88,56 @@ export function SideTabs(): JSX.Element | null {
   const waiting = snapshot.counters.needsHuman;
 
   const tabs: Tab[] = [
-    { key: 'threads', label: 'Sessies', hint: 'Sessies (/)', on: panelOpen, set: setPanelOpen, badge: live },
-    { key: 'board', label: 'Bord', hint: 'Takenbord (b)', on: boardOpen, set: setBoardOpen, badge: openTasks },
+    {
+      key: 'threads',
+      label: 'Sessies',
+      hint: `Sessies — ${live} draaien er nu (toets /)`,
+      on: panelOpen,
+      set: setPanelOpen,
+      badge: live,
+    },
+    {
+      key: 'board',
+      label: 'Bord',
+      hint: `Takenbord — ${openTasks} taken open of in behandeling (toets b)`,
+      on: boardOpen,
+      set: setBoardOpen,
+      badge: openTasks,
+    },
     {
       key: 'actions',
       label: 'Acties',
-      hint: 'Wat op jou wacht (a)',
+      hint: 'Alles wat op jou wacht (toets a)',
       on: actionsOpen,
       set: setActionsOpen,
       badge: waiting,
       urgent: waiting > 0,
     },
-    { key: 'overview', label: 'Overzicht', hint: 'Overzicht per tak (o)', on: overviewOpen, set: setOverviewOpen },
+    {
+      key: 'overview',
+      label: 'Overzicht',
+      hint: 'Overzicht per tak (toets o)',
+      on: overviewOpen,
+      set: setOverviewOpen,
+    },
+    // Vijfde tab, en dat is geen sier: de leiding was alleen te vinden achter
+    // een rondje met een emoji rechtsonder. Nu staat "Overleg" naast de andere
+    // panelen, met het aantal onbeantwoorde vragen erop.
+    {
+      key: 'chat',
+      label: 'Overleg',
+      hint: 'Praat met de chief, de supervisor of een manager (toets c)',
+      on: chatOpen,
+      set: (v) => {
+        if (v) openLeadershipChat();
+      },
+      badge: waitingChats,
+      urgent: waitingChats > 0,
+    },
   ];
 
   return (
-    <div className="sidetabs" role="tablist">
+    <div className={`sidetabs ${chatOpen ? 'sidetabs-chat' : ''}`} role="tablist">
       {tabs.map((tab) => (
         <button
           key={tab.key}
@@ -105,6 +162,9 @@ export function SideTabs(): JSX.Element | null {
           setBoardOpen(false);
           setActionsOpen(false);
           setOverviewOpen(false);
+          // Het overleg hoort bij dezelfde familie: één kruisje ruimt de hele
+          // rechterkolom op, anders blijft er één paneel achter.
+          closeLeadershipChat();
         }}
       >
         ✕

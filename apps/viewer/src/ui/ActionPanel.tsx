@@ -39,10 +39,15 @@ const KIND_LABEL: Record<Action['kind'], string> = {
   config: '⚙️ Instelling',
 };
 
-const URGENCY_LABEL: Record<Action['urgency'], string> = {
-  blocking: 'Nu',
-  soon: 'Binnenkort',
-  whenever: 'Wanneer het uitkomt',
+/**
+ * Kopjes boven de groepen. Alles stond in één lijst op volgorde van de
+ * collector: een databron die ooit eens aangesloten moet worden zag er precies
+ * zo dringend uit als een handel die op akkoord wacht.
+ */
+const URGENCY_SECTION: Record<Action['urgency'], { title: string; hint: string }> = {
+  blocking: { title: 'Nu — hier loopt iets op vast', hint: 'zonder jou gebeurt er niets' },
+  soon: { title: 'Binnenkort', hint: 'geen spoed, wel aandacht' },
+  whenever: { title: 'Wanneer het uitkomt', hint: 'losse eindjes, geen haast' },
 };
 
 function token(): string {
@@ -106,15 +111,19 @@ export function ActionPanel(): JSX.Element | null {
   };
 
   const blocking = actions.filter((a) => a.urgency === 'blocking').length;
+  const order: Action['urgency'][] = ['blocking', 'soon', 'whenever'];
+  const grouped = order
+    .map((urgency) => ({ urgency, items: actions.filter((a) => a.urgency === urgency) }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside className="actions">
       <div className="actions-head">
         <strong>
-          Acties {blocking > 0 && <span className="actions-badge">{blocking}</span>}
+          Wacht op jou {blocking > 0 && <span className="actions-badge">{blocking} nu</span>}
         </strong>
-        <button type="button" className="btn" onClick={() => setOpen(false)}>
-          sluiten
+        <button type="button" className="btn" onClick={() => setOpen(false)} aria-label="Acties sluiten">
+          ✕
         </button>
       </div>
 
@@ -123,35 +132,54 @@ export function ActionPanel(): JSX.Element | null {
       <div className="actions-list">
         {actions.length === 0 && (
           <p className="actions-empty">
-            {demo ? 'Demo-modus: geen echte acties.' : 'Niets dat op jou wacht.'}
+            {demo
+              ? 'Demo-modus: dit paneel toont alleen echte acties, en die zijn er hier niet.'
+              : 'Niets dat op jou wacht. Geen akkoorden, geen escalaties, geen storingen.'}
           </p>
         )}
-        {actions.map((action) => (
-          <div key={action.id} className={`action action-${action.urgency}`}>
-            <div className="action-top">
-              <span className="action-kind">{KIND_LABEL[action.kind]}</span>
-              <span className="action-urgency">{URGENCY_LABEL[action.urgency]}</span>
-              {action.createdAt > 0 && (
-                <span className="action-age">{ageString(action.createdAt)}</span>
-              )}
+        {grouped.map((group) => (
+          <div key={group.urgency} className="actions-group">
+            <div className="actions-section">
+              {URGENCY_SECTION[group.urgency].title}
+              <em>{URGENCY_SECTION[group.urgency].hint}</em>
             </div>
-            <div className="action-title">{action.title}</div>
-            <div className="action-detail">{action.detail}</div>
-            {action.buttons.length > 0 && (
-              <div className="action-buttons">
-                {action.buttons.map((button) => (
-                  <button
-                    key={button.label}
-                    type="button"
-                    className={`btn ${button.confirm ? 'btn-strong' : ''}`}
-                    disabled={busy === action.id}
-                    onClick={() => void run(action, button)}
-                  >
-                    {busy === action.id ? '…' : button.label}
-                  </button>
-                ))}
+            {group.items.map((action) => (
+              <div key={action.id} className={`action action-${action.urgency}`}>
+                <div className="action-top">
+                  <span className="action-kind">{KIND_LABEL[action.kind]}</span>
+                  {action.project && <span className="action-project">{action.project}</span>}
+                  {action.createdAt > 0 && (
+                    <span
+                      className="action-age"
+                      title={`Staat hier sinds ${new Date(action.createdAt).toLocaleString('nl-NL')}`}
+                    >
+                      {ageString(action.createdAt)} geleden
+                    </span>
+                  )}
+                </div>
+                <div className="action-title">{action.title}</div>
+                <div className="action-detail">{action.detail}</div>
+                {action.buttons.length > 0 && (
+                  <div className="action-buttons">
+                    {action.buttons.map((button) => (
+                      <button
+                        key={button.label}
+                        type="button"
+                        className={`btn ${button.confirm ? 'btn-strong' : ''}`}
+                        disabled={busy === action.id}
+                        title={button.confirm ? 'Vraagt eerst om bevestiging' : undefined}
+                        onClick={() => void run(action, button)}
+                      >
+                        {busy === action.id ? '…' : button.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {action.buttons.length === 0 && (
+                  <div className="action-nobtn">Niets om hier te klikken — dit vraagt om een wijziging buiten ARA.</div>
+                )}
               </div>
-            )}
+            ))}
           </div>
         ))}
       </div>

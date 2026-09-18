@@ -817,7 +817,7 @@ function controlRoom(total: number): OfficeLayout {
 
 /** Werkplaats: een hoge hal met rolpoort en betonvloer, kantoorstrook opzij. */
 function workshop(total: number): OfficeLayout {
-  const width = 31;
+  const width = 29;
   const depth = 23;
   const desks = stripSlots(total, width / 2 - 4.6, 3.5, 3, -2.2);
   const meeting = cornerMeeting(width, depth, 5.8, 4.8);
@@ -1535,6 +1535,8 @@ interface Seat {
   scale: number;
   /** Vast naamplaatje (de keten zelf) of alleen bij aanwijzen (de rollen). */
   named: boolean;
+  /** Rij in het rollenveld; bepaalt hoe hoog het naamplaatje hangt. */
+  row: number;
 }
 
 const TIER_ORDER: Record<StaffTier, number> = {
@@ -1579,8 +1581,8 @@ function seatStaff(staff: StaffMember[], lead: LeadBand): Seat[] {
   const cols = Math.max(1, Math.ceil(rest.length / rows));
   const room = Math.max(6, lead.x1 - lead.x0);
   const headW = 8.2;
-  const pitchX = Math.min(2.7, Math.max(1.9, (room - headW - 1.2) / cols));
-  const pitchZ = Math.min(1.85, (lead.d - 1.5) / rows);
+  const pitchX = Math.min(3.0, Math.max(2.0, (room - headW - 1.2) / cols));
+  const pitchZ = Math.min(2.0, (lead.d - 1.4) / rows);
   const used = headW + (rest.length > 0 ? 1.2 + cols * pitchX : 0);
   const start = Math.min(
     Math.max(lead.x0, (lead.x0 + lead.x1) / 2 - used / 2),
@@ -1606,6 +1608,7 @@ function seatStaff(staff: StaffMember[], lead: LeadBand): Seat[] {
       radius: 1.05,
       scale: 1.15,
       named: true,
+      row: 0,
     });
   });
   if (ops) {
@@ -1619,6 +1622,7 @@ function seatStaff(staff: StaffMember[], lead: LeadBand): Seat[] {
       radius: 0.95,
       scale: 1.05,
       named: true,
+      row: 0,
     });
   }
 
@@ -1636,6 +1640,7 @@ function seatStaff(staff: StaffMember[], lead: LeadBand): Seat[] {
       radius: Math.min(0.66, pitchX / 2 - 0.25),
       scale: 0.85,
       named: false,
+      row: r,
     });
   });
   return seats;
@@ -1928,7 +1933,7 @@ function WallFace({
     const bw = run / bays;
     for (let i = 0; i < bays; i += 1) {
       const cx = off - run / 2 + (i + 0.5) * bw;
-      out.push({ x: cx, y: 1.85, z: 0.45, w: bw - 0.2, h: 3.7, d: 0.8, color: p.trim });
+      out.push({ x: cx, y: 1.85, z: 0.42, w: bw - 0.2, h: 3.7, d: 0.75, color: p.wallSide });
       // De ruggen steken vóór de kast uit, anders vallen ze samen met het
       // front en zie je van bovenaf één vlak in plaats van planken.
       for (let r = 0; r < 4; r += 1) {
@@ -2063,6 +2068,7 @@ function Room({
   const head = useMemo(() => headlineTexture(office), [office]);
   const facts = useMemo(() => factsTexture(office), [office]);
   const room = useMemo(() => roomTexture(office), [office]);
+  const closeChip = useMemo(() => chipTexture('Klik om te sluiten', '', accent), [accent]);
 
   // Elke trede iets lichter dan de vorige: zo lees je de tribune van bovenaf
   // als treden en niet als één blok.
@@ -2325,11 +2331,11 @@ function Room({
       {(layout.shell === 'hal' || layout.shell === 'venue') && (
         <Bricks
           bricks={[
-            ...[-depth / 4, depth / 4].map((tz) => ({
+            ...[-depth / 4, depth / 6].map((tz) => ({
               x: 0,
               y: wallH - 1.6,
               z: tz,
-              w: width,
+              w: width * 0.8,
               h: 0.14,
               d: 0.2,
               color: p.plint,
@@ -2338,10 +2344,10 @@ function Room({
               ? [-width / 4, width / 4].map((tx) => ({
                   x: tx,
                   y: wallH - 1.85,
-                  z: 0,
+                  z: -depth / 8,
                   w: 0.16,
                   h: 0.12,
-                  d: depth,
+                  d: depth * 0.72,
                   color: p.plint,
                 }))
               : []),
@@ -2482,7 +2488,7 @@ function Room({
 
       {openBoard && (
         <group
-          position={[0, wallH * 0.55, -depth / 4]}
+          position={[0, wallH * 0.78, -depth / 6]}
           onClick={(e) => {
             e.stopPropagation();
             onBoard(null);
@@ -2512,6 +2518,19 @@ function Room({
               toneMapped={false}
             />
           </mesh>
+          {/* Een paneel dat over de zaal heen valt moet zelf zeggen hoe je het
+              weer weg krijgt; anders is de enige uitweg raden. */}
+          <sprite
+            position={[
+              0,
+              -(openBoard === 'head' ? width * 0.82 * HEAD_RATIO : width * 0.5 * FACTS_RATIO) / 2 - 0.7,
+              0.1,
+            ]}
+            scale={[1.5 * closeChip.aspect * 0.42, 0.42, 1]}
+            renderOrder={13}
+          >
+            <spriteMaterial map={closeChip.texture} transparent depthWrite={false} depthTest={false} />
+          </sprite>
         </group>
       )}
     </group>
@@ -2520,8 +2539,37 @@ function Room({
 
 /* ============================== het geheel =============================== */
 
-/** Hoeveel de hele ruimte krimpt zodat een groter vloerplan in beeld blijft. */
-const FIT_REF = 46;
+/**
+ * Hoe groot de ruimte getekend wordt.
+ *
+ * De camera in OfficeOverlay staat vast (orthografisch, zoom 30) en het doek
+ * verschilt enorm: op een laptop is het ruim duizend pixels breed, op een
+ * telefoon een strook van 390×355. Met een vaste schaal zag je op de telefoon
+ * een achtste van het kantoor en moest je gaan slepen om te ontdekken dat er
+ * een keten en een overleghok bestonden.
+ *
+ * Dus rekent het vloerplan zelf uit hoe groot het mag zijn. Onder deze
+ * camerahoek (45° om, 36,6° omhoog) beslaat een vloer van w×d op het scherm
+ * ongeveer 0,707·(w+d) breed en 0,421·(w+d) + 0,8·h hoog; daar past de schaal
+ * zich op aan. Op een laptop levert dat vrijwel dezelfde uitsnede als eerst,
+ * op een telefoon een heel kantoor in plaats van een hoek ervan.
+ */
+const FIT_SPREAD_X = 0.707;
+const FIT_SPREAD_Z = 0.421;
+const FIT_SPREAD_Y = 0.8;
+/** De zoom waarmee OfficeOverlay zijn camera opzet. */
+const CAMERA_ZOOM = 30;
+
+function fitScale(size: { width: number; height: number }, w: number, d: number, h: number): number {
+  const spanX = FIT_SPREAD_X * (w + d);
+  const spanY = FIT_SPREAD_Z * (w + d) + FIT_SPREAD_Y * h;
+  if (size.width < 1 || size.height < 1) return 1;
+  const sx = size.width / CAMERA_ZOOM / spanX;
+  const sy = size.height / CAMERA_ZOOM / spanY;
+  // 0.94 marge: een kantoor dat exact het doek raakt ziet eruit alsof het
+  // afgesneden is. Niet groter dan 1 — uitvergroten hoort de gebruiker te doen.
+  return Math.max(0.3, Math.min(1, Math.min(sx, sy) * 0.94));
+}
 
 export function OfficeScene({
   office,
@@ -2549,9 +2597,11 @@ export function OfficeScene({
   const [hoveredSeat, setHoveredSeat] = useState<number | null>(null);
   const spec = useMemo(() => officeSpec(office.kind), [office.kind]);
 
-  // De ruimte krimpt als het vloerplan groeit: de camera in OfficeOverlay staat
-  // vast, dus zonder dit valt een diepere zaal buiten beeld.
-  const fit = useMemo(() => Math.min(1, FIT_REF / (width + depth)), [width, depth]);
+  const size = useThree((st) => st.size);
+  const fit = useMemo(
+    () => fitScale(size, width, depth, layout.wallH),
+    [size, width, depth, layout.wallH],
+  );
 
   /** Welke zone hoort bij welk bureau — puur uit de plek van het bureau. */
   const zoneTone = useMemo(() => {
@@ -2849,11 +2899,15 @@ export function OfficeScene({
           vacant && !focus ? 'vaste rol · leeg' : capLine(line),
           vacant ? '#8d85c9' : TIER_COLOR[s.tier],
         );
-        const h = focus ? 0.62 : s.named ? 0.56 : 0.34;
+        const h = focus ? 0.62 : s.named ? 0.56 : 0.3;
         return (
           <sprite
             key={s.member.id}
-            position={[s.x, s.y + 0.14 + (focus || s.named ? 1.85 : 1.25), s.z]}
+            position={[
+              s.x,
+              s.y + 0.14 + (focus ? 1.95 : s.named ? 1.85 : 1.18 + s.row * 0.52),
+              s.z,
+            ]}
             scale={[1.5 * chip.aspect * h, h, 1]}
             renderOrder={focus ? 12 : 11}
           >

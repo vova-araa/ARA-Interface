@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { createUserTask, loadTasks, type BoardTask } from '../api.ts';
 import { useAra } from '../store.ts';
 import { ageString } from '../util.ts';
+import { openLeadershipChat, roleLabel } from './ChatPanel.tsx';
 
 const STATUS_LABEL: Record<BoardTask['status'], string> = {
   open: '🟡 Open',
-  claimed: '🔵 Bezig',
+  claimed: '🔵 Wordt aan gewerkt',
   done: '🟢 Af',
   failed: '🔴 Mislukt',
 };
@@ -59,13 +60,17 @@ export function BoardPanel(): JSX.Element | null {
     <div key={task.id} className={`board-row ${isEscalation(task) ? 'board-escalation' : ''}`}>
       <div className="board-row-top">
         <span className="board-title">{task.title}</span>
-        <span className="board-meta">{ageString(task.updatedAt)}</span>
+        <span className="board-meta" title={new Date(task.updatedAt).toLocaleString('nl-NL')}>
+          {ageString(task.updatedAt)} geleden
+        </span>
       </div>
+      {/* Stond hier als agent-id: "ara-fleet-cost · blex". Wie dat niet uit zijn
+          hoofd kent leest een sleutel in plaats van een naam. */}
       <div className="board-sub">
-        {STATUS_LABEL[task.status]} · {task.assignee || '—'}
+        {STATUS_LABEL[task.status]} · bij <b>{roleLabel(task.assignee)}</b>
         {task.project ? ` · ${task.project}` : ''}
-        {task.result ? ` — ${task.result.slice(0, 80)}` : ''}
       </div>
+      {task.result && <div className="board-result">{task.result.slice(0, 160)}</div>}
     </div>
   );
 
@@ -73,13 +78,20 @@ export function BoardPanel(): JSX.Element | null {
     <div className="board">
       <div className="board-header">
         <b>Takenbord</b>
-        <button className="btn" onClick={() => setBoardOpen(false)}>✕</button>
+        <span className="board-head-sub">
+          {escalations.length > 0 ? `${escalations.length} wacht op jou · ` : ''}
+          {active.length} in behandeling
+        </span>
+        <button className="btn" onClick={() => setBoardOpen(false)} aria-label="Takenbord sluiten">
+          ✕
+        </button>
       </div>
 
       <div className="board-form">
         <input
           className="search"
           placeholder="Nieuwe taak voor de supervisor…"
+          aria-label="Nieuwe taak voor de supervisor"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && void submit()}
@@ -88,10 +100,19 @@ export function BoardPanel(): JSX.Element | null {
           <input
             className="search board-project"
             placeholder="project (optioneel)"
+            aria-label="Project (optioneel)"
             value={project}
             onChange={(e) => setProject(e.target.value)}
           />
           <button className="btn btn-active" onClick={() => void submit()}>Plaats</button>
+        </div>
+        {/* Waar dit heen gaat, vóór je het plaatst — en waar je heen moet als je
+            liever eerst iets wilt vrágen dan iets wilt opdragen. */}
+        <div className="board-form-note">
+          Komt op het bord bij de <b>supervisor</b>, die het over de managers verdeelt.{' '}
+          <button type="button" className="board-link" onClick={() => openLeadershipChat('supervisor')}>
+            Liever eerst overleggen?
+          </button>
         </div>
         {sent === 'ok' && <div className="board-sent">✓ Geplaatst — supervisor pakt dit binnen ±5 min op.</div>}
         {sent === 'fail' && <div className="board-sent stat-urgent">✗ Plaatsen mislukt — collector bereikbaar?</div>}
@@ -100,14 +121,21 @@ export function BoardPanel(): JSX.Element | null {
       <div className="board-list">
         {escalations.length > 0 && (
           <>
-            <div className="board-section stat-urgent">⚠ Escalaties</div>
+            <div className="board-section stat-urgent">⚠ Wacht op jou — een agent weigerde</div>
             {escalations.map(row)}
           </>
         )}
-        <div className="board-section">Actief</div>
-        {active.length === 0 && <div className="empty">Geen open taken.</div>}
+        <div className="board-section">Open en in behandeling</div>
+        {active.length === 0 && (
+          <div className="empty">
+            <div className="empty-title">Geen open taken</div>
+            <div className="empty-hint">
+              Alles wat binnenkwam is afgerond. Nieuw werk zet je hierboven op het bord.
+            </div>
+          </div>
+        )}
         {active.map(row)}
-        <div className="board-section">Afgerond</div>
+        {finished.length > 0 && <div className="board-section">Afgerond (laatste {finished.length})</div>}
         {finished.map(row)}
       </div>
     </div>

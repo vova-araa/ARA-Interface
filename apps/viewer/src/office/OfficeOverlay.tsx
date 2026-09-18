@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { MapControls } from '@react-three/drei';
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing';
@@ -15,231 +15,107 @@ import {
 import { useAra } from '../store.ts';
 import { ageString } from '../util.ts';
 import { OfficeScene } from './OfficeScene.tsx';
-import { recipientForOffice } from '../ui/ChatPanel.tsx';
+import { recipientForOffice, roleLabel } from '../ui/ChatPanel.tsx';
 import { loadChat, loadOffice, sendChat } from './api.ts';
 import { TONE_COLORS } from './textures.ts';
 
 /**
- * CSS die t.z.t. in theme.css hoort, in het blok
- * "Kantoren: interieur per project" — hij staat hier omdat theme.css buiten
- * deze wijziging valt. Alles is `.office-`-genaamd en gebruikt de bestaande
- * variabelen (--tap, --safe-*), zodat verhuizen straks knippen en plakken is.
+ * Waar iemand in de keten staat, in woorden.
+ *
+ * `role` zei dit niet: de chief én de supervisor hebben allebei rol
+ * 'supervisor', dus stond er bij de supervisor letterlijk "chief". `tier` zegt
+ * wél waar iemand hangt, dus die gaat voor; `role` is het vangnet.
  */
-const OFFICE_WORK_CSS = `
-/* Balk die op élk tabblad blijft staan zolang er iets op een mens wacht.
-   Een escalatie achter een tabblad is een escalatie die niemand ziet. */
-.office-esc-strip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: var(--tap);
-  margin: 0 0 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 107, 107, 0.45);
-  background: rgba(255, 107, 107, 0.14);
-  color: #ffd5d5;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-.office-esc-strip:hover { background: rgba(255, 107, 107, 0.22); }
-.office-esc-strip em { margin-left: auto; font-style: normal; opacity: 0.75; font-size: 12px; }
-
-/* Tellers van het bord. Alle drie geteld, geen ervan ingevuld. */
-.office-board-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
-.office-board-stat {
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.office-board-stat span { font-size: 10px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.05em; }
-.office-board-stat strong { font-size: 17px; }
-.office-board-hot { color: #ff8b8b; }
-
-.office-tasks { display: flex; flex-direction: column; gap: 4px; }
-.office-task {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: var(--tap);
-  padding: 8px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.04);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-}
-button.office-task { cursor: pointer; }
-button.office-task:hover { background: rgba(150, 120, 255, 0.16); border-color: rgba(150, 120, 255, 0.35); }
-.office-task-esc { border-color: rgba(255, 107, 107, 0.4); background: rgba(255, 107, 107, 0.1); }
-button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-color: rgba(255, 107, 107, 0.6); }
-.office-task-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.office-task-title { font-size: 13px; line-height: 1.25; }
-.office-task-meta { font-size: 11px; opacity: 0.55; }
-/* Twee regels toelichting is genoeg om te weten waar het over gaat; daarna
-   duwt één lange regel de rest van het bord van het scherm. */
-.office-task-note {
-  font-style: normal;
-  font-size: 11.5px;
-  opacity: 0.75;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-/* De eigenaar van de taak is de knop: hem aanklikken zet de bezetting én het
-   gesprek op die rol, zodat "wie gaat hierover" geen tweede zoektocht is. */
-.office-task-owner {
-  flex: none;
-  max-width: 45%;
-  font-size: 11.5px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(150, 120, 255, 0.2);
-  color: #ded5ff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.office-person-tasks { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
-.office-sub-head-warn { color: #ff9b9b; opacity: 0.9; }
-.office-task-flag { color: #ff9b9b; font-weight: 600; opacity: 0.95; }
-
-/* Vier tabbladen passen alleen als ze niet afbreken. */
-.office-tabs button { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
-.office-tab-badge {
-  display: inline-block;
-  margin-left: 5px;
-  min-width: 17px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: #ff6b6b;
-  color: #2a0d14;
-  font-size: 10.5px;
-  font-weight: 700;
-  line-height: 17px;
-  text-align: center;
-}
-
-/* Kantoorwissel: de titel in de balk is de knop. */
-.office-switch-wrap { position: relative; display: flex; }
-.office-switch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--tap);
-  padding: 4px 8px;
-  border: 1px solid rgba(150, 120, 255, 0.25);
-  border-radius: 10px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-.office-switch:hover { background: rgba(150, 120, 255, 0.14); }
-.office-switch-caret { opacity: 0.6; font-size: 11px; }
-.office-pick-scrim { position: fixed; inset: 0; z-index: 1; }
-.office-pick {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 2;
-  width: max(220px, min(78vw, 300px));
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 8px;
-  border-radius: 12px;
-  border: 1px solid rgba(150, 120, 255, 0.35);
-  background: rgba(26, 17, 56, 0.99);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
-}
-.office-pick-group + .office-pick-group { margin-top: 6px; }
-.office-pick-group h5 {
-  margin: 6px 4px 3px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 600;
-}
-.office-pick-row {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  min-height: var(--tap);
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-.office-pick-row:hover { background: rgba(150, 120, 255, 0.16); }
-.office-pick-row.active { background: rgba(150, 120, 255, 0.22); border-color: rgba(150, 120, 255, 0.4); }
-.office-pick-row em { margin-left: auto; font-style: normal; font-size: 11px; opacity: 0.6; }
-.office-pick-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-
-/* Hoogte van de kopbalk, als getal dat de kiezer kan gebruiken. Op de telefoon
-   hangt hij namelijk niet onder de knop maar onder de héle balk: onder de knop
-   begint hij op ~100px van links en loopt hij het scherm uit. */
-.office-overlay { --office-pick-top: calc(var(--safe-t) + 62px); }
-
-@media (max-width: 900px) {
-  .office-overlay { --office-pick-top: calc(var(--safe-t) + 58px); }
-  /* Statisch: dan is de kiezer t.o.v. het hele kantoor geplaatst, niet t.o.v.
-     de titelknop — en past hij tussen de twee schermranden. */
-  .office-switch-wrap { position: static; }
-  .office-pick {
-    top: var(--office-pick-top);
-    left: calc(12px + var(--safe-l));
-    right: calc(12px + var(--safe-r));
-    width: auto;
-    max-height: 52vh;
-  }
-  .office-board-sum { gap: 6px; }
-  .office-board-stat { padding: 7px 8px; }
-  .office-board-stat strong { font-size: 15px; }
-  /* Op een telefoon houdt het kantoor (42vh) en het gesprek de zijkolom kort;
-     krap gezette regels zijn hier het verschil tussen één en drie taken in
-     beeld. De tikdoelen blijven var(--tap). */
-  .office-task { padding: 7px 9px; gap: 8px; }
-  .office-task-title { font-size: 12.5px; }
-  .office-task-owner { max-width: 42%; }
-}
-
-/* Liggend op een telefoon is de balk 46px hoog in plaats van 52. */
-@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
-  .office-overlay { --office-pick-top: calc(var(--safe-t) + 52px); }
-}
-`;
+const TIER_LABEL: Record<string, string> = {
+  chief: 'hoofd',
+  supervisor: 'supervisor',
+  manager: 'manager',
+  ops: 'ops-manager',
+  specialist: 'vaste rol',
+  floor: 'draait nu hier',
+};
 
 const ROLE_LABEL: Record<StaffMember['role'], string> = {
-  supervisor: 'chief',
+  supervisor: 'leiding',
   manager: 'manager',
-  agent: 'agent',
+  agent: 'vaste rol',
   scout: 'scout',
-  ops: 'ops',
+  ops: 'ops-manager',
 };
+
+/** Eén woord voor wat iemand is — nooit het agent-id, dat leest niemand. */
+function tierLabel(person: StaffMember): string {
+  return (person.tier && TIER_LABEL[person.tier]) ?? ROLE_LABEL[person.role];
+}
+
+/** Iemand met een eigen lijn: de gebruiker mag hier rechtstreeks heen. */
+function isLeadership(person: StaffMember): boolean {
+  return person.role === 'supervisor' || person.role === 'manager' || person.tier === 'ops';
+}
+
+/**
+ * De drie groepen waarin een kantoor zijn mensen kent.
+ *
+ * Een platte lijst zette de chief, een vaste rol die niet draait en een agent
+ * die toevallig nu werkt onder elkaar zonder verschil. Dat zijn drie soorten
+ * aanwezigheid met drie verschillende verwachtingen, dus staan ze apart.
+ */
+const STAFF_GROUPS: { key: string; title: string; hint: string }[] = [
+  { key: 'leiding', title: 'Leiding', hint: 'hier schrijf je rechtstreeks heen' },
+  { key: 'vast', title: 'Vaste rollen in deze tak', hint: 'uit het playbook — ook zonder sessie' },
+  { key: 'nu', title: 'Draait nu in dit project', hint: 'sessies van dit moment' },
+];
+
+function staffGroup(person: StaffMember): string {
+  if (person.tier === 'specialist') return 'vast';
+  if (person.tier === 'floor') return 'nu';
+  if (isLeadership(person)) return 'leiding';
+  return person.tier ? 'vast' : 'nu';
+}
 
 /** Hoe het bord zijn statussen noemt — zelfde woorden als het takenbord. */
 const TASK_STATUS_LABEL: Record<string, string> = {
   open: 'open',
-  claimed: 'bezig',
+  claimed: 'wordt aan gewerkt',
   done: 'af',
   failed: 'mislukt',
 };
+
+/**
+ * Herkomst van een cijfer, in een woord in plaats van een teken.
+ *
+ * Er stond "≈" voor een ingevuld cijfer. Dat is geen taal: wie het niet weet
+ * leest een wiskundeteken, en wie het wél weet moet het zich elke keer weer
+ * herinneren. Drie woorden, overal dezelfde, met de uitleg in de tooltip —
+ * `voorbeeld` (niemand levert dit aan), `verouderd` (wel echt, maar oud) en
+ * `gemeten` (geteld, geen invulling).
+ */
+function Tag({
+  kind,
+  children,
+  title,
+}: {
+  kind: 'est' | 'stale' | 'real';
+  children: ReactNode;
+  title?: string;
+}): JSX.Element {
+  const fallback =
+    kind === 'est'
+      ? 'Voorbeeldcijfer: er is geen bron aan gekoppeld, ARA heeft dit zelf ingevuld.'
+      : kind === 'stale'
+        ? 'De koppeling stuurde al een tijd niets meer — dit cijfer kan achterlopen.'
+        : 'Geteld, geen invulling.';
+  return (
+    <span className={`office-tag office-tag-${kind}`} title={title ?? fallback}>
+      {children}
+    </span>
+  );
+}
+
+/** Tijdstip van een meting/levering, in de taal van de rest van de interface. */
+function clockTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+}
 
 function Sparkline({ values, color }: { values: number[]; color: string }): JSX.Element | null {
   if (values.length < 2) return null;
@@ -262,11 +138,10 @@ function MetricRow({ metric }: { metric: Metric }): JSX.Element {
       <span>{metric.label}</span>
       <strong
         className={metric.estimated ? 'office-est' : undefined}
-        title={metric.estimated ? 'Voorbeeldcijfer — geen bron gekoppeld' : undefined}
         style={metric.tone && !metric.estimated ? { color: TONE_COLORS[metric.tone] } : undefined}
       >
-        {metric.estimated ? '≈ ' : ''}
         {metric.value}
+        {metric.estimated && <Tag kind="est">voorbeeld</Tag>}
       </strong>
     </div>
   );
@@ -305,8 +180,8 @@ function TaskRow({
         <span className="office-task-title">{task.title}</span>
         <span className="office-task-meta">
           {task.escalated && flag && <b className="office-task-flag">⚠ wacht op jou · </b>}
-          {TASK_STATUS_LABEL[task.status] ?? task.status} · {task.assignee || '—'} ·{' '}
-          {ageString(task.updatedAt, now)}
+          {TASK_STATUS_LABEL[task.status] ?? task.status} · {roleLabel(task.assignee)} ·{' '}
+          {ageString(task.updatedAt, now)} geleden
         </span>
         {note && <em className="office-task-note">{note}</em>}
       </span>
@@ -363,26 +238,29 @@ function BoardTab({
   return (
     <div className="office-list">
       <div className="office-board-sum">
-        <div className="office-board-stat">
+        <div className="office-board-stat" title="Taken die op een mens wachten (een agent weigerde met ESCALATE).">
           <span>wacht op jou</span>
           <strong className={escalations.length > 0 ? 'office-board-hot' : undefined}>
             {escalations.length}
           </strong>
         </div>
-        <div className="office-board-stat">
-          <span>open</span>
+        <div className="office-board-stat" title="Taken die openstaan of waaraan gewerkt wordt.">
+          <span>open taken</span>
           <strong>
-            {truncated ? '≥' : ''}
+            {truncated ? 'minstens ' : ''}
             {open.length}
           </strong>
         </div>
         {doneToday !== null && (
-          <div className="office-board-stat">
+          <div className="office-board-stat" title="Vandaag afgerond, geteld op het moment van afronden.">
             <span>vandaag af</span>
             <strong>{doneToday}</strong>
           </div>
         )}
       </div>
+      <p className="office-note office-note-lead">
+        Alle drie geteld van het bord van dit project — geen voorbeeldcijfers.
+      </p>
 
       {truncated && (
         <p className="office-note">
@@ -405,9 +283,14 @@ function BoardTab({
       )}
 
       {escalations.length === 0 && open.length === 0 && (
-        <p className="office-note">
-          Niets open op het bord van dit project.
-          {doneToday !== null && doneToday > 0 ? ' Wat vandaag binnenkwam is af.' : ''}
+        <p className="office-empty-note">
+          <b>Niets open op het bord van dit project.</b>
+          {doneToday !== null && doneToday > 0
+            ? ' Wat vandaag binnenkwam is af.'
+            : ' Er staat ook niets in de wacht — dit kantoor heeft nu geen werk liggen.'}
+          <br />
+          Werk erbij? Vraag het de manager in het gesprek hieronder; zijn antwoord komt hier als taak
+          op het bord.
         </p>
       )}
     </div>
@@ -458,6 +341,14 @@ function OfficePicker({
   );
 }
 
+/** Werkplekstatus in woorden; het Engelse sleutelwoord blijft in de code. */
+const STATION_STATUS_LABEL: Record<string, string> = {
+  working: 'bezig',
+  idle: 'stil',
+  alert: 'storing',
+  done: 'klaar',
+};
+
 /** Detailpaneel van een werkplek: cijfers, belofte × geleverd en de curve. */
 function StationDetail({ station, valueKind }: { station: Station; valueKind: string }): JSX.Element {
   const d = station.detail;
@@ -468,18 +359,28 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
           <h3>{d.title}</h3>
           <p>{d.subtitle}</p>
         </div>
-        <span className={`office-status office-status-${station.status}`}>{station.status}</span>
+        <span className={`office-status office-status-${station.status}`}>
+          {STATION_STATUS_LABEL[station.status] ?? station.status}
+        </span>
       </div>
 
-      {station.simulated && (
+      {/* Eén keer bovenaan, in een hele zin: wat je hieronder ziet is
+          ingevuld of juist aangeleverd. Voorheen droeg élk cijfer een "≈" en
+          dan lees je een teken in plaats van een zin. */}
+      {station.simulated ? (
         <p className="office-warn">
-          Voorbeeldcijfers — geen agent levert data voor deze werkplek. Alles met ≈ is ingevuld.
+          <b>Voorbeeldcijfers.</b> Geen agent levert data voor deze werkplek, dus ARA heeft alles
+          hieronder zelf ingevuld — bruikbaar om te zien hóe het eruitziet, niet om op te sturen.
         </p>
-      )}
-      {station.stale && (
+      ) : station.stale ? (
         <p className="office-warn">
-          Verouderd — de koppeling stuurde voor het laatst iets om{' '}
-          {new Date(station.updatedAt ?? 0).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}.
+          <b>Verouderd.</b> Deze cijfers komen van een agent, maar de laatste levering was om{' '}
+          {clockTime(station.updatedAt ?? 0)} — sindsdien kwam er niets meer binnen.
+        </p>
+      ) : (
+        <p className="office-note office-note-real">
+          Aangeleverd door de agent op deze werkplek
+          {station.updatedAt ? `, om ${clockTime(station.updatedAt)}` : ''}.
         </p>
       )}
 
@@ -491,27 +392,30 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
               className={k.estimated ? 'office-est' : undefined}
               style={k.tone && !k.estimated ? { color: TONE_COLORS[k.tone] } : undefined}
             >
-              {k.estimated ? '≈ ' : ''}
               {k.value}
             </strong>
           </div>
         ))}
       </div>
 
-      <h4>Gegevens</h4>
+      <h4>Gegevens van deze werkplek</h4>
       <div className="office-metrics">
         {station.metrics.map((m) => (
           <MetricRow key={m.label} metric={m} />
         ))}
       </div>
 
-      <h4>Belofte × geleverd {d.estimated && <span className="office-est">≈ voorbeeld</span>}</h4>
+      {/* "plan" en "echt" waren twee kolomkopjes van vier letters boven
+          getallen die over geld en tijd kunnen gaan. De hele woorden passen. */}
+      <h4>
+        Belofte tegenover geleverd {d.estimated && <Tag kind="est">voorbeeld</Tag>}
+      </h4>
       <table className="office-table">
         <thead>
           <tr>
             <th />
-            <th>plan</th>
-            <th>echt</th>
+            <th>belofte</th>
+            <th>geleverd</th>
           </tr>
         </thead>
         <tbody>
@@ -525,11 +429,16 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
         </tbody>
       </table>
 
-      <h4>Verloop {d.estimated && <span className="office-est">≈ voorbeeld</span>}</h4>
+      <h4>
+        Verloop van deze werkplek {d.estimated && <Tag kind="est">voorbeeld</Tag>}
+      </h4>
       <Sparkline values={d.curve} color={valueKind === 'money' ? '#6ee7ff' : '#c07cff'} />
+      <p className="office-note office-spark-legend">
+        Oudste links, meest recente rechts — een vorm, geen schaal.
+      </p>
       {station.agentName && (
         <p className="office-note">
-          Aan het werk: <strong>{station.agentName}</strong>
+          Aan het werk op deze plek: <strong>{station.agentName}</strong>
         </p>
       )}
     </div>
@@ -558,6 +467,35 @@ function OfficeChat({ project, room }: { project: string; room: string }): JSX.E
   // manager overgeslagen. De keten is geen suggestie: de vraag gaat naar de
   // manager (of de chief), mét de naam van de rol waar hij over gaat.
   const target = useMemo(() => recipientForOffice(office?.staff, selected), [office, selected]);
+
+  /**
+   * Of er nu iemand is. Een leeg gesprek met een rol die niet draait ziet er
+   * precies hetzelfde uit als een gesprek dat aankomt, en dat is het verschil
+   * tussen wachten op een antwoord en wachten op niets. Wat we weten: draait
+   * deze rol (`live`/`busyWith` uit de bezetting), of staat je vraag al als
+   * taak op het bord van dit kantoor.
+   */
+  const presence = useMemo(() => {
+    const person = office?.staff.find((p) => p.id === target.id);
+    const waiting = (office?.work.open ?? []).filter(
+      (t) => t.title.startsWith('CHAT:') && t.staffId === target.id,
+    ).length;
+    if (person?.busyWith || person?.live) {
+      return { state: 'live', note: 'is nu aan het werk — je bericht komt binnen bij een levende sessie.', waiting };
+    }
+    if (waiting > 0) {
+      return {
+        state: 'waking',
+        note: `heeft ${waiting === 1 ? 'je vraag' : `${waiting} vragen`} op het bord staan; de watchdog wekt hem bij de volgende ronde (≤5 min).`,
+        waiting,
+      };
+    }
+    return {
+      state: 'away',
+      note: 'draait nu niet. Je bericht komt op het bord en wekt hem — reken op minuten, niet op seconden.',
+      waiting,
+    };
+  }, [office, target.id]);
 
   useEffect(() => {
     void loadChat(room).then(setChatMessages);
@@ -589,20 +527,37 @@ function OfficeChat({ project, room }: { project: string; room: string }): JSX.E
           dingen die om dezelfde kolom vochten. Nu is het inklapbaar en heeft
           het een plafond: je ziet dat er een gesprek is, en je kiest zelf of
           het ruimte krijgt. */}
-      <button type="button" className="office-chat-head" onClick={() => setOpen(!open)}>
-        <span>
-          Gesprek met <strong>{target.name}</strong>
-          {/* Zichtbaar maken dat de vraag via de manager loopt — anders lijkt
-              het alsof je de specialist zelf te pakken hebt. */}
-          {target.about && <em style={{ opacity: 0.6 }}> · over {target.about}</em>}
+      <button
+        type="button"
+        className="office-chat-head"
+        onClick={() => setOpen(!open)}
+        title={open ? 'Gesprek inklappen' : 'Gesprek openklappen'}
+      >
+        <span className="office-chat-who">
+          <span className={`hq-dot hq-dot-${presence.state}`} />
+          <span>
+            Vraag het <strong>{target.name}</strong>
+            {/* Zichtbaar maken dat de vraag via de manager loopt — anders lijkt
+                het alsof je de specialist zelf te pakken hebt. */}
+            {target.about && <em> · over {target.about}</em>}
+          </span>
         </span>
         <span className="office-chat-count">
           {messages.length > 0 && <em>{messages.length}</em>}
           {open ? '▾' : '▴'}
         </span>
       </button>
+      {/* Wat er met je bericht gebeurt, vóór je het stuurt. */}
+      <p className={`office-chat-presence office-presence-${presence.state}`}>
+        <strong>{target.name}</strong> {presence.note}
+      </p>
       <div className="office-chat-list" ref={listRef}>
-        {messages.length === 0 && <p className="office-note">Nog geen berichten. Stel een vraag.</p>}
+        {messages.length === 0 && (
+          <p className="office-note">
+            Nog geen berichten. Stel je vraag hieronder — hij komt als taak op het bord van deze
+            tak, zodat er ook echt iemand op afkomt.
+          </p>
+        )}
         {messages.map((m) => (
           <div key={m.id} className={`office-msg office-msg-${m.role === 'user' ? 'me' : 'them'}`}>
             <span className="office-msg-from">{m.sender}</span>
@@ -614,6 +569,7 @@ function OfficeChat({ project, room }: { project: string; room: string }): JSX.E
         <input
           value={text}
           placeholder={`Bericht aan ${target.name}…`}
+          aria-label={`Bericht aan ${target.name}`}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') void submit();
@@ -694,6 +650,18 @@ export function OfficeOverlay(): JSX.Element | null {
     ? [...escalations, ...openTasks].filter((t) => t.staffId === person.id)
     : [];
 
+  /** Wie de tak aanstuurt — het antwoord op "en wie gaat hier dan over". */
+  const managerName = office?.staff.find((m) => m.role === 'manager')?.name ?? 'de manager';
+  /** Naam van de leidinggevende van iemand, via `reportsTo` in dezelfde lijst. */
+  const chiefOf = (member: StaffMember): string | undefined =>
+    member.reportsTo ? office?.staff.find((m) => m.id === member.reportsTo)?.name : undefined;
+  /** Wie een terugkerende taak draagt; leeg in het playbook = de manager. */
+  const dutyOwner = (who: string | undefined): string => {
+    if (!who) return managerName;
+    const match = office?.playbook?.specialists.find((sp) => sp.agent === who);
+    return match?.name ?? roleLabel(who);
+  };
+
   /** Van een taak naar de rol die hem draagt: bezetting én gesprek in één tik. */
   const goToOwner = (staffId: string): void => {
     selectStation(staffId);
@@ -702,7 +670,6 @@ export function OfficeOverlay(): JSX.Element | null {
 
   return (
     <div className="office-overlay">
-      <style>{OFFICE_WORK_CSS}</style>
       <div className="office-topbar">
         <button type="button" className="btn" onClick={closeOffice}>
           ← Kaart
@@ -747,24 +714,37 @@ export function OfficeOverlay(): JSX.Element | null {
         {office && office.realStations < office.stations.length && (
           <span
             className="office-sim"
-            title="Cijfers met ≈ zijn ingevuld omdat er nog geen bron aan gekoppeld is."
+            title="Een werkplek zonder bron toont geen cijfer; ARA vult niets stilzwijgend in."
           >
-            {office.realStations === 0
-              ? 'voorbeeldcijfers'
-              : `${office.realStations}/${office.stations.length} op echte data`}
+            <b className="office-chip-long">
+              {office.realStations === 0
+                ? 'alles voorbeeld — geen bron gekoppeld'
+                : `${office.realStations} van ${office.stations.length} werkplekken op echte data`}
+            </b>
+            <b className="office-chip-short">
+              {office.realStations === 0 ? 'alles voorbeeld' : `${office.realStations}/${office.stations.length} met bron`}
+            </b>
           </span>
         )}
         {office && office.staleStations > 0 && (
-          <span className="office-stale" title="Deze koppelingen stuurden al een tijd niets meer.">
+          <span
+            className="office-stale"
+            title="Deze koppelingen stuurden al meer dan een half uur niets meer."
+          >
             {office.staleStations} verouderd
           </span>
         )}
         <div className="office-headline">
           <span>{office?.headline.label}</span>
-          <strong>{office?.headline.value ?? '—'}</strong>
+          <strong className={office?.headline.estimated ? 'office-est' : undefined}>
+            {office?.headline.value ?? '—'}
+          </strong>
           {office?.headline.delta && (
             <em style={{ color: TONE_COLORS[office.headline.tone ?? 'info'] }}>{office.headline.delta}</em>
           )}
+          {/* De grote teller op de balk kon ingevuld zijn zonder dat er iets
+              bij stond — juist het cijfer waar je het eerst naar kijkt. */}
+          {office?.headline.estimated && <Tag kind="est">voorbeeld</Tag>}
         </div>
       </div>
 
@@ -806,7 +786,12 @@ export function OfficeOverlay(): JSX.Element | null {
 
       <aside className="office-side">
         <div className="office-tabs">
-          <button type="button" className={tab === 'werk' ? 'active' : ''} onClick={() => setTab('werk')}>
+          <button
+            type="button"
+            className={tab === 'werk' ? 'active' : ''}
+            onClick={() => setTab('werk')}
+            title="De werkplekken van dit kantoor en hun cijfers"
+          >
             Werkvloer
           </button>
           <button
@@ -817,10 +802,20 @@ export function OfficeOverlay(): JSX.Element | null {
             Bord
             {escalations.length > 0 && <span className="office-tab-badge">{escalations.length}</span>}
           </button>
-          <button type="button" className={tab === 'team' ? 'active' : ''} onClick={() => setTab('team')}>
+          <button
+            type="button"
+            className={tab === 'team' ? 'active' : ''}
+            onClick={() => setTab('team')}
+            title="Wie hier werkt, wat hun functie is en wie je mag aanspreken"
+          >
             Team
           </button>
-          <button type="button" className={tab === 'meting' ? 'active' : ''} onClick={() => setTab('meting')}>
+          <button
+            type="button"
+            className={tab === 'meting' ? 'active' : ''}
+            onClick={() => setTab('meting')}
+            title="Alleen gemeten cijfers — nooit voorbeeldcijfers"
+          >
             Gemeten
           </button>
         </div>
@@ -842,25 +837,67 @@ export function OfficeOverlay(): JSX.Element | null {
           {tab === 'werk' && station && <StationDetail station={station} valueKind={office?.valueKind ?? 'count'} />}
           {tab === 'werk' && !station && (
             <div className="office-list">
-              <p className="office-note">Klik op een bureau in het kantoor, of kies hier.</p>
+              {/* Eén regel die uitlegt hoe je de kolom rechts moet lezen. Stond
+                  er niet, en toen was elke regel een getal zonder eenheid. */}
+              <p className="office-note office-note-lead">
+                {office && office.realStations > 0
+                  ? 'Rechts staat het cijfer zoals de agent van die werkplek het aanleverde, met het tijdstip erbij. Werkplekken zonder agent tonen geen cijfer.'
+                  : 'Nog geen enkele werkplek levert cijfers aan, dus er staat rechts ook niets — een ingevuld getal zou hier niets betekenen.'}
+              </p>
               {office?.stations.map((s) => (
-                <button key={s.id} type="button" className="office-row" onClick={() => selectStation(s.id)}>
-                  <span className={`office-dot office-status-${s.status}`} />
+                <button
+                  key={s.id}
+                  type="button"
+                  className={`office-row ${s.simulated ? 'office-row-sim' : ''}`}
+                  onClick={() => selectStation(s.id)}
+                  title={
+                    s.simulated
+                      ? `${s.label} — voorbeeldwerkplek; open hem om te zien welke cijfers hier zouden staan.`
+                      : `${s.label} — aangeleverd${s.updatedAt ? ` om ${clockTime(s.updatedAt)}` : ''}${
+                          s.agentName ? ` door ${s.agentName}` : ''
+                        }`
+                  }
+                >
+                  {/* Gevuld = een echte status, hol = een voorbeeld. Een volle
+                      gekleurde stip op een verzonnen werkplek leest als een
+                      meting, en dat is precies wat het niet is. */}
+                  <span
+                    className={`office-dot office-status-${s.status} ${s.simulated ? 'office-dot-sim' : ''}`}
+                  />
                   <span className="office-row-label">
                     {s.label}
-                    <em>
-                      {s.sub}
-                      {s.stale ? ' · verouderd' : s.simulated ? ' · ≈' : ''}
-                    </em>
+                    {/* Bij een voorbeeldwerkplek staat er niets onder de naam:
+                        het label rechts zegt het al, en acht keer dezelfde
+                        zin onder elkaar leest niemand meer. */}
+                    {!s.simulated && <em>{s.sub || STATION_STATUS_LABEL[s.status] || s.status}</em>}
                   </span>
-                  <strong
-                    className={s.simulated ? 'office-est' : undefined}
-                    style={s.simulated ? undefined : { color: s.value >= 0 ? TONE_COLORS.good : TONE_COLORS.bad }}
-                  >
-                    {office.valueKind === 'money'
-                      ? `${s.value >= 0 ? '+' : '-'}$${Math.abs(s.value).toFixed(2)}`
-                      : Math.round(s.value)}
-                  </strong>
+                  {s.simulated ? (
+                    <Tag kind="est">voorbeeld</Tag>
+                  ) : (
+                    <span className="office-figure">
+                      <strong
+                        style={
+                          office.valueKind === 'money'
+                            ? { color: s.value >= 0 ? TONE_COLORS.good : TONE_COLORS.bad }
+                            : undefined
+                        }
+                      >
+                        {office.valueKind === 'money'
+                          ? `${s.value >= 0 ? '+' : '−'}$${Math.abs(s.value).toFixed(2)}`
+                          : Math.round(s.value)}
+                      </strong>
+                      {/* Het tijdstip is het enige dat dit cijfer duidt: van wie
+                          en van wanneer. Een eenheid erbij verzinnen zou een
+                          betekenis geven die ARA niet kent. */}
+                      <em className={s.stale ? 'office-figure-stale' : undefined}>
+                        {s.stale
+                          ? `verouderd · ${clockTime(s.updatedAt ?? 0)}`
+                          : s.updatedAt
+                            ? `${ageString(s.updatedAt, now)} geleden`
+                            : 'gemeld'}
+                      </em>
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -876,10 +913,19 @@ export function OfficeOverlay(): JSX.Element | null {
                 <div className="office-person">
                   <h3>{person.name}</h3>
                   <p>
-                    {ROLE_LABEL[person.role]} · {person.status}
+                    <b>{tierLabel(person)}</b>
+                    {chiefOf(person) ? ` · valt onder ${chiefOf(person)}` : ''} · {person.status}
                   </p>
                   {person.does && <p className="office-note">{person.does}</p>}
                   {person.busyWith && <p className="office-note">Bezig met: {person.busyWith}</p>}
+                  {/* De keten is geen suggestie: wie geen eigen lijn heeft,
+                      spreek je aan via zijn manager. Dat stond alleen in de
+                      chatkop, waar je het pas zag nadat je had getypt. */}
+                  <p className="office-note">
+                    {isLeadership(person)
+                      ? `Het gesprek onderin staat op ${person.name} — schrijf hem direct.`
+                      : `Vragen hierover lopen via ${managerName}; het gesprek onderin zet dat voor je klaar.`}
+                  </p>
                   {/* Wat er voor deze rol op het bord staat, hier en niet op een
                       ander tabblad: de vraag "wie gaat hierover" en de vraag
                       "wat ligt er voor hem" zijn dezelfde vraag. */}
@@ -896,38 +942,69 @@ export function OfficeOverlay(): JSX.Element | null {
                   )}
                 </div>
               )}
-              {office?.staff.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={`office-row ${selected === s.id ? 'active' : ''} ${
-                    s.live === false ? 'office-row-vacant' : ''
-                  }`}
-                  onClick={() => selectStation(s.id)}
-                >
-                  <span
-                    className={`office-dot ${
-                      s.busyWith || s.live ? 'office-status-working' : 'office-status-idle'
-                    }`}
-                  />
-                  <span className="office-row-label">
-                    {s.name}
-                    <em>
-                      {ROLE_LABEL[s.role]} · {s.status}
-                    </em>
-                  </span>
-                </button>
-              ))}
+
+              {/* De bezetting was één rij namen: "Wagenparkbeheer" naast
+                  "ARA Supervisor" naast een agent die toevallig draait, zonder
+                  dat je zag wie waarvoor is of wie boven wie staat. Nu staan ze
+                  in de drie groepen die de organisatie zelf kent, en draagt elke
+                  regel zijn functie in plaats van alleen zijn naam. */}
+              {STAFF_GROUPS.map(({ key, title, hint }) => {
+                const members = (office?.staff ?? []).filter((m) => staffGroup(m) === key);
+                if (members.length === 0) return null;
+                return (
+                  <div key={key} className="office-staff-group">
+                    <h4 className="office-sub-head">
+                      {title} <span className="office-sub-hint">{hint}</span>
+                    </h4>
+                    {members.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        className={`office-row ${selected === m.id ? 'active' : ''} ${
+                          m.live === false ? 'office-row-vacant' : ''
+                        }`}
+                        onClick={() => selectStation(m.id)}
+                        title={m.does ?? m.status}
+                      >
+                        <span
+                          className={`office-dot ${
+                            m.busyWith || m.live ? 'office-status-working' : 'office-status-idle'
+                          }`}
+                        />
+                        <span className="office-row-label">
+                          {m.name}
+                          {/* De functie erbij, niet alleen de naam: "Manager
+                              Wagenpark" zei wél wat iemand deed, "Boeking DE"
+                              niet. `does` komt uit het playbook van de tak. */}
+                          <em>{m.does ?? `${tierLabel(m)} · ${m.status}`}</em>
+                        </span>
+                        {isLeadership(m) ? (
+                          <span className="office-row-cta">schrijf hem →</span>
+                        ) : m.live === false ? (
+                          <span className="office-row-state">onbezet</span>
+                        ) : (
+                          <span className="office-row-state office-row-state-on">actief</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
 
               {/* De grenzen van deze tak horen zichtbaar te zijn, niet alleen
                   in een promptregel die alleen de manager leest. */}
               {office?.playbook && (
                 <>
-                  <h4 className="office-sub-head">Terugkerend werk</h4>
+                  <h4 className="office-sub-head">
+                    Terugkerend werk <span className="office-sub-hint">met ritme en eigenaar</span>
+                  </h4>
                   <ul className="office-bullets">
                     {office.playbook.duties.map((d) => (
                       <li key={d.text}>
                         {d.text} <span className="office-cadence">{d.every}</span>
+                        {/* Wie dit doet. Zonder dit is terugkerend werk een
+                            lijst wensen zonder eigenaar. */}
+                        <span className="office-duty-who">{dutyOwner(d.who)}</span>
                       </li>
                     ))}
                   </ul>
@@ -962,7 +1039,10 @@ export function OfficeOverlay(): JSX.Element | null {
                   gemeten (git op schijf, het bord, de usage-tabel). Meet iets
                   niet, dan staat de regel er niet — nooit een invulling. */}
               <p className="office-note office-note-real">
-                Alles hieronder is gemeten. Geen voorbeeldcijfers.
+                Alles hieronder is gemeten: git leest de repo, het bord telt zijn taken, de
+                tokentabel telt tokens
+                {office?.pulse?.measuredAt ? ` — bijgewerkt om ${clockTime(office.pulse.measuredAt)}` : ''}
+                . Wat niet te meten is, staat er niet.
               </p>
               {office?.measured?.length ? (
                 office.measured.map((m) => (

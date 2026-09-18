@@ -6,7 +6,7 @@ import { useAra } from '../store.ts';
 import { HEX_SPACING } from '../placements.ts';
 import { buildRoads } from './roads.ts';
 import { stylize, tickSurface } from './stylize.ts';
-import { LAKE_CENTER, LAKE_RADIUS, terrainLift, valueNoise } from './terrain.ts';
+import { LAKE_CENTER, LAKE_RADIUS, WATER_TOP, terrainLift, valueNoise } from './terrain.ts';
 
 // Gedeelde gestileerde materialen voor de platforms (rim + koele schaduw).
 // De korrel zit in de shader en niet in een texture: er zijn hier duizenden
@@ -41,9 +41,19 @@ const ROCK_MAT = stylize(new THREE.MeshStandardMaterial({ color: '#6d5850', roug
   roughVary: 0.14,
 });
 // Sevan: glans plus een lopende golfnormaal. Het water beweegt dus in het
-// licht en niet in de geometrie — de tegels blijven exact waar ze staan.
+// licht en niet in de geometrie — het oppervlak blijft exact waar het staat.
+//
+// `vertexColors` staat aan omdat de diepte in de hoekpunten zit (zie
+// `LAKE_GEO`): één oppervlak met een verloop, geen tegel met een eigen kleur.
+// De materiaalkleur is daardoor géén blauw meer maar een helderheidsknop —
+// blauw zou over het verloop heen vermenigvuldigen en het meer zwart maken.
 const WATER_MAT = stylize(
-  new THREE.MeshStandardMaterial({ color: '#2e9cc7', roughness: 0.15, metalness: 0.1 }),
+  new THREE.MeshStandardMaterial({
+    color: '#ffffff',
+    vertexColors: true,
+    roughness: 0.15,
+    metalness: 0.1,
+  }),
   { rim: '#cdefff', rimStrength: 0.4, shadowStrength: 0.12, waves: 1, waveSpeed: 0.85 },
 );
 
@@ -52,8 +62,14 @@ const TUFF_DARK = new THREE.Color('#b87c73');
 const TUFF_PALE = new THREE.Color('#f0c4b4'); // uitgebleekt, waar de zon staat
 const STEPPE = new THREE.Color('#a8a06a'); // droog gras op de hoogvlakte
 const BASALT = new THREE.Color('#8a7268'); // kale rots
-const SEVAN_BLUE = new THREE.Color('#2e9cc7');
-const SEVAN_SHALLOW = new THREE.Color('#57c6d8');
+// Sevan is geen zwembadblauw: diep kobalt in het midden, turkoois waar de
+// bodem oploopt. Dat verloop is wat een meer van een blauwe tegel onderscheidt.
+const SEVAN_DEEP = new THREE.Color('#1c5f9e');
+const SEVAN_MID = new THREE.Color('#2e9cc7');
+const SEVAN_SHALLOW = new THREE.Color('#68d5d4');
+// Kiezeloever: de tegels die het water raken verkleuren, zodat het meer in het
+// land ligt in plaats van erop.
+const SHORE = new THREE.Color('#d9c9a8');
 const ROAD = new THREE.Color('#d8cdbd'); // aangestampt grind
 const HOVER = new THREE.Color('#fff6e8'); // waar de tegel naartoe kleurt onder de muis
 
@@ -66,6 +82,79 @@ const HOVER_SWELL = 1.035;
 const DISTRICT_Y = -0.11; // basishoogte van het districtplatform
 const RIM_Y = 0.315; // de gloeiende rand ligt net op de bovenkant
 
+/**
+ * Sevan als één wateroppervlak.
+ *
+ * Het meer bestond uit negentien losse prisma's: elk met een eigen kleur, een
+ * eigen schaduwrand en een spleet van 0,08 naar zijn buurman. Dat leest als
+ * blauwe tegels, want dat is het ook — en geen enkele hoeveelheid golfshader
+ * maakt van negentien tegels één meer.
+ *
+ * Hier is het één vlak. Per meertegel een zeshoekige waaier, maar met straal
+ * `HEX_SPACING` in plaats van 0,98: op die straal raken de zeshoeken elkaar
+ * precies, dus de naden vallen samen en de spleten zijn weg. Aan de oever
+ * steekt het water daardoor een haar ónder de landtegels (die op 0,98 staan en
+ * hoger liggen), wat precies goed is: geen kier tussen water en wal.
+ *
+ * De diepte zit in de hoekpunten en niet in de tegel: het verloop loopt over
+ * de naden heen, dus je ziet een meer dat in het midden dieper is in plaats
+ * van negentien vlakken met elk een eigen tint.
+ */
+const LAKE_GEO = ((): THREE.BufferGeometry => {
+  const centre = axialToWorld(LAKE_CENTER);
+  const cx = centre.x * HEX_SPACING;
+  const cz = centre.z * HEX_SPACING;
+  const hexes = hexDisc(LAKE_CENTER, LAKE_RADIUS);
+  // De buitenste oever, in wereldeenheden; het verloop wordt hierop geschaald.
+  const reach = (LAKE_RADIUS + 0.9) * HEX_SPACING * Math.sqrt(3);
+
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const color = new THREE.Color();
+
+  const push = (x: number, z: number): void => {
+    positions.push(x, 0, z);
+    const t = Math.min(1, Math.hypot(x - cx, z - cz) / reach);
+    // Twee stappen: kobalt → azuur → turkoois. Eén lerp van diep naar ondiep
+    // geeft een grijsblauw midden, want die twee kleuren liggen niet op één lijn.
+    if (t < 0.55) color.copy(SEVAN_DEEP).lerp(SEVAN_MID, t / 0.55);
+    else color.copy(SEVAN_MID).lerp(SEVAN_SHALLOW, (t - 0.55) / 0.45);
+    colors.push(color.r, color.g, color.b);
+  };
+
+  for (const hex of hexes) {
+    const { x, z } = axialToWorld(hex);
+    const hx = x * HEX_SPACING;
+    const hz = z * HEX_SPACING;
+    for (let k = 0; k < 6; k += 1) {
+      // Spitse punt boven: dezelfde oriëntatie als de tegels eronder, anders
+      // steekt het water bij de oever als een ster tussen de landtegels uit.
+      const a0 = (Math.PI / 180) * (90 + 60 * k);
+      const a1 = (Math.PI / 180) * (90 + 60 * (k + 1));
+      push(hx, hz);
+      push(hx + Math.cos(a1) * HEX_SPACING, hz + Math.sin(a1) * HEX_SPACING);
+      push(hx + Math.cos(a0) * HEX_SPACING, hz + Math.sin(a0) * HEX_SPACING);
+    }
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+})();
+
+/** De landtegels die het meer raken; die krijgen een kiezeloever. */
+const SHORE_KEYS = ((): Set<string> => {
+  const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
+  const shore = new Set<string>();
+  for (const hex of hexDisc(LAKE_CENTER, LAKE_RADIUS + 1)) {
+    if (!lake.has(axialKey(hex))) shore.add(axialKey(hex));
+  }
+  return shore;
+})();
+
 
 interface Tiles {
   /** `lift` is de hoogte van deze tegel; zonder dat is de grond een badmat. */
@@ -77,7 +166,6 @@ interface Tiles {
     borderColor: THREE.Color;
     project: string;
   }[];
-  water: { pos: [number, number, number]; color: THREE.Color }[];
   /** Hoe ver de buitenste tegel van het midden ligt, in wereldeenheden. */
   extent: number;
   /** Wegen van de hub naar elk district; zonder die zweven ze los rond. */
@@ -116,7 +204,7 @@ function terrainAt(hex: { q: number; r: number }, key: string, distance: number)
 }
 
 function computeTiles(world: WorldConfig | null): Tiles {
-  const tiles: Tiles = { base: [], district: [], water: [], road: [], extent: 0 };
+  const tiles: Tiles = { base: [], district: [], road: [], extent: 0 };
   const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
   const claimed = new Set<string>();
   const roadKeys = new Set<string>();
@@ -158,23 +246,15 @@ function computeTiles(world: WorldConfig | null): Tiles {
     // Vóór elke `continue`: ook meer- en districttegels horen bij de omvang
     // van de wereld, en de sokkel moet ze allemaal dragen.
     tiles.extent = Math.max(tiles.extent, Math.hypot(x * HEX_SPACING, z * HEX_SPACING));
-    if (lake.has(key)) {
-      // Ondiep bij de oever, diep in het midden: één vlakke kleur leest als
-      // een sticker, een verloop leest als water.
-      const toEdge = Math.max(
-        Math.abs(hex.q - LAKE_CENTER.q),
-        Math.abs(hex.r - LAKE_CENTER.r),
-        Math.abs(hex.q + hex.r - LAKE_CENTER.q - LAKE_CENTER.r),
-      );
-      tiles.water.push({
-        pos: [x * HEX_SPACING, 0, z * HEX_SPACING],
-        color: SEVAN_BLUE.clone().lerp(SEVAN_SHALLOW, toEdge / Math.max(1, LAKE_RADIUS)),
-      });
-      continue;
-    }
+    // Onder het meer ligt geen tegel: het wateroppervlak (LAKE_GEO) dekt die
+    // hexen af en de landtegels eromheen vormen de bak.
+    if (lake.has(key)) continue;
     if (claimed.has(key)) continue;
     const distance = Math.max(Math.abs(hex.q), Math.abs(hex.r), Math.abs(hex.q + hex.r));
     const { lift, color } = terrainAt(hex, key, distance);
+    // Oever: kiezels in plaats van tuff. Zonder die rand houdt het water op bij
+    // een willekeurige tegelgrens en ligt het meer óp het land.
+    if (SHORE_KEYS.has(key)) color.lerp(SHORE, 0.45);
     if (roadKeys.has(key)) {
       // De weg is de grond zelf, geplaveid: hij volgt dus dezelfde hoogte.
       // Een vlak lint op y=0 zou door de heuvels heen snijden.
@@ -279,7 +359,10 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    WATER_MAT.color.copy(SEVAN_BLUE).offsetHSL(0, 0, Math.sin(t * 1.4) * 0.03);
+    // De kleur zit nu in de hoekpunten, dus dit is een helderheidsknop: het
+    // meer haalt adem in het licht. Een blauw hier zou over het dieptelverloop
+    // heen vermenigvuldigen.
+    WATER_MAT.color.setScalar(0.97 + Math.sin(t * 1.4) * 0.03);
     // Eén uniform per frame voor het hele meer; de golven zelf kosten niets
     // extra's, ze rekenen mee in fragmenten die toch al getekend worden.
     tickSurface(WATER_MAT, t);
@@ -381,15 +464,17 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
         <cylinderGeometry args={[0.88, 0.88, 2.4, 6]} />
       </instancedMesh>
 
-      {/* Sevan water */}
-      <instancedMesh
-        key={`water-${tiles.water.length}`}
-        args={[undefined, undefined, Math.max(1, tiles.water.length)]}
-        ref={useInstances(tiles.water, -0.06)}
+      {/* Sevan: één oppervlak, geen negentien tegels. Het ligt op WATER_TOP —
+          dezelfde hoogte die de kudde, het verkeer en de sneeuw uit terrain.ts
+          lezen, dus het water staat gegarandeerd waar de rest denkt dat het
+          staat. Eén tekenopdracht, net als de instancedMesh die het vervangt. */}
+      <mesh
+        geometry={LAKE_GEO}
         material={WATER_MAT}
-      >
-        <cylinderGeometry args={[0.98, 0.98, 0.22, 6]} />
-      </instancedMesh>
+        position={[0, WATER_TOP, 0]}
+        receiveShadow
+        dispose={null}
+      />
     </group>
   );
 }
