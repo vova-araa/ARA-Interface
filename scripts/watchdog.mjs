@@ -1030,7 +1030,19 @@ if (process.env.ARA_RHYTHM === '1') {
       const now = Date.now();
       let placed = 0;
 
-      for (const venture of org.ventures ?? []) {
+      // Ops draait mee als een tak zonder tak: hij heeft eigen terugkerend
+      // werk (back-ups terugzetten, de org zelf nalopen, sleutels controleren)
+      // dat tot nu toe nergens geplaatst werd — deze lus liep alleen over
+      // org.ventures, dus die drie rollen stonden in org.json met een ritme dat
+      // nooit aanbrak. `ARA_RHYTHM_VENTURES` filtert erop met de naam "ops".
+      const rhythmGroups = [
+        ...(org.ventures ?? []),
+        ...(org.ops?.duties?.length
+          ? [{ id: 'ops', label: 'Ops', manager: 'manager:ops', playbook: { duties: org.ops.duties } }]
+          : []),
+      ];
+
+      for (const venture of rhythmGroups) {
         if (only.length > 0 && !only.includes(venture.id)) continue;
         for (const duty of venture.playbook?.duties ?? []) {
           const key = `${venture.id}:${duty.text}`;
@@ -1059,13 +1071,18 @@ if (process.env.ARA_RHYTHM === '1') {
                 'Lever een kort bordresultaat: wat je nagelopen hebt, wat eruit sprong, en wat er ' +
                 'niet te meten viel. Valt er niets te melden, zeg dan dát — een lege ronde is ook ' +
                 'een uitkomst. Kom je iets tegen dat boven je grens gaat, begin je antwoord met ESCALATE:.',
-              assignee: venture.manager ?? `manager:${venture.id}`,
+              // De rol die dit werk doet, en anders de manager van de tak.
+              // Dat `who` bestaat is de hele reden dat elke rol eigen werk
+              // heeft; het hier negeren zou elke taak alsnog bij één manager
+              // neerleggen en die tien rollen weer laten wachten tot iemand
+              // ze aanwijst. Staat er geen eigenaar, dan weegt de manager het.
+              assignee: duty.who ?? venture.manager ?? `manager:${venture.id}`,
               status: 'open',
             }),
           });
           last[key] = now;
           placed += 1;
-          log(`ritme: "${title.slice(0, 60)}" → ${venture.manager ?? venture.id}`);
+          log(`ritme: "${title.slice(0, 60)}" → ${duty.who ?? venture.manager ?? venture.id}`);
         }
       }
 

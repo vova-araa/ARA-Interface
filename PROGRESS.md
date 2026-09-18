@@ -391,3 +391,96 @@ Bewust alleen rollen die **vandaag** werken — zonder dat er eerst een databron
 - ✅ **`ARA_TRADE_WEEKLY=now`** stuurt het rapport meteen — testhaak én knop voor tussendoor.
   `=0` zet het uit.
 - Live geverifieerd met een dryrun-Telegram: de payload bevatte het volledige rapport.
+
+## Elke rol zijn eigen werk, en iemand die het komt halen (2026-09-18)
+De vloer stond vol functieomschrijvingen en het bord bleef leeg. Dat is nu dicht,
+in twee helften die alleen samen werken.
+
+- ✅ **Elke duty noemt zijn eigenaar**: `Duty.who` in `packages/shared/src/org.ts`.
+  Leeg = de manager van de tak, zoals het was; ingevuld = de rol die het werk doet.
+  100 duties over de negen branche-standaarden (93 daarvan bij de acht echte takken),
+  plus drie ops-duties in `org.json`. `playbookPrompt()` zet de eigenaar achter elke
+  taak, zodat een manager zijn playbook niet meer als eigen werk leest.
+- ✅ **Vijf structurele controles** in `packages/shared/src/duties.test.ts` (0 tokens,
+  in CI): elke specialist heeft werk · elke `who` wijst naar een stoel die in diezelfde
+  tak bestaat · geen tak draait grotendeels op dagelijks werk (dat is budget, geen ritme)
+  · de rollen die géén databron nodig hebben hébben werk · de spawn-prompt noemt de
+  eigenaar. Ops erbij: backupcontrole, organisatie-audit en beveiligingsaudit moeten
+  terugkerend werk hebben, anders is een backup weer een bestand waarvan je hoopt.
+- ✅ **Watchdog sectie 11 — uitvoering** (`ARA_DISPATCH=1`, standaard uit): wekt de rol
+  die open bordwerk op zijn naam heeft. Wie het langst wacht eerst, `ARA_DISPATCH_MAX`
+  (2) rollen per tick, na twee mislukte pogingen op dezelfde taken stopt het spawnen met
+  een melding. `manager:ops`, `supervisor`, `chief` en `CHAT:`-taken worden overgeslagen
+  (die hebben elders hun eigen spawn); werk bij een rol die niet in de organisatie staat
+  wordt gelogd in plaats van stilzwijgend genegeerd.
+- **Ritme en uitvoering horen bij elkaar.** Alleen `ARA_RHYTHM` aanzetten geeft een bord
+  dat volloopt zonder dat er iemand komt — dat was de stand.
+- **Mac-stap**: zie `ops/24-7.md` fase 0.3, één commando zet beide schakelaars aan.
+
+## De organisatie leest haar eigen spoor (2026-09-18)
+- ✅ **`buildRetro()`** in `packages/shared/src/retro.ts`: het takenbord terug als rapport.
+  Pure functie, 0 LLM-tokens, net als het handelsrapport. `GET /retro?days=N`, `pnpm retro`
+  (`--json` voor ruwe data). Per rol: totaal, af, mislukt, geëscaleerd, open en de mediaan
+  doorlooptijd — mediaan en geen gemiddelde, want één taak die drie dagen bleef hangen
+  vertelt anders het hele verhaal.
+- ✅ **Elke bevinding draagt zijn bewijs**: taak-id én titel (max 5, met het totaal erbij).
+  Een voorstel zonder taak-ids is een mening, en die kun je niet natrekken.
+- ✅ **Onder de drempel zegt het rapport niets**: <5 taken voor een rol ⇒ geen percentage,
+  <8 in het venster ⇒ `tooQuiet` en er draait helemaal geen verbeterronde. Eén escalatie
+  op twee taken is geen patroon van 50%.
+- ✅ **Terugkerend playbook-werk is uitgezonderd** van "dit blijft terugkomen" — dat werk
+  hóórt terug te komen. Zonder die uitzondering meldt de terugblik elke week hetzelfde.
+- ✅ **Watchdog sectie 12 — verbeterronde** (`ARA_IMPROVE=1`, standaard uit,
+  `ARA_IMPROVE_DAYS=7`): `ara-org-auditor` schrijft per bevinding hoogstens één voorstel
+  op het bord, met de taak-ids eronder. Eén ronde per dag, en alleen als er iets gemeten
+  is om naar te wijzen. Hij wijzigt zelf niets aan code, org.json of het ritme.
+- ✅ **Kruiscontrole**: `shouldVerify()` in dezelfde module, gewired in `PATCH /tasks/:id`,
+  aan te zetten met `ARA_QA_SAMPLE=<percentage>` op de collector (0 = uit). Steekproef,
+  want elke controle kost een sessie. Deterministisch op het taak-id, dus dezelfde db
+  oordeelt na een herstart hetzelfde. **Een controle wordt nooit zelf gecontroleerd** —
+  en escalaties evenmin: die wachten op een mens.
+- ✅ 23 nieuwe shared-tests (68 totaal), collector op 47.
+
+## Het budget telt alleen zijn eigen agents (2026-09-18)
+- ✅ **`ARA_SPAWNED_ROLE`** gaat mee in de omgeving van elke spawn, `plugins/ara/hooks/usage.mjs`
+  draagt het als `spawnedBy` naar `/usage`, en de db bewaart het als `spawned_by` (leeg = de
+  eigenaar zelf). `/usage` geeft `agentTokens` en `agentCacheCreateTokens` erbij; de watchdog
+  toetst het dagbudget alleen daarop.
+- Waarom dit moest: een dag eigen ontwikkelwerk zette de agents stil terwijl die niets hadden
+  uitgegeven. **Gemeten: 15,9 miljoen tokens tegen een budget van 2 miljoen, waarvan 14,1
+  miljoen cache-creatie uit één ontwikkelsessie.**
+- ✅ Losse `ALTER TABLE`-migratie op `usage` én `usage_days`, dus een bestaande database
+  groeit mee zonder iets te verliezen.
+- ✅ **Een ontbrekende `ARA_LOCK_DIR` zette stilzwijgend élke kostenrem uit**: de eenmalige
+  alarmen, de pogingenteller en het slot tegen dubbele spawns schrijven alle drie in een
+  lege catch. Geen foutmelding, wel eindeloos alarmeren en doorspawnen tot het budget op is.
+  Eén `mkdirSync` bij het starten van de watchdog.
+
+## Kantoor met een bord, en een keten die klopt (2026-09-18)
+- ✅ **`OfficeWork`** in `packages/shared/src/office.ts`: elk kantoor draagt het bord van
+  zijn eigen project — escalaties apart van de rest, `doneToday` geteld op `updatedAt`, en
+  `truncated` zodat het kantoor "≥" zegt als de limiet geraakt is. Je zag wie er zat, niet
+  waar hij mee bezig was.
+- ✅ **`isEscalated()` is nu de enige lezing** van "dit wacht op een mens", gedeeld door het
+  kantoor, de actielijst en de kruiscontrole. Twee lezingen betekent dat een escalatie in de
+  ene lijst wel staat en in de andere niet.
+- ✅ **Iedereen heeft een plaats in de keten**: `StaffTier`, `reportsTo` (wijst altijd naar
+  een lid dat er ook echt staat) en `depth` (0 = chief, afgeleid uit `reportsTo`).
+- ✅ **Crypto en aandelen hebben eigen kolommen** in plaats van die van de FX-vloer te erven.
+- ✅ **`packages/shared/src/office.test.ts`** bestaat: het kantoormodel had als enige grote
+  gedeelde module nog geen eigen tests.
+
+## Viewer los van de collector + het meer in shared (2026-09-18)
+- ✅ **`?api=https://…`** in `apps/viewer/src/api.ts`: de viewer vindt de collector ook als
+  hij er niet naast staat (eenmalig via de URL, daarna localStorage; leeg = terug naar
+  dezelfde herkomst). `sanitizeBase()` laat alleen http/https door — een pagina die elk
+  schema slikt, laat een geprepareerde link bepalen wat er in jouw sessie draait.
+- ✅ **`pnpm --filter @ara/viewer build:artifact`** bouwt hem met relatieve paden naar
+  `dist-artifact/`, te hosten als losse pagina voor de telefoon terwijl de collector op de
+  Mac blijft draaien.
+- ✅ **Sevan staat nu in `world.ts`**, niet alleen in de viewer. De layout zag het water niet
+  en zette projectclusters er gewoon op: truck-and-trailer lag met 4 van zijn 7 hexen in het
+  meer, en `HexGround` tekent die tegels niet — een kantoorknop die je niet kunt indrukken.
+- ✅ **Clusters blijven binnen de terreinschijf**: `placeClusterOnFreeHex` zoekt eerst binnen
+  `WORLD_HEX_RADIUS` en pas daarna erbuiten, en toetst het hele cluster in plaats van alleen
+  zijn hart. Twee projecten op dezelfde tegel weet niet welk kantoor het moet openen.

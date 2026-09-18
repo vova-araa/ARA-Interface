@@ -220,13 +220,49 @@ test('ritme: terugkerend werk komt op het bord, één keer, en alleen aangezet',
     await run({ ARA_RHYTHM: '1', ARA_RHYTHM_VENTURES: 'blex' });
     const first = store.listTasks({ status: 'open', limit: 300 });
     assert.ok(first.length > 0, 'blex krijgt zijn terugkerende werk');
+    // "Alleen blex" toetsen we op wie het werk krijgt, niet meer op de
+    // manager: sinds elke duty een eigenaar draagt landt het werk bij de
+    // specialist die het doet. Dat de manager erop stond was een aanname over
+    // hoe het toevallig werkte, en die aanname is nu onjuist zonder dat er
+    // iets stuk is.
+    const blexRoles = new Set([
+      'manager:blex',
+      ...(
+        (await (await fetch(`${base}/org`)).json()) as {
+          ventures: { id: string; playbook?: { specialists?: { agent: string }[] } }[];
+        }
+      ).ventures
+        .filter((v) => v.id === 'blex')
+        .flatMap((v) => (v.playbook?.specialists ?? []).map((sp) => sp.agent)),
+    ]);
     assert.ok(
-      first.every((t) => t.assignee === 'manager:blex'),
-      'en geen enkele andere tak komt mee',
+      first.every((t) => blexRoles.has(t.assignee)),
+      `en geen enkele andere tak komt mee — onbekend: ${first
+        .filter((t) => !blexRoles.has(t.assignee))
+        .map((t) => t.assignee)
+        .join(', ')}`,
+    );
+    // Het punt van duty.who: het werk ligt bij de rollen zelf, niet op één
+    // stapel bij de manager. Zonder deze regel is `who` decoratie.
+    assert.ok(
+      first.some((t) => t.assignee !== 'manager:blex'),
+      'terugkerend werk hoort bij de rol die het doet, niet allemaal bij de manager',
     );
     assert.ok(
       first.every((t) => /^(Dagelijks|Wekelijks|Maandelijks): /.test(t.title)),
       'de cadans staat in de titel, zodat je op het bord ziet wat wanneer hoort',
+    );
+
+    // Ops heeft eigen terugkerend werk (back-ups, org-audit, sleutels) en werd
+    // nooit geplaatst: de ritme-lus liep alleen over de takken. Drie rollen met
+    // een cadans die nooit aanbrak.
+    await run({ ARA_RHYTHM: '1', ARA_RHYTHM_VENTURES: 'ops' });
+    const withOps = store.listTasks({ status: 'open', limit: 300 });
+    const opsTasks = withOps.filter((t) => !first.some((f) => f.id === t.id));
+    assert.ok(opsTasks.length > 0, 'ops krijgt zijn eigen terugkerende werk');
+    assert.ok(
+      opsTasks.every((t) => t.assignee.startsWith('ara-')),
+      `ops-werk hoort bij zijn eigen rollen: ${opsTasks.map((t) => t.assignee).join(', ')}`,
     );
 
     // Tweede ronde meteen erna: alles staat nog open én het interval is niet
@@ -234,7 +270,7 @@ test('ritme: terugkerend werk komt op het bord, één keer, en alleen aangezet',
     await run({ ARA_RHYTHM: '1', ARA_RHYTHM_VENTURES: 'blex' });
     assert.equal(
       store.listTasks({ status: 'open', limit: 300 }).length,
-      first.length,
+      withOps.length,
       'een tweede ronde stapelt niets bovenop',
     );
   } finally {

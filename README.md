@@ -39,14 +39,23 @@ apps/collector  :4747   POST /hook/:name · POST /event · GET /events (SSE) · 
   │    SQLite 7-day ring buffer · secret redaction · cwd→project resolution
   ▼
 apps/viewer     :4748   React Three Fiber isometric hex world + thread UI (dev only;
-                        in production the collector serves apps/viewer/dist)
-packages/shared         event schema (zod) · WorldState reducer · hex math · world layout
-plugins/ara             hooks + ara-status skill + /ara-open + /ara-map + ara-orchestrator
+                        in production the collector serves apps/viewer/dist).
+                        ?api=https://… points it at a collector on another host.
+packages/shared         event schema (zod) · WorldState reducer · hex math · world layout ·
+                        offices · playbooks · risk engine · trade report · retrospective —
+                        all pure, all shared by collector and viewer
+plugins/ara             hooks + ara-status skill + commands (/ara, /ara-run, /ara-open,
+                        /ara-map, /ara-report, /ara-trade-review) + 39 agent roles + org.json
 ```
+
+Retention: events are a 7-day ring buffer; usage rows keep 30 days (the 7-day ring
+wiped the daily baseline) and `trade_intents` is never pruned — a decision about
+money stays on the record.
 
 - **Pod** = session. Idle breathes, working pulses in the tool's color, needs-you gets an amber beacon + ring, done gets a green cap + confetti, errors flicker red.
 - **Figure** = agent/subagent. Walks in from the district edge, carries a tool icon (📖 Read, 🔨 Edit, 🔧 Bash, 🔍 Grep, 🔭 WebSearch, 📣 Task, 🔌 MCP), shows a speech bubble with the tool summary.
-- **Districts** = ventures (Sharzi TMS, Truck & Trailers, Elevate, Uprising, Trading, Vovara). Placement is a deterministic hash of the project name — positions never shuffle. Onbekende repo's zijn verborgen (`hiddenVentures` in org.json) tot je ze in projects.json opneemt.
+- **Districts** = ventures (Sharzi TMS, Truck & Trailers, Elevate Design, Uprising Studio, Trading bots, Crypto desk, Aandelen, Vovara). Placement is a deterministic hash of the project name — positions never shuffle. Onbekende repo's zijn verborgen (`hiddenVentures` in org.json) tot je ze in projects.json opneemt.
+- **Office** = the inside of a project. Click a project label (or `?office=<project>`) for the floor: desks with real figures, the chain of command, that project's board with escalations kept separate, and a Gemeten-tab that reads git. Numbers nobody measured are left out, never filled in.
 
 ## Commands
 
@@ -57,8 +66,13 @@ plugins/ara             hooks + ara-status skill + /ara-open + /ara-map + ara-or
 | `pnpm fixture` | Regenerate the demo story |
 | `pnpm map` | Rebuild `world.config.json` from `projects.json` |
 | `pnpm browse <url> [--shot]` | Headless-Chromium screener: tekst, meta, links, screenshot |
+| `pnpm retro [dagen]` | Terugblik op het takenbord: wie liep waarop vast (0 LLM-tokens) |
+| `pnpm trade:review [dagen]` | Handelsrapport uit het audit-spoor (0 LLM-tokens) |
+| `pnpm verify:agents` | End-to-end: spawn-keten, kantoorchat en 7 harde rolgrenzen (kost één haiku-sessie) |
+| `pnpm ara:update` | Mac bijwerken: pull → install → viewer-build → launchd herstart → /health |
 | `/ara-open` (in Claude Code) | Print URLs + open the viewer |
-| `/ara-run <doel>` (in Claude Code) | Orchestrator verdeelt werk over agents/projecten |
+| `/ara <bericht>` (in Claude Code) | De directe lijn naar de chief |
+| `/ara-run <doel>` (in Claude Code) | Supervisor verdeelt het werk via het takenbord |
 | `/ara-map` (in Claude Code) | Re-map world after editing projects.json |
 | `ara-status` skill | One-screen "what needs me" summary |
 
@@ -79,8 +93,23 @@ JIJ ↔ ara-chief (/ara <bericht>)          — jouw directe lijn: taken, planni
      └─ takenbord (collector /tasks)      — al het werk & alle resultaten
          │   assignee "gepland" + due-datum → watchdog promoveert op tijd
          └─ manager:<venture> + manager:ops — headless sessies, eigen pod
-             └─ ara-worker / ara-web-scout / Explore
+             └─ 39 rollen: vaste vakrollen per tak (planner, risk-guard,
+                qa-verifier, security-auditor, …) + ara-worker / ara-web-scout
 ```
+
+Elke tak heeft een **playbook** (`GET /org`, gevuld vanuit `packages/shared/src/org.ts`
+met `plugins/ara/org.json` eroverheen): managernaam, vaste rollen, terugkerend werk
+mét de rol die het doet, wat altijd escaleert, validatiechecks en welke databronnen
+nog niet aangesloten zijn. Wat org.json weglaat komt uit het branche-standaard, dus
+een nieuwe tak start nooit met een leeg kantoor.
+
+**Read-only is structuur, geen belofte**: ruim de helft van de 39 rollen heeft geen
+Edit/Write, en twee rollen die teksten naar buiten schrijven hebben geen Bash/WebFetch
+en kunnen dus niet publiceren. Eenentwintig structurele invarianten in CI pinnen dat vast
+(16 in `apps/collector/src/agents.test.ts`, 5 in `packages/shared/src/duties.test.ts`), plus:
+elke playbook-rol bestaat als
+bestand, alleen leidinggevenden hebben de Agent-tool, elke vakrol kent de machine-leesbare
+escalatievorm `ESCALATE:`, en elke rol met terugkerend werk heeft een stoel in zijn eigen tak.
 
 Voorbeelden voor de chief: `/ara laat traject de facturen-export fixen` ·
 `/ara plan voor vrijdag een dependency-update in alle repos` · `/ara maak een
@@ -92,6 +121,21 @@ schrijfwerk alleen op **`ara/*`-branches** (mergen/deployen/geld = escalatie
 naar jou) · trading-venture is read-only op live orderlogica · prioriteit 1:
 Sharzi TMS, Truck & Trailers, Uprising, Trading.
 
+## Handel & actielijst
+
+Agents mogen posities **voorstellen**, niet plaatsen: agent → `POST /trade/intent` →
+`evaluateIntent()` (12 regels, pure functie in `packages/shared/src/trading.ts`) →
+`routeIntent()` → afwijzen · papier · wachten op akkoord · handoff. De limieten staan in
+code en nooit in een prompt, het systeem faalt dicht (lege witte lijst = niets mag), en
+omhoog boven `paper` kan alleen met `ARA_TRADING_UNLOCK` in de omgeving van de collector —
+niet via de API. **Er zit geen broker in deze repo en ARA houdt nooit een sleutel met
+handelsrechten.** Rapport: `pnpm trade:review`; maandagochtend komt hij via Telegram.
+
+`GET /actions` (✓ in de balk, toets `a`) verzamelt alles wat op jou wacht: handelsakkoorden,
+stilgelegde handel, vastzittende sessies, escalaties, storingen, niet-aangesloten databronnen
+en onbruikbare limieten. Elke actie draagt zijn eigen verzoek, dus een nieuw soort actie kost
+geen UI-wijziging.
+
 ## Tokens
 
 Elke sessie telt zichzelf: een hook parseert het transcript op Stop/SessionEnd
@@ -101,6 +145,13 @@ dagrapport: de ⚡ TOKENS VANDAAG-tabel. Zuinigheid is beleid
 (`plugins/ara/org.json` → `tokenRules`): haiku-first voor scouts/simpele
 workers, Grep vóór Read, kale spawn-prompts, curl-polling, batching.
 
+**Het dagbudget telt alleen sessies die ARA zelf startte.** Elke spawn krijgt
+`ARA_SPAWNED_ROLE` mee, de usage-hook draagt dat mee en de collector bewaart het als
+`spawned_by` — leeg betekent: jij, achter je Mac. Jouw eigen Claude Code-werk staat dus
+wél in de tabel maar telt niet tegen het budget. Daarvóór zette een dag zelf ontwikkelen
+je agents stil terwijl die niets hadden uitgegeven (gemeten: 15,9 miljoen tokens tegen een
+budget van 2 miljoen, waarvan 14,1 miljoen cache-creatie uit één ontwikkelsessie).
+
 ## 24/7 zonder jou
 
 ```
@@ -109,8 +160,24 @@ watchdog (launchd, elke 5 min, 0 tokens)
   ├─ monitors.json checken (jouw sites) → stuk? → INCIDENT-taak op het bord
   ├─ hersteld vóór iemand keek? → taak zelf sluiten
   ├─ open incidenten → spawn manager:ops (vaste storingsdienst, eigen pod)
-  └─ escalaties → spawn supervisor (feedback + 1 herkansing) → pas dan needsHuman naar jou
+  ├─ escalaties → spawn supervisor (feedback + 1 herkansing) → pas dan needsHuman naar jou
+  ├─ ARA_RHYTHM=1   → terugkerend playbook-werk op het bord zodra het aan de beurt is
+  ├─ ARA_DISPATCH=1 → wekt de rol die dat werk op zijn naam heeft (max 2 rollen/tick)
+  └─ ARA_IMPROVE=1  → 1×/dag de gemeten terugblik → voorstellen op het bord
 ```
+
+- **Ritme en dispatch horen bij elkaar.** Alleen het ritme aanzetten geeft een bord dat
+  volloopt zonder dat er iemand komt. `ops/24-7.md` fase 0.3 zet ze in één commando aan.
+- **Alle vier standaard uit** (net als `ARA_QA_SAMPLE`, `ARA_AUTO_UPDATE` en `ARA_INBOX`):
+  ze geven uit zichzelf tokens uit, en dat hoort een bewuste keuze te zijn.
+- **Agents kijken elkaars werk na**: `ARA_QA_SAMPLE=<percentage>` op de collector legt een
+  steekproef van het afgeronde werk als `CONTROLE:`-taak bij `ara-qa-verifier`. Een controle
+  wordt nooit zelf gecontroleerd en escalaties worden overgeslagen — dat staat in
+  `shouldVerify()`, niet in een prompt.
+- **De organisatie leest haar eigen spoor**: `GET /retro?days=N` / `pnpm retro` rekent het
+  bord uit in `buildRetro()` (pure functie, 0 tokens). Elke bevinding draagt de taak-ids
+  waarop hij rust, en onder de drempels zegt het rapport niets in plaats van een patroon te
+  verzinnen.
 
 - **manager:ops** is de vaste manager: diagnose (logs, processen, `pnpm browse`-screenshots), operationele fixes direct (restart/cleanup), codefixes op `ara/incident-*`-branches, altijd verificatie tegen dezelfde check als de watchdog.
 - LLM-tokens worden **alleen** verbrand als er echt iets stuk is; het bewaken zelf is gratis. Locks voorkomen dubbele spawns (max 1 ops-manager tegelijk, TTL 30 min).
@@ -132,10 +199,14 @@ watchdog (launchd, elke 5 min, 0 tokens)
 ## QA
 
 ```bash
-pnpm --filter @ara/viewer exec playwright test   # desktop + iPhone viewport smoke
-pnpm -r test                                     # shared + collector unit tests
-pnpm soak                                        # load test: 3 sessions × 60s × 10 ev/s
+pnpm -r typecheck                                # 3 packages
+pnpm -r test                                     # 115 unit tests (shared 68 + collector 47)
+pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows: desktop, iPhone ×2, office, actions
+pnpm soak                                        # load test (ARA_SOAK_SECONDS=… to lengthen)
 ```
+
+Build the viewer before the Playwright run — preview serves `dist/`, so otherwise you
+test an old build. CI does build first.
 
 CI (GitHub Actions) runs typecheck, unit tests, viewer build, Playwright smoke
 and an accelerated soak on every push.

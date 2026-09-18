@@ -322,3 +322,173 @@ Twee keuzes in dat bericht:
 
 `ARA_TRADE_WEEKLY=now` is bewust zowel testhaak als knop: een schakelaar die alleen voor
 tests bestaat, wordt niet onderhouden.
+
+## Werk zonder eigenaar gebeurt niet, werk zonder uitvoerder ook niet (2026-09-18)
+`Duty` had geen eigenaar. Dat leek een detail — de manager verdeelt toch — maar het gevolg
+was dat elke duty van elke tak bij dezelfde rol landde: één stoel met werk en tien met een
+functieomschrijving. `who` staat daarom in het datamodel en niet in de tekst van de taak:
+een test kan dan afdwingen dat hij naar een stoel wijst die in diezelfde tak bestaat, en dat
+elke rol die vandaag al kan werken ook echt werk heeft.
+
+Daar hoorde een tweede helft bij. De watchdog had drie spawn-plekken — ops bij incidenten,
+de supervisor bij escalaties, de chief bij vragen — en geen enkele voor gewoon werk. Het
+ritme zette taken op het bord en niemand kwam ze halen. Dat is geen theoretisch gat: het
+kwam terug uit de mond van de eigenaar zijn eigen manager.
+
+**Ritme en uitvoering zijn daarom één keuze, geen twee schakelaars die je los aanzet.**
+`ops/24-7.md` geeft ze in één commando. Alleen het ritme aan = een bord dat volloopt zonder
+dat er iemand komt; alleen dispatch aan = niets te doen.
+
+Drie remmen zitten in dispatch zelf, niet in een prompt: hoogstens `ARA_DISPATCH_MAX` rollen
+per tick (de watchdog draait elke vijf minuten — zonder die grens start één volle bordronde
+tien sessies naast elkaar), wie het langst wacht gaat eerst (anders krijgt dezelfde drukke
+rol elke ronde de beurt), en na twee mislukte pogingen op dezelfde set taken stopt het
+spawnen en wordt de mens gevraagd.
+
+Wat bewust níét gebeurd is: het ritme plaatst een duty-taak nog steeds bij
+`manager:<venture>`, niet bij `duty.who`. De eigenaar reist mee in de prompt van de manager,
+die verdeelt. Rechtstreeks bij de specialist neerleggen zou de manager buitenspel zetten voor
+werk dat hij hoort te wegen — dat is een aparte beslissing, niet een vergeten regel.
+
+## Een verbetervoorstel zonder bewijs is een mening (2026-09-18)
+De vraag was of agents zelf verbeterpunten kunnen zoeken. Het antwoord is ja, maar pas nadat
+er iets meetbaars is om naar te wijzen — anders krijg je een rol die elke week plausibel
+klinkende verbeteringen schrijft, en dat is erger dan geen verbeterronde: het leest als
+inzicht en is ruis.
+
+`buildRetro()` is daarom een pure functie in `@ara/shared`, precies zoals `buildTradeReview()`.
+Het model leest een uitkomst, het telt niets. Drie keuzes die dat rapport bruikbaar houden:
+
+- **Elke bevinding draagt zijn taak-ids** (`evidence`, met `evidenceTotal` als er meer onder
+  vielen). Wie het leest kan het natrekken in plaats van het te moeten geloven.
+- **Onder de drempel zwijgt het rapport.** `minSample` 5 per rol, `minTotal` 8 over het hele
+  venster. Eén escalatie op twee taken is geen patroon van 50%, en een rapport dat uit weinig
+  data toch iets concludeert leert je het verkeerde vertrouwen aan. `tooQuiet` wordt expliciet
+  gelogd, want een uitgeschakelde ronde en een kapotte moeten er niet hetzelfde uitzien.
+- **Terugkerend playbook-werk is uitgezonderd van de herhaal-regel.** "Dagelijks: ritten
+  nalopen" stond zeven keer op het bord omdat dat de bedoeling is. Een bevinding die altijd
+  waar lijkt en nooit iets betekent, is genoeg om niemand het rapport meer te laten lezen.
+
+Vastgelopen werk wordt bewust over **alle** taken gezocht en niet alleen over het venster:
+een taak die drie weken open staat is juist onzichtbaar in een venster van een week, en dat
+is precies het werk dat blijft liggen.
+
+De koppeling tussen `CADENCE_PREFIXES` (retro.ts) en de titels die de watchdog bouwt
+(sectie 10) staat op twee plekken, met aan beide kanten een comment. Dat is lelijk en
+bewust: `watchdog.mjs` heeft geen buildstap en kan geen TypeScript-module importeren. De
+keuze was een duplicaat met een verwijzing, of een buildstap in de enige component die er
+geen heeft.
+
+## Een controle wordt nooit zelf gecontroleerd (2026-09-18)
+`ara-qa-verifier` bestond al, maar niets schakelde hem in — dus gebeurde het nooit en keurde
+elke worker zijn eigen werk. `shouldVerify()` maakt van een afgeronde taak automatisch een
+`CONTROLE:`-taak.
+
+De belangrijkste regel staat in de functie en niet in zijn instructies: **een controletaak
+wordt zelf nooit gecontroleerd.** Zonder die regel maakt elke controle een nieuwe controle,
+loopt het bord in een dag vol met een keten die nergens over gaat, en betaal je voor elke
+schakel. Een instructie is een suggestie; een pure functie is een grens. Dat is dezelfde
+redenering als bij `evaluateIntent()`, en om dezelfde reden.
+
+Drie kleinere keuzes:
+
+- **Steekproef, geen volledige dekking.** `ARA_QA_SAMPLE` is een percentage en staat standaard
+  op 0. Elke controle is een sessie: een organisatie die zichzelf volledig controleert doet
+  niets anders meer.
+- **Deterministisch op het taak-id, geen `Math.random`.** Anders geeft dezelfde database na
+  een herstart een ander oordeel en is een steekproef niet na te rekenen.
+- **Escalaties worden overgeslagen.** Die wachten op een mens; er een agent overheen laten
+  oordelen verbergt precies het ding dat zichtbaar moest blijven. Afgerond werk zonder
+  resultaat ook: daar valt niets aan na te kijken, en de terugblik meldt dat apart als
+  `geen-resultaat` — dat is het juiste kanaal.
+
+## Het dagbudget telt alleen wat ARA zelf startte (2026-09-18)
+De usage-tabel telde elke Claude Code-sessie op de machine, dus ook een dag handwerk van de
+eigenaar. Gemeten op de dag dat dit gebouwd werd: **15,9 miljoen tokens tegen een budget van
+2 miljoen, waarvan 14,1 miljoen cache-creatie uit één ontwikkelsessie.** Gevolg: de agents
+zetten zichzelf stil terwijl ze zelf niets hadden uitgegeven — en het leek een werkend
+budget, want er stond een groot getal tegenover.
+
+Het onderscheid komt uit de bron en niet uit een schatting: elke spawn krijgt
+`ARA_SPAWNED_ROLE` mee in zijn omgeving, de usage-hook draagt dat mee, en de collector bewaart
+het als `spawned_by`. Leeg = de eigenaar. Een heuristiek op projectnaam of werkmap zou hier
+óók gewerkt hebben en precies één keer verkeerd raden op het moment dat het ertoe doet.
+
+Het cache-deel staat apart in het logbericht en de Telegram-melding. Anders is het een
+onverklaarbaar groot getal en gaat iemand het budget verhogen in plaats van te kijken waar
+het vandaan komt.
+
+## Een rem die stilzwijgend faalt, is geen rem (2026-09-18)
+Alle kostenremmen van de watchdog wonen in `ARA_LOCK_DIR`: de eenmalige alarmen, de
+pogingenteller die na twee keer stopt met spawnen, en het slot tegen dubbele spawns. Alle
+drie schrijven in een `try {} catch {}` zonder inhoud — verstandig op zichzelf, want een
+kapot bestandssysteem mag de wacht niet omleggen.
+
+Samen betekende het dat een map die niet bestond alle drie de remmen uitzette **zonder één
+foutmelding**: eindeloos alarmeren en doorspawnen tot het budget op is. Precies het
+faalgedrag dat je niet ziet, want er komt geen fout en het systeem lijkt te werken.
+
+De fix is één `mkdirSync` bij het starten, met een `console.error` als zelfs dát niet lukt.
+De regel die eruit volgt en die in CLAUDE.md staat: voeg nooit een rem toe die stilzwijgend
+faalt wanneer die map wegvalt.
+
+## Geen externe agent-harnas (ruflo), wel de capaciteit zelf (2026-09-18)
+Gevraagd: of een bestaand agent-harnas (ruflo) hier iets toevoegt. Antwoord: nee, en dat is
+geen oordeel over dat project.
+
+ARA is al een harnas. De hooks in `plugins/ara` zijn de meetlaag van de hele wereld, en een
+harnas dat zijn eigen hooks installeert schrijft in dezelfde `settings.json` — twee schrijvers
+op één bestand, waarbij de verliezer geen fout geeft maar gewoon geen events meer stuurt. En
+de 39 rollen zijn geen prompts maar grenzen: ruim de helft heeft geen Edit/Write, twee rollen
+hebben geen Bash/WebFetch en kúnnen dus niet publiceren, en zestien invarianten in CI pinnen
+dat vast. Een harnas dat zijn eigen agents definieert en spawnt, draait per definitie buiten
+die invarianten om — dan is read-only weer een belofte in plaats van een garantie.
+
+Wat de vraag erachter was — rollen die elkaar nakijken, werk dat vanzelf opgepakt wordt, een
+organisatie die haar eigen werk terugleest — is daarom native gebouwd: `Duty.who`, dispatch,
+`shouldVerify()` en `buildRetro()`. Dat is minder code dan de integratie geweest zou zijn, en
+het valt onder dezelfde tests.
+
+## Het meer hoort bij de layout, niet bij de decoratie (2026-09-18)
+`LAKE_CENTER` en `LAKE_RADIUS` stonden in de viewer, want daar wordt het water getekend. De
+layout kende ze niet en zette projectclusters gewoon op het water: met de echte projectlijst
+lag truck-and-trailer met 4 van zijn 7 hexen in Sevan. `HexGround` tekent die tegels niet, en
+sinds een districttegel de knop naar het kantoor is, zijn dat knoppen die je niet kunt
+indrukken.
+
+Dezelfde afspraak als bij de WorldState-reducer: **wat beide kanten moeten weten, staat één
+keer in shared.** Water is geen verfraaiing zodra iemand erop kan bouwen.
+
+Twee dingen volgden eruit. `placeClusterOnFreeHex` toetst nu het **hele** cluster in plaats
+van alleen zijn hart — zolang de districten ver uit elkaar lagen viel dat niet op, maar
+dichter op elkaar nam het ene cluster de buitenring van het andere in, en een tegel die bij
+twee projecten hoort weet niet welk kantoor hij moet openen. En hij zoekt eerst binnen
+`WORLD_HEX_RADIUS` en pas daarna erbuiten: bij een volle wereld schoof een cluster anders het
+terrein af, waar de tegels wel in de config staan maar nergens op.
+
+## De viewer mag ergens anders staan dan de collector (2026-09-18)
+De collector serveert de gebouwde viewer, dus een pad zonder host klopte altijd. Maar de
+viewer als losse pagina op de telefoon, met de collector op de Mac achter het tailnet, is
+precies het geval waarin dat niet meer klopt. Vandaar `?api=https://…`, eenmalig via de URL
+en daarna uit localStorage — dezelfde route als het token, en om dezelfde reden.
+
+`sanitizeBase()` laat alleen `http:` en `https:` door. Een pagina die elk schema slikt kan
+via een geprepareerde link naar `javascript:` of `data:` gestuurd worden, en dan bepaalt de
+link wat er in jouw sessie uitgevoerd wordt. `build:artifact` is een aparte build met
+relatieve paden zodat de pagina niet van zijn eigen hostpad afhangt.
+
+## Het kantoor liet zien wie er zat, niet wat er gebeurde (2026-09-18)
+De werkvloer toonde bemensing en werkplekken. Wat ontbrak was het werk zelf, terwijl dat
+gewoon op het bord stond. `OfficeWork` hangt het bord van dat ene project in het kantoor,
+met de **escalaties apart** — die wachten op de eigenaar en horen niet tussen de rest te
+verdwijnen.
+
+Daaruit volgde dat `isEscalated()` één definitie moest worden. Het kantoor, de actielijst en
+de kruiscontrole hebben 'm alle drie nodig, en twee lezingen van "wacht dit op een mens" is
+er één te veel: dan staat een escalatie in de ene lijst wel en in de andere niet, en vertrouw
+je geen van beide meer.
+
+`reportsTo` en `depth` zijn afgeleid en niet los bedacht: `depth` volgt uit `reportsTo`, en
+elke verwijzing wijst naar een lid dat ook echt in `staff` staat. Een keten waarin je op een
+dood id stuit, kun je niet tekenen. En `truncated` maakt van `open` eerlijk een **ondergrens**
+(het kantoor zegt "≥", net als de kaart) in plaats van een getal dat toevallig de limiet is.
