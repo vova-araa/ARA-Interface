@@ -4,7 +4,7 @@
  * (or the /ara-map command); this module holds the types + defaults.
  */
 
-import { type Axial, axialKey, hexDisc, placeOnFreeHex, stableHash } from './hex.ts';
+import { type Axial, axialKey, hexDisc, hexRing, placeOnFreeHex, stableHash } from './hex.ts';
 
 export interface VentureStyle {
   id: string;
@@ -89,13 +89,53 @@ export interface ProjectEntry {
  * elke sprong van district naar district was een reis. Kleiner maakt het een
  * plek in plaats van een landkaart — en doorschakelen kost twee tellen.
  *
+ * Ring 5 voelde nog steeds als reizen, dus de districtring staat nu op 3,5:
+ * de harten landen net buiten de hub (straal 2) en de platforms sluiten aan
+ * op het plein in plaats van erheen te moeten. De terreinschijf blijft 8 en
+ * kan niet lager: Sevan (LAKE_CENTER in de viewer) ligt met zijn oever precies
+ * op afstand 8, en een meer dat half buiten de wereld valt is geen meer.
+ *
  * Deze getallen horen bij elkaar: de terreinschijf in de viewer, de sokkel
  * eronder en de rustzoom van de camera worden er allemaal uit afgeleid. Eén
  * ervan los aanpassen geeft een wereld die niet op zijn eigen grond past.
  */
 export const WORLD_HEX_RADIUS = 8; // straal van de terreinschijf in hexen
-const DISTRICT_RING_RADIUS = 5; // afstand van districtharten tot de hub
+const DISTRICT_RING_RADIUS = 3.5; // afstand van districtharten tot de hub
 const PROJECT_CLUSTER_RADIUS = 1; // elk project = 7 hexen (hart + ring)
+
+/**
+ * Een vrije plek voor een héél cluster, niet alleen voor zijn hart.
+ *
+ * `placeOnFreeHex` toetst één hex. Zolang de districten ver uit elkaar lagen
+ * viel dat niet op, maar dichter op elkaar nam het ene cluster de buitenring
+ * van het andere in: twee projecten op dezelfde tegel. Dat is niet alleen
+ * lelijk (twee platforms in hetzelfde vlak flikkeren tegen elkaar op) — een
+ * tegel die bij twee projecten hoort weet ook niet meer welk kantoor hij moet
+ * openen als je erop drukt. Compacter mag, delen niet.
+ *
+ * De aanroeper zet de hexen zelf in `taken`; deze functie kijkt alleen.
+ */
+function placeClusterOnFreeHex(
+  name: string,
+  center: Axial,
+  taken: Set<string>,
+  radius: number,
+  maxRadius = 64,
+): Axial {
+  const hash = stableHash(name);
+  for (let ring = 0; ring <= maxRadius; ring++) {
+    const candidates = hexRing(center, ring);
+    // Zelfde hash-rotatie als placeOnFreeHex: verschillende namen kiezen een
+    // andere plek op dezelfde ring, en altijd dezelfde bij dezelfde naam.
+    const offset = candidates.length > 0 ? hash % candidates.length : 0;
+    for (let i = 0; i < candidates.length; i++) {
+      const hex = candidates[(i + offset) % candidates.length]!;
+      if (hexDisc(hex, radius).every((h) => !taken.has(axialKey(h)))) return hex;
+    }
+  }
+  // Wereld vol — stapelen op het hart is lelijk maar voorspelbaar; crashen niet.
+  return center;
+}
 
 /**
  * Deterministic world layout:
@@ -139,12 +179,19 @@ export function buildWorldConfig(
     const angle = (index / active.length) * Math.PI * 2 + (stableHash(venture.id) % 100) / 500;
     const q = Math.round(Math.cos(angle) * DISTRICT_RING_RADIUS);
     const r = Math.round(Math.sin(angle) * DISTRICT_RING_RADIUS * 0.85);
-    const center: Axial = { q, r };
-    taken.add(axialKey(center)); // district center hosts the landmark, not a pod
+    // Afronden op een ring die nu korter is zet twee harten makkelijk op
+    // dezelfde hex, of een landmark midden op het platform van de buurman.
+    // Vandaar de uitwijk: de ronde plek is de wens, een vrije hex de eis.
+    const center: Axial = placeOnFreeHex(venture.id, { q, r }, taken);
 
     const placements: ProjectPlacement[] = [];
     for (const project of byVenture.get(venture.id) ?? []) {
-      const projectCenter = placeOnFreeHex(project.name, center, taken);
+      const projectCenter = placeClusterOnFreeHex(
+        project.name,
+        center,
+        taken,
+        PROJECT_CLUSTER_RADIUS,
+      );
       const hexes = hexDisc(projectCenter, PROJECT_CLUSTER_RADIUS);
       for (const hex of hexes) taken.add(axialKey(hex));
       placements.push({ name: project.name, venture: venture.id, center: projectCenter, hexes });
@@ -195,8 +242,8 @@ export function placementForProject(
     for (const project of district.projects)
       for (const hex of project.hexes) taken.add(axialKey(hex));
   }
-  const center = placeOnFreeHex(projectName, misc.center, taken);
-  const hexes = hexDisc(center, 1);
+  const center = placeClusterOnFreeHex(projectName, misc.center, taken, PROJECT_CLUSTER_RADIUS);
+  const hexes = hexDisc(center, PROJECT_CLUSTER_RADIUS);
   if (extraTaken) for (const hex of hexes) extraTaken.add(axialKey(hex));
   return { name: projectName, venture: 'misc', center, hexes };
 }
