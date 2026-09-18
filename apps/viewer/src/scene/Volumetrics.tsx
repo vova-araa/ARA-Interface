@@ -82,7 +82,7 @@ const SHAFT_FRAG = /* glsl */ `
     float body = pow(max(across, 0.0), 1.8);
     // vUv.y = 0 staat op de grond: daar zacht landen, en bovenin uitdoven
     // voordat de straal de lucht raakt (anders zie je waar hij ophoudt).
-    float along = smoothstep(0.0, 0.32, vUv.y) * (1.0 - smoothstep(0.4, 1.0, vUv.y));
+    float along = smoothstep(0.0, 0.22, vUv.y) * (1.0 - smoothstep(0.5, 1.05, vUv.y));
     // Trage stofdrift; deterministisch uit de klok, niet uit toeval.
     float drift = 0.86 + 0.14 * sin(vUv.y * 7.0 - uTime * 0.35 + vPhase);
     float a = body * along * drift * uOpacity * vStrength;
@@ -109,7 +109,7 @@ const CONE_FRAG = /* glsl */ `
     // De wereldcamera is orthografisch: de kijkrichting is voor elk fragment
     // (0,0,1) in view-ruimte. Geen deling door vViewPos nodig.
     float facing = abs(normalize(vNormalView).z);
-    float body = pow(facing, 1.35);
+    float body = pow(facing, 0.85);
     float t = mix(vUv.y, 1.0 - vUv.y, uInvert);
     // Licht dooft uit met de afstand tot de bron — kwadratisch genoeg om de
     // kegel niet als een scherpe koker op de grond te laten eindigen.
@@ -252,7 +252,7 @@ function SunShafts({ world }: { world: WorldConfig | null }): JSX.Element | null
     // Sterker licht = zichtbaarder stof; de bovengrens houdt de dageraad
     // ervan een mistbank te worden.
     material.uniforms.uOpacity!.value =
-      0.115 * SHAFT_BY_PERIOD[daylight.period] * Math.min(1.3, daylight.directional);
+      0.15 * SHAFT_BY_PERIOD[daylight.period] * Math.min(1.3, daylight.directional);
   }, [material, daylight]);
 
   useFrame(({ clock, camera }) => {
@@ -447,7 +447,7 @@ function LampCones({ world }: { world: WorldConfig | null }): JSX.Element | null
 
   useEffect(() => {
     material.uniforms.uColor!.value.set(LAMP_CONE_COLOR);
-    material.uniforms.uOpacity!.value = 0.17;
+    material.uniforms.uOpacity!.value = 0.19;
     material.uniforms.uInvert!.value = 0; // helder bij de kop, weg bij de grond
   }, [material]);
 

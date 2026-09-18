@@ -38,6 +38,7 @@ import { Doves } from './Doves.tsx';
 import { Windows } from './Windows.tsx';
 import { StreetLights } from './StreetLights.tsx';
 import { Monuments } from './Monuments.tsx';
+import { Volumetrics } from './Volumetrics.tsx';
 import { Tour } from './Tour.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
@@ -318,6 +319,9 @@ export function Scene(): JSX.Element {
                 dragen informatie in plaats van sfeer. */}
             <Windows world={world} />
             <StreetLights world={world} />
+            {/* Lichtkegels horen bij de lantaarns die er net boven hangen; op
+                perfLow geeft hij zelf null terug, gemeten 0 draw calls. */}
+            <Volumetrics world={world} />
             {/* Geheugen mag niet verdwijnen omdat de GPU traag is; Monuments
                 regelt zijn eigen zuinige stand. */}
             <Monuments world={world} />
