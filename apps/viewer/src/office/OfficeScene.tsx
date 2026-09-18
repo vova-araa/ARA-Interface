@@ -2894,7 +2894,14 @@ export function OfficeScene({
           vacant && !focus ? 'vaste rol · leeg' : capLine(line),
           vacant ? '#8d85c9' : TIER_COLOR[s.tier],
         );
-        const h = focus ? 0.62 : s.named ? 0.56 : 0.3;
+        // Een plaatje van 0,3 hoog is bij deze camerastand achttien pixels,
+        // waarvan de rolnaam er zeven krijgt: je ziet dát er een bordje hangt en
+        // niet wát erop staat. Dat is precies de klacht ("de namen van de agents
+        // zijn onduidelijk wat diegene zijn functie is") — het bordje bestond
+        // al, het was alleen niet te lezen. 0,46 maakt er achtentwintig pixels
+        // van met elf voor de naam; met de rijverspringing hieronder
+        // (`s.row * 0.52`) blijven ze elkaar nog steeds vrij houden.
+        const h = focus ? 0.74 : s.named ? 0.62 : 0.46;
         return (
           <sprite
             key={s.member.id}
@@ -2930,7 +2937,7 @@ export function OfficeScene({
           <sprite
             key={`who-${st.id}`}
             position={[slot.x, slot.y + 1.42, slot.z]}
-            scale={[1.5 * chip.aspect * 0.3, 0.3, 1]}
+            scale={[1.5 * chip.aspect * 0.4, 0.4, 1]}
             renderOrder={8}
           >
             <spriteMaterial map={chip.texture} transparent opacity={0.9} depthWrite={false} />

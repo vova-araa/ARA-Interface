@@ -195,19 +195,38 @@ function placeSummit(r: number, u: number, base: number, height: number, lean: n
   return { x: (s + d) / 2 - lean, z: (s - d) / 2 };
 }
 
-/** Een top, beschreven in beeldtermen; de wereldplek volgt eruit. */
-interface Placed extends Omit<PeakSpec, 'x' | 'z'> {
+/**
+ * Een top, beschreven in beeldtermen; de wereldplek volgt eruit.
+ *
+ * `rise` is wat er boven het horizonvlak uitkomt, `bury` wat eronder zit. Die
+ * twee staan los van elkaar en dat is de hele truc. De voet van een kegel is
+ * onder deze camera een brede ellips — 1,26 eenheid hoog per eenheid straal —
+ * en zodra je die ellips ziet, kijk je niet naar een berg maar naar een paarse
+ * pastille die boven de vlakte zweeft. Precies wat er rechts in beeld stond.
+ *
+ * Diep begraven lost dat op zonder de top te verplaatsen: bij `bury = 1,5·rise`
+ * snijdt het horizonvlak de kegel op 40% van zijn hoogte, waar hij nog maar een
+ * kwart van zijn straal heeft. De ellips zakt daarmee van vier eenheden naar
+ * minder dan twee, terwijl de top blijft staan waar `u` hem zet.
+ */
+interface Placed extends Omit<PeakSpec, 'x' | 'z' | 'base' | 'height'> {
   /** Waar de top hoort te staan: naar rechts en omhoog, in wereldeenheden. */
   r: number;
   u: number;
+  /** Hoogte bóven het horizonvlak — dit is wat je van de berg ziet. */
+  rise: number;
+  /** Hoeveel er ónder het horizonvlak zit; groter = smallere voet in beeld. */
+  bury?: number;
 }
 
 function placed(specs: Placed[]): THREE.BufferGeometry {
   return massif(
-    specs.map(({ r, u, ...rest }) => ({
-      ...rest,
-      ...placeSummit(r, u, rest.base, rest.height, rest.lean ?? 0),
-    })),
+    specs.map(({ r, u, rise, bury, ...rest }) => {
+      const under = bury ?? rise * 1.5;
+      const base = HORIZON_Y - under;
+      const height = rise + under;
+      return { ...rest, base, height, ...placeSummit(r, u, base, height, rest.lean ?? 0) };
+    }),
   );
 }
 
@@ -215,32 +234,50 @@ function placed(specs: Placed[]): THREE.BufferGeometry {
 const SKY_TOP = 11.4;
 
 /**
- * Masis (5137 m) en Sis (3896 m) met het zadel ertussen, plus een keten die om
- * de hele horizon doorloopt. De dubbele top ís Ararat: één piek is zomaar een
+ * Masis (5137 m) en Sis (3896 m) met het zadel ertussen, in een keten die de
+ * hele horizon rond loopt. De dubbele top ís Ararat: één piek is zomaar een
  * berg.
  *
- * De toppen staan links van het midden, want dáár is lucht: de wereldschijf
- * komt in het midden tot u ≈ 9,6 en bij r = −10 nog maar tot 6,8. Van Masis is
- * daardoor ruim vier eenheden silhouet te zien in plaats van een strook flank.
- * De verre keten loopt door tot achter de rechterhelft, zodat de bergen áchter
- * de wereld staan in plaats van ernaast.
+ * **Waarom het een aaneengesloten keten is en geen paar losse toppen.** Losse
+ * kegels lezen als losse kegels: je ziet er drie naast elkaar staan en ze horen
+ * nergens bij. De toppen staan hier daarom op 3,6 à 4 eenheden uit elkaar
+ * terwijl ze 4,4 à 5,8 straal hebben — elke berg loopt dus ruim in zijn buren
+ * door, en de voorste verbergt de voet van de volgende. Wat overblijft is één
+ * doorlopende bergrand met toppen erin, en dát is wat een keten is.
  *
- * Alle `snow`-grenzen liggen nu onder de horizonlijn van de wereldschijf: de
- * sneeuwgrens moet zichtbaar zijn, anders is hij er niet.
+ * **Waarom het massief links ligt.** De wereldschijf komt in het midden tot
+ * u ≈ 9,6 en laat daar nog geen drie eenheden lucht; links van r ≈ −14 houdt de
+ * schijf op en is de hele hoek vrij. Masis (r = −17,4) heeft daardoor 5,4
+ * eenheden silhouet, Sis (r = −10,4) nog 3,6, en achter het midden komen de
+ * verre toppen maar een eenheid boven de rand uit. Dat verloop is het verschil
+ * tussen een hoofdtop en een verre keten.
+ *
+ * **Waarom elke sneeuwgrens anders ligt.** Sneeuw onder de wereldrand bestaat
+ * niet. Per top is de grens uitgerekend op het stuk dat je werkelijk ziet, zodat
+ * de kap 40 à 60% van het zichtbare silhouet beslaat — Masis houdt de grootste.
  */
 const ARARAT_GEO = placed([
-  // Masis — de grote, links. Top op 11,4: net onder de bovenbalk.
-  { r: -10.5, u: SKY_TOP, base: HORIZON_Y - 1.2, height: 8.2, radius: 6.6, snow: 0.42, seed: 'masis', segments: 11, rings: 5, lean: 0.7 },
-  // Het zadel: laag en breed, zodat de twee toppen één massief vormen.
-  { r: -7.2, u: 9.4, base: HORIZON_Y - 1.2, height: 5.2, radius: 4.6, snow: 0.72, seed: 'zadel', segments: 8, rings: 3, lean: -0.35 },
-  // Sis — de kleine, rechts van Masis en iets naar voren.
-  { r: -4.0, u: 10.3, base: HORIZON_Y - 1.2, height: 6.4, radius: 4.4, snow: 0.5, seed: 'sis', segments: 9, rings: 4, lean: -0.55 },
-  // Keten: diepte naast en achter de hoofdtoppen, oplopend in de nevel.
-  { r: -17.5, u: 9.6, base: HORIZON_Y - 1.2, height: 5.6, radius: 6.2, snow: 0.66, seed: 'keten-a', segments: 7, rings: 3, haze: 0.45, lean: 0.8 },
-  { r: -21.0, u: 8.8, base: HORIZON_Y - 1.2, height: 4.8, radius: 6.0, snow: 0.8, seed: 'keten-b', segments: 7, rings: 2, haze: 0.62 },
-  { r: 3.0, u: 9.2, base: HORIZON_Y - 1.2, height: 5.0, radius: 5.8, snow: 0.74, seed: 'keten-c', segments: 7, rings: 3, haze: 0.58, lean: -0.6 },
-  { r: 10.5, u: 10.2, base: HORIZON_Y - 1.2, height: 6.0, radius: 7.0, snow: 0.6, seed: 'keten-d', segments: 8, rings: 3, haze: 0.4, lean: 0.5 },
-  { r: 18.0, u: 9.2, base: HORIZON_Y - 1.2, height: 4.6, radius: 6.2, snow: 0.78, seed: 'keten-e', segments: 6, rings: 2, haze: 0.68, lean: -0.9 },
+  // Buitenste schouder links: staat vrij, dus diep begraven.
+  { r: -20.0, u: 8.8, rise: 3.4, bury: 3.0, radius: 4.4, snow: 0.73, seed: 'keten-a', segments: 7, rings: 3, haze: 0.5 },
+  // Masis — de grote. Top net onder de bovenbalk, 5,4 eenheden silhouet.
+  { r: -16.0, u: SKY_TOP, rise: 7.0, bury: 1.6, radius: 5.8, snow: 0.63, seed: 'masis', segments: 11, rings: 5, lean: 0.8 },
+  // Het zadel: laag en breed, zodat de twee toppen één massief vormen. Zijn
+  // voet ligt tussen Masis en Sis in en is dus toch al afgedekt.
+  { r: -12.6, u: 8.8, rise: 3.2, bury: 1.2, radius: 4.6, snow: 0.67, seed: 'zadel', segments: 8, rings: 4, lean: -0.4 },
+  // Sis — de kleine, rechts van Masis en al half achter de wereldrand.
+  { r: -9.4, u: 10.4, rise: 5.4, bury: 1.2, radius: 4.8, snow: 0.71, seed: 'sis', segments: 9, rings: 4, lean: -0.6 },
+  // Verre keten achter de wereld. Hun voet valt achter de schijf, dus die mag
+  // ondiep blijven en breed uitlopen.
+  { r: -3.2, u: 10.5, rise: 4.2, bury: 1.2, radius: 5.0, snow: 0.85, seed: 'keten-c', segments: 7, rings: 3, haze: 0.5, lean: 0.5 },
+  { r: 4.5, u: 10.8, rise: 4.6, bury: 1.2, radius: 5.2, snow: 0.79, seed: 'keten-d', segments: 7, rings: 3, haze: 0.5, lean: -0.5 },
+  { r: 10.0, u: 10.9, rise: 5.4, bury: 1.6, radius: 5.4, snow: 0.65, seed: 'keten-e', segments: 8, rings: 4, haze: 0.4, lean: 0.6 },
+  // Rechts loopt de wereld weg onder de bergen vandaan: vanaf hier staat de
+  // voet vrij, dus lopen `bury` op en de onderlinge afstand terug. Drie toppen
+  // op vier, vier en drie eenheden met vijf straal lopen in elkaar door, en dan
+  // dekt de voorste de voet van de volgende af.
+  { r: 14.5, u: 10.2, rise: 4.6, bury: 2.6, radius: 5.0, snow: 0.69, seed: 'keten-f', segments: 8, rings: 4, haze: 0.42, lean: -0.6 },
+  { r: 18.5, u: 9.4, rise: 3.8, bury: 3.6, radius: 4.6, snow: 0.75, seed: 'keten-g', segments: 7, rings: 3, haze: 0.5, lean: 0.5 },
+  { r: 21.8, u: 8.6, rise: 3.2, bury: 4.2, radius: 4.2, snow: 0.78, seed: 'keten-h', segments: 7, rings: 3, haze: 0.6, lean: -0.5 },
 ]);
 
 /**

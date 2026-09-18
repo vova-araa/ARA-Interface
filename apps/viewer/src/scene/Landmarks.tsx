@@ -244,6 +244,10 @@ const PLAZA_TOP = 0.07;
  */
 const FLAG_X = -0.72;
 const FLAG_Z = -3.35;
+/** Hoogte van de mast boven het plateau; de doek hangt aan de top. */
+const MAST_H = 6.4;
+/** Het hart van de doek: een halve vlaghoogte onder de knop van de mast. */
+const FLAG_LIFT = MAST_H - 0.5;
 
 const CASCADE_GEO = merge([
   ...Array.from({ length: TERRACES }, (_, i) => {
@@ -277,11 +281,17 @@ const CASCADE_GEO = merge([
   part(cyl(PLAZA_R, PLAZA_R + 0.06, 0.66, 12), TUFF_CREAM, [0, PLAZA_TOP - 0.33, PLAZA_LZ]),
   // De vlaggenmast. Hij staat hier en niet bij de vlag zelf, omdat een mast
   // niet beweegt: in deze samengevoegde geometrie kost hij geen tekenopdracht,
-  // als los meshje wel. Vier eenheden hoog, want de vlag moet bóven Moeder
-  // Armenië uitkomen — daaronder hangt hij tegen haar sokkel en zie je hem net
-  // zo min als eerst.
-  part(cyl(0.032, 0.045, 4.0, 6), STEEL, [FLAG_X, CASCADE_TOP + 2.0, FLAG_Z]),
-  part(ball(0.07, 6, 5), TUFF_OCHRE, [FLAG_X, CASCADE_TOP + 4.02, FLAG_Z]),
+  // als los meshje wel.
+  //
+  // Zes en een half eenheden hoog, en dat is geen smaakkwestie. Op vier hing de
+  // doek precies in de band waar de projectlabels zweven, en die labels zijn
+  // HTML — ze staan altijd vóór de wereld, hoe ver de vlag ook weg is. Het
+  // gevolg op een screenshot: het label dekte de rode baan af en er bleef
+  // blauw-geel over. Een vlag die als de verkeerde vlag leest is erger dan een
+  // vlag die je niet ziet. Deze 2,4 eenheden extra tillen de doek ruim boven
+  // die band uit; zie FLAG_LIFT, die dezelfde constante gebruikt.
+  part(cyl(0.032, 0.05, MAST_H, 6), STEEL, [FLAG_X, CASCADE_TOP + MAST_H / 2, FLAG_Z]),
+  part(ball(0.075, 6, 5), TUFF_OCHRE, [FLAG_X, CASCADE_TOP + MAST_H + 0.02, FLAG_Z]),
 ]);
 
 /**
@@ -978,7 +988,7 @@ export function Landmarks({ world }: { world: WorldConfig | null }): JSX.Element
         />
         {/* De doek hangt aan de top van de mast die in CASCADE_GEO zit; die
             twee hoogtes komen daarom uit dezelfde constanten. */}
-        <group position={[FLAG_X, CASCADE_TOP + 3.5, FLAG_Z]}>
+        <group position={[FLAG_X, CASCADE_TOP + FLAG_LIFT, FLAG_Z]}>
           <ArmenianFlag />
         </group>
       </group>

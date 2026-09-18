@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import {
+  LAKE_CENTER,
+  LAKE_RADIUS,
   WORLD_HEX_RADIUS,
   axialToWorld,
   hexDisc,
@@ -78,11 +80,38 @@ function buildPaths(world: WorldConfig, size: number, dpr: number): WorldPaths {
     hexPath(ground, x * HEX_SPACING, z * HEX_SPACING, 0.98, size);
   }
 
-  // Donker en vlak: alles wat er later overheen komt moet eruit springen.
-  ctx.fillStyle = 'rgba(232, 234, 240, 0.07)';
+  // Land, en het moet ook als land te zien zijn. Dit stond op 7% wit op een
+  // bijna zwarte achtergrond: dan is de wereldvorm er wel, maar zie je hem
+  // niet, en dat is precies waar de eigenaar over viel ("map is niet
+  // bruikbaar"). 18% met een randlijn eromheen geeft de schijf een omtrek,
+  // zodat je in één oogopslag ziet hoe groot de wereld is en waar hij ophoudt.
+  ctx.fillStyle = 'rgba(226, 216, 214, 0.18)';
   ctx.fill(ground);
+  ctx.strokeStyle = 'rgba(232, 234, 240, 0.26)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke(ground);
+
+  // Sevan. Het meer stond niet op de kaart, terwijl het in de wereld het enige
+  // vaste herkenningspunt is dat geen tak toebehoort: als je je afvraagt waar
+  // je bent, is het water het eerste waar je naar kijkt. LAKE_CENTER/RADIUS
+  // komen uit shared — dezelfde hexen die de layout vrijhoudt, dus de kaart
+  // kan niet uit de pas lopen met het water in de scene.
+  const lake = new Path2D();
+  for (const hex of hexDisc(LAKE_CENTER, LAKE_RADIUS)) {
+    const { x, z } = axialToWorld(hex);
+    hexPath(lake, x * HEX_SPACING, z * HEX_SPACING, 1.0, size);
+  }
+  ctx.fillStyle = 'rgba(46, 156, 199, 0.62)';
+  ctx.fill(lake);
+  ctx.strokeStyle = 'rgba(104, 213, 212, 0.75)';
+  ctx.lineWidth = 0.7;
+  ctx.stroke(lake);
 
   // Districten in hun takkleur — de vorm van de stad, niet één stip per tak.
+  // 24% dekking maakte van een gele tak een olijfgroene vlek: de kaart kon de
+  // kleur van een district niet meer aan het district koppelen. Op 72% is de
+  // takkleur op de kaart dezelfde kleur als in de wereld, en dát is waar je op
+  // navigeert.
   for (const district of world.districts) {
     const shape = new Path2D();
     for (const project of district.projects) {
@@ -91,10 +120,10 @@ function buildPaths(world: WorldConfig, size: number, dpr: number): WorldPaths {
         hexPath(shape, x * HEX_SPACING, z * HEX_SPACING, 0.92, size);
       }
     }
-    ctx.fillStyle = `${district.venture.color}3d`;
+    ctx.fillStyle = `${district.venture.color}b8`;
     ctx.fill(shape);
-    ctx.strokeStyle = `${district.venture.color}7a`;
-    ctx.lineWidth = 0.6;
+    ctx.strokeStyle = `${district.venture.color}ff`;
+    ctx.lineWidth = 0.7;
     ctx.stroke(shape);
   }
 
