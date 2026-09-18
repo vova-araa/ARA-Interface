@@ -78,8 +78,11 @@ export function Minimap(): JSX.Element | null {
 
   const onClick = (e: React.MouseEvent<HTMLCanvasElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const wx = ((e.clientX - rect.left - SIZE / 2) / (SIZE / 2)) * EXTENT;
-    const wz = ((e.clientY - rect.top - SIZE / 2) / (SIZE / 2)) * EXTENT;
+    // Rekenen met de gemeten doos, niet met SIZE: op de telefoon staat de
+    // kaart via CSS kleiner (104px). Met de vaste SIZE lag de trefzone dan
+    // buiten het kaartje en deed tikken niets.
+    const wx = ((e.clientX - rect.left) / rect.width - 0.5) * 2 * EXTENT;
+    const wz = ((e.clientY - rect.top) / rect.height - 0.5) * 2 * EXTENT;
     let best: { id: string; d: number } | null = null;
     const byProject = new Map<string, number>();
     for (const session of Object.values(snapshot.sessions).filter((s) => visibleInWorld(world, s.project))) {
@@ -96,5 +99,7 @@ export function Minimap(): JSX.Element | null {
     }
   };
 
-  return <canvas ref={canvasRef} className="minimap" style={{ width: SIZE, height: SIZE }} onClick={onClick} />;
+  // De weergavemaat staat in theme.css (klein op de telefoon); het canvas
+  // tekent altijd in een vlak van SIZE en wordt door de browser geschaald.
+  return <canvas ref={canvasRef} className="minimap" title="Kaart — tik om naar een sessie te springen" onClick={onClick} />;
 }

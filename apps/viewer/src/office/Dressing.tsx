@@ -1,5 +1,5 @@
-import * as THREE from 'three';
 import type { OfficeSnapshot } from '@ara/shared';
+import type { OfficeLayout } from './OfficeScene.tsx';
 
 /**
  * Wat een kantoor tot díé werkvloer maakt.
@@ -13,6 +13,11 @@ import type { OfficeSnapshot } from '@ara/shared';
  * Alles is grof blokwerk met opzet — je kijkt van bovenaf onder een
  * ortho-camera, dus silhouet en kleur doen het werk, geen detail dat op die
  * afstand toch verdwijnt.
+ *
+ * Waar het staat bepaalt het vloerplan (`layout.dress` uit OfficeScene), niet
+ * dit bestand: de hefbrug hoort in de as van de rolpoort te staan en de
+ * koersenwand tegen de wand waar de tribune naartoe loopt. Eén ankerpunt per
+ * ruimte houdt dat kloppend als een vloerplan verandert.
  */
 
 const props = { castShadow: true, receiveShadow: true } as const;
@@ -47,10 +52,11 @@ function Box({
 function FleetBay({ x, z }: { x: number; z: number }): JSX.Element {
   return (
     <group position={[x, 0, z]}>
-      {/* vloervak in signaalgeel — een werkplaats heeft belijning */}
+      {/* Het werkvak zelf: donkerder beton dan de rest van de hal, want daar
+          staat al twintig jaar een truck op te lekken. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]} receiveShadow>
-        <planeGeometry args={[6.4, 5]} />
-        <meshStandardMaterial color="#6f6840" roughness={0.95} />
+        <planeGeometry args={[6.8, 5.2]} />
+        <meshStandardMaterial color="#75717f" roughness={0.98} />
       </mesh>
       {/* hefbrug */}
       <Box position={[0, 0.35, 0]} size={[4.6, 0.7, 2.2]} color="#c9a227" />
@@ -122,23 +128,38 @@ function TmsMap({ x, z }: { x: number; z: number }): JSX.Element {
   );
 }
 
-/** Handelsvloer: koersenwand met balken die er als een grafiek bij staan. */
-function TradingWall({ x, z, accent }: { x: number; z: number; accent: string }): JSX.Element {
-  const bars = [0.9, 1.5, 1.1, 2.1, 1.7, 2.6, 2.2, 3, 2.4, 1.8, 2.7, 3.3];
+/**
+ * Handelsvloer: koersenwand met balken die er als een grafiek bij staan. Hij
+ * schaalt mee met de zaal, want de tribune kijkt hier op uit — een smal bord
+ * tegen een brede wand maakt van de trappen een opstelling zonder doel.
+ */
+function TradingWall({
+  x,
+  z,
+  w,
+  accent,
+}: {
+  x: number;
+  z: number;
+  w: number;
+  accent: string;
+}): JSX.Element {
+  const bars = [0.9, 1.5, 1.1, 2.1, 1.7, 2.6, 2.2, 3, 2.4, 1.8, 2.7, 3.3, 2.9, 2.2];
+  const pitch = (w - 1.4) / bars.length;
   return (
     <group position={[x, 0, z]}>
-      <Box position={[0, 2.1, -0.3]} size={[7.4, 4.2, 0.24]} color="#1d1840" />
+      <Box position={[0, 3.1, -0.3]} size={[w, 5.6, 0.24]} color="#1d1840" />
       {bars.map((h, i) => (
         <Box
           key={i}
-          position={[-3.2 + i * 0.58, 0.55 + h / 2, -0.12]}
-          size={[0.4, h, 0.1]}
+          position={[-(w - 1.4) / 2 + (i + 0.5) * pitch, 1.1 + (h * 1.35) / 2, -0.12]}
+          size={[pitch * 0.68, h * 1.35, 0.1]}
           color={i % 3 === 2 ? '#ff6b5e' : '#6fd3a0'}
           emissive={i % 3 === 2 ? '#ff6b5e' : '#6fd3a0'}
         />
       ))}
       {/* tickerband onderlangs */}
-      <Box position={[0, 0.34, -0.1]} size={[7.4, 0.3, 0.12]} color={accent} emissive={accent} />
+      <Box position={[0, 0.66, -0.1]} size={[w, 0.34, 0.12]} color={accent} emissive={accent} />
     </group>
   );
 }
@@ -240,37 +261,29 @@ function Stage({ x, z, accent }: { x: number; z: number; accent: string }): JSX.
 export function Dressing({
   office,
   accent,
-  width,
-  depth,
+  layout,
 }: {
   office: OfficeSnapshot;
   accent: string;
-  width: number;
-  depth: number;
+  layout: OfficeLayout;
 }): JSX.Element | null {
-  // Rechtsachter is de vrije hoek: de bureaus staan in het midden, de leiding
-  // staat vooraan, en de muurschermen hangen aan de achterwand links. Verder
-  // naar binnen dan de wand zelf, want de kadrering van de kantoorcamera loopt
-  // niet tot de rechterrand van de ruimte — meubilair dat half buiten beeld
-  // staat is meubilair dat je niet hebt.
-  const x = width / 2 - 7.8;
-  const z = -depth / 2 + 5.6;
+  const { x, z } = layout.dress;
 
   switch (office.kind) {
     case 'fleet':
       return <FleetBay x={x} z={z} />;
     case 'tms':
-      return <TmsMap x={x - 0.6} z={z} />;
+      return <TmsMap x={x} z={z} />;
     case 'trading':
     case 'crypto':
     case 'equities':
-      return <TradingWall x={x - 0.4} z={-depth / 2 + 1.2} accent={accent} />;
+      return <TradingWall x={x} z={z} w={layout.width - 9} accent={accent} />;
     case 'design':
       return <DesignCorner x={x} z={z} />;
     case 'studio':
       return <StudioBooth x={x} z={z} />;
     case 'music':
-      return <Stage x={x - 0.4} z={z} accent={accent} />;
+      return <Stage x={x} z={z} accent={accent} />;
     default:
       // Generiek: liever niets dan willekeurig meubilair dat niets betekent.
       return null;

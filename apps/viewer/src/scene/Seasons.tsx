@@ -13,7 +13,6 @@ import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
 import { buildRoads, groundTop, openGround } from './roads.ts';
 import { useDaylight, type Daylight } from './daylight.ts';
-import { windTime } from './wind.ts';
 
 /**
  * Seizoenen — de achtergrond van de wereld, niet zijn toestand.
@@ -74,6 +73,8 @@ interface Tree {
   y: number;
   scale: number;
   phase: number;
+  /** 0..1 — hoe vol deze boom in de lente in bloei staat. */
+  blossom: number;
 }
 
 interface Terrain {
@@ -86,6 +87,20 @@ interface Terrain {
 }
 
 const rand01 = (key: string): number => (stableHash(key) % 1000) / 1000;
+
+/**
+ * Een wit kleurattribuut op de geometrie.
+ *
+ * Instance-kleuren werken alleen als het materiaal `vertexColors` aan heeft, en
+ * dan verwacht de shader óók een kleur per vertex. Ontbreekt die, dan leest hij
+ * (0,0,0) en is elk exemplaar zwart — niet zichtbaar in een typecheck, wél op
+ * het scherm. Wit betekent hier: laat de instance-kleur het werk doen.
+ */
+function withWhiteColors<T extends THREE.BufferGeometry>(geo: T): T {
+  const count = geo.getAttribute('position').count;
+  geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3));
+  return geo;
+}
 
 function buildTerrain(world: WorldConfig | null): Terrain {
   const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
@@ -132,6 +147,7 @@ function buildTerrain(world: WorldConfig | null): Terrain {
       y: groundTop(hex),
       scale: 0.8 + rand01(`bs:${key}`) * 0.55,
       phase: rand01(`bf:${key}`) * Math.PI * 2,
+      blossom: rand01(`bloei:${key}`),
     });
   }
 
@@ -191,7 +207,8 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
     geo.translate(0, 0.23, 0);
     return geo;
   }, []);
-  const crownGeo = useMemo(() => new THREE.IcosahedronGeometry(0.42, 0), []);
+  const crownGeo = useMemo(() => withWhiteColors(new THREE.IcosahedronGeometry(0.42, 0)), []);
+  const leafGeo = useMemo(() => withWhiteColors(new THREE.PlaneGeometry(0.2, 0.14)), []);
 
   const snowRef = useRef<THREE.InstancedMesh>(null);
   const sheenRef = useRef<THREE.InstancedMesh>(null);
@@ -207,16 +224,23 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
   // matrices per frame herschrijven is werk voor niets.
   const lastCover = useRef(-1);
   const lastWet = useRef(-1);
+  const lastTint = useRef('');
+  const lastCrownKey = useRef('');
+  const blossomColor = useMemo(() => new THREE.Color('#ffd7e6'), []);
   const colored = useRef(false);
 
-  useFrame(() => {
-    const wind = windTime.value;
+  // De windklok van de wereld is dezelfde klok als deze (WindTicker zet
+  // windTime op clock.elapsedTime), dus het blad waait in fase met het
+  // bladerdak dat de shader beweegt.
+  useFrame(({ clock }) => {
+    const wind = clock.elapsedTime;
     const { snowCover, wetGround, precip, windScale, leafTint, bareness, seasonMix } = daylight;
 
     // --- sneeuwdek ------------------------------------------------------
     const snow = snowRef.current;
     if (snow) {
       snow.visible = snowCover > 0.01;
+      if (!snow.visible) lastCover.current = -1;
       if (snow.visible && Math.abs(snowCover - lastCover.current) > 0.004) {
         lastCover.current = snowCover;
         let n = 0;
@@ -225,7 +249,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
           // wereld in en smelt hij er ook weer uit, in plaats van te knipperen.
           const local = (snowCover - tile.threshold) / Math.max(0.05, 1 - tile.threshold);
           if (local <= 0) continue;
-          const depth = Math.min(1, local) * 0.16;
+          const depth = Math.min(1, local) * 0.11;
           dummy.position.set(tile.x, tile.y, tile.z);
           dummy.rotation.set(0, 0, 0);
           dummy.scale.set(tile.radius * 0.995, depth, tile.radius * 0.995);
@@ -245,8 +269,9 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
     const sheen = sheenRef.current;
     if (sheen) {
       sheen.visible = wetGround > 0.02;
+      if (!sheen.visible) lastWet.current = -1;
       const mat = sheen.material as THREE.MeshStandardMaterial;
-      mat.opacity = wetGround * 0.5;
+      mat.opacity = wetGround * 0.42;
       mat.roughness = 0.16 - wetGround * 0.1;
       if (sheen.visible && Math.abs(wetGround - lastWet.current) > 0.05) {
         lastWet.current = wetGround;
@@ -290,11 +315,29 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
         dummy.updateMatrix();
         crown.setMatrixAt(i, dummy.matrix);
       });
+      trunk.count = terrain.trees.length;
+      twig.count = terrain.trees.length;
+      crown.count = terrain.trees.length;
       trunk.instanceMatrix.needsUpdate = true;
       twig.instanceMatrix.needsUpdate = true;
       crown.instanceMatrix.needsUpdate = true;
-      crown.visible = leafy > 0.06;
-      (crown.material as THREE.MeshStandardMaterial).color.set(leafTint);
+      crown.visible = leafy > 0.06 && terrain.trees.length > 0;
+      // Lente is niet alleen bloesem en niet alleen fris groen: het is een
+      // boomgaard waarin de ene boom al bloeit en de andere pas uitloopt.
+      // Daarom de kleur per boom en niet per materiaal.
+      const crownKey = `${leafTint}|${Math.round(seasonMix.lente * 12)}`;
+      if (lastCrownKey.current !== crownKey) {
+        lastCrownKey.current = crownKey;
+        terrain.trees.forEach((tree, i) => {
+          tint.set(leafTint).lerp(blossomColor, seasonMix.lente * tree.blossom * 0.95);
+          crown.setColorAt(i, tint);
+        });
+        if (crown.instanceColor) crown.instanceColor.needsUpdate = true;
+        // De instance-kleuren ontstaan pas ná de eerste compile; zonder deze
+        // regel draait de shader met vertexColors zonder kleurattribuut mee
+        // en is elke kroon zwart.
+        (crown.material as THREE.Material).needsUpdate = true;
+      }
     }
 
     // --- vallend blad ---------------------------------------------------
@@ -311,7 +354,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
         mat.opacity = 0.65 + amount * 0.3;
         const drift = 1.4 * windScale;
         for (let i = 0; i < leaves.count; i += 1) {
-          const seed = precipLeaf(leafSeeds, i);
+          const seed = seedAt(leafSeeds, i);
           const cycle = (wind * 0.09 * seed.speed + seed.offset) % 1;
           const fall = cycle * 6.2;
           const radius = seed.r * terrain.extent;
@@ -343,7 +386,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
         const top = 10;
         const height = top - 0.3;
         for (let i = 0; i < fall.count; i += 1) {
-          const seed = precipLeaf(precipSeeds, i);
+          const seed = seedAt(precipSeeds, i);
           const cycle = (wind * (speed / height) * seed.speed + seed.offset) % 1;
           const y = top - cycle * height;
           const radius = seed.r * (terrain.extent + 2);
@@ -374,6 +417,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
         leaves.setColorAt(i, tint.setRGB(v, v * 0.94, v * 0.88));
       }
       if (leaves.instanceColor) leaves.instanceColor.needsUpdate = true;
+      (leaves.material as THREE.Material).needsUpdate = true;
       colored.current = true;
     }
   });
@@ -406,7 +450,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
       >
         <primitive object={sheenGeo} attach="geometry" />
         <meshStandardMaterial
-          color="#1d2430"
+          color="#232b36"
           roughness={0.1}
           metalness={0.5}
           envMapIntensity={1.6}
@@ -442,7 +486,9 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
         castShadow
       >
         <primitive object={crownGeo} attach="geometry" />
-        <meshStandardMaterial color="#4f8f3d" roughness={0.85} flatShading />
+        {/* Wit basismateriaal: de kleur komt per boom uit de instance, zodat
+            bloesem en fris blad naast elkaar kunnen staan in één draw call. */}
+        <meshStandardMaterial color="#ffffff" vertexColors roughness={0.85} flatShading />
       </instancedMesh>
 
       {/* vallend blad */}
@@ -452,7 +498,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
         frustumCulled={false}
         visible={false}
       >
-        <planeGeometry args={[0.2, 0.14]} />
+        <primitive object={leafGeo} attach="geometry" />
         <meshStandardMaterial
           side={THREE.DoubleSide}
           vertexColors
@@ -479,7 +525,7 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
 }
 
 /** Zaadje ophalen zonder non-null-assertion op elke aanroepplek. */
-function precipLeaf(
+function seedAt(
   seeds: { a: number; r: number; speed: number; spin: number; offset: number; tint: number }[],
   i: number,
 ) {

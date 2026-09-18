@@ -165,7 +165,15 @@ function speak(voice: Voice, loud: number): void {
     case 'fault':
       // Dalend en donker, met een lowpass erover: zelfs zacht hoor je dat dit
       // geen vraag is.
-      ping(e, { freq: 320, to: 150, at: 0, dur: 0.3, peak: 0.07 * loud, type: 'sawtooth', cutoff: 900 });
+      ping(e, {
+        freq: 320,
+        to: 150,
+        at: 0,
+        dur: 0.3,
+        peak: 0.07 * loud,
+        type: 'sawtooth',
+        cutoff: 900,
+      });
       ping(e, { freq: 96, at: 0.04, dur: 0.34, peak: 0.055 * loud, type: 'sine' });
       break;
     case 'done':
@@ -250,7 +258,6 @@ const UNLOCK_EVENTS = ['pointerdown', 'keydown', 'touchstart'] as const;
 export function SoundPlayer(): null {
   const effects = useAra((s) => s.effects);
   const soundOn = useAra((s) => s.soundOn);
-  const snapshot = useAra((s) => s.snapshot);
 
   const unlocked = useRef(false);
   const seen = useRef(new Set<string>());
@@ -261,27 +268,30 @@ export function SoundPlayer(): null {
   const lastReminderAt = useRef(0);
   const recentActivity = useRef<number[]>([]);
   const soundOnRef = useRef(soundOn);
-  const snapshotRef = useRef(snapshot);
   soundOnRef.current = soundOn;
-  snapshotRef.current = snapshot;
 
-  /** Eén poort voor alle geluid: uit staat uit, en de rem zit hier. */
-  const emit = useRef((voice: Voice) => {
-    if (!soundOnRef.current || !unlocked.current) return;
+  /**
+   * Eén poort voor alle geluid: uit staat uit, en de rem zit hier. Geeft terug
+   * of er werkelijk iets klonk — de herinneringslus moet weten of hij zijn
+   * klok mag bijzetten.
+   */
+  const emit = useRef((voice: Voice): boolean => {
+    if (!soundOnRef.current || !unlocked.current) return false;
     const night = isNight();
-    if (night && !nightAllows(voice)) return;
+    if (night && !nightAllows(voice)) return false;
     const now = Date.now();
-    if (now - lastVoiceAt.current[voice] < COOLDOWN_MS[voice]) return;
+    if (now - lastVoiceAt.current[voice] < COOLDOWN_MS[voice]) return false;
     budget.current = budget.current.filter((t) => now - t < BUDGET_WINDOW_MS);
     // Een vraag mag door het budget heen: liever één toon te veel dan een
     // escalatie die je niet hoort omdat er net veel gebeurde.
-    if (voice !== 'alert' && budget.current.length >= BUDGET_MAX) return;
+    if (voice !== 'alert' && budget.current.length >= BUDGET_MAX) return false;
     budget.current.push(now);
     lastVoiceAt.current[voice] = now;
     speak(voice, night ? 0.45 : 1);
+    return true;
   });
 
-  // Ontgrendelen op de eerste echte interactie. De ⇅-knop in de balk is zelf al
+  // Ontgrendelen op de eerste echte interactie. De 🔔-knop in de balk is zelf al
   // zo'n klik, dus wie geluid aanzet hoort meteen het eerstvolgende event.
   useEffect(() => {
     if (!soundOn || unlocked.current) return;
@@ -337,26 +347,29 @@ export function SoundPlayer(): null {
     if (best) emit.current(best);
   }, [effects, soundOn]);
 
-  // De teller uit de snapshot is de tweede bron voor een vraag: een escalatie
-  // die via een herstelde verbinding of hydrate binnenkomt heeft geen effect-rij,
-  // maar wacht wél op een mens.
-  useEffect(() => {
-    const count = snapshot.counters.needsHuman;
-    const prev = prevNeedsHuman.current;
-    prevNeedsHuman.current = count;
-    if (prev === null) return; // eerste meting is de nulstand, geen nieuws
-    if (count > prev) emit.current('alert');
-  }, [snapshot]);
-
-  // Trage lus: drone bijregelen en blijven herinneren zolang er iemand wacht.
+  /**
+   * Trage lus: drone bijregelen, de wacht-teller lezen en blijven herinneren.
+   *
+   * De snapshot wordt hier opgehaald in plaats van geabonneerd. Een abonnement
+   * zou deze component bij élke gebeurtenis in de wereld opnieuw laten renderen,
+   * en dat is precies tijdens een drukke stroom — voor een laag die alleen maar
+   * hoeft te weten hóéveel er wacht, is twee seconden vertraging gratis.
+   */
   useEffect(() => {
     if (!soundOn) return;
     const tick = (): void => {
       const now = Date.now();
       recentActivity.current = recentActivity.current.filter((t) => now - t < 20_000);
+      const snapshot = useAra.getState().snapshot;
+      const wachtenden = snapshot.counters.needsHuman;
+      // Een escalatie die via hydrate of een herstelde verbinding binnenkomt
+      // heeft geen effect-rij, maar wacht wél op een mens.
+      const prev = prevNeedsHuman.current;
+      prevNeedsHuman.current = wachtenden;
+      if (prev !== null && wachtenden > prev) emit.current('alert');
       const e = engine;
       if (e && unlocked.current) {
-        const running = Object.values(snapshotRef.current.sessions).filter(
+        const running = Object.values(snapshot.sessions).filter(
           (s) => s.status === 'working',
         ).length;
         const drukte = Math.max(
@@ -373,12 +386,11 @@ export function SoundPlayer(): null {
           if (target === 0 && e.ambient.gain.gain.value < 0.0005) stopAmbient(e);
         }
       }
-      if (
-        snapshotRef.current.counters.needsHuman > 0 &&
-        now - lastReminderAt.current > REMINDER_MS
-      ) {
-        lastReminderAt.current = now;
-        emit.current('alert');
+      // Alleen de klok bijzetten als de toon ook echt klonk; anders zou een
+      // geblokkeerde herinnering (nog niet ontgrendeld, cooldown) vijf minuten
+      // stilte kopen terwijl er iemand wacht.
+      if (wachtenden > 0 && now - lastReminderAt.current > REMINDER_MS) {
+        if (emit.current('alert')) lastReminderAt.current = now;
       }
     };
     const id = window.setInterval(tick, 2_000);

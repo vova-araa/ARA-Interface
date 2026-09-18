@@ -8,6 +8,17 @@
   --text-dim: #8b95a5;
   --accent: #ff6b57; /* coral */
   --amber: #ffb020;
+
+  /* Veilige zones van de telefoon (notch, home-indicator, afgeronde hoeken).
+     Als variabele, want env() kan niet in een calc() die zelf weer in een
+     var() zit op oudere WebKit, en zo staat de fallback (0px) op één plek. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  /* Kleinste vlak dat een duim betrouwbaar raakt (Apple HIG). Alles wat je op
+     de telefoon moet kunnen indrukken haalt dit, ook als het er kleiner uitziet. */
+  --tap: 44px;
 }
 
 * { box-sizing: border-box; }
@@ -23,6 +34,19 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
 }
 
+/* 100% van de body is op iOS Safari de *grote* viewport (zonder adresbalk);
+   100dvh is wat je écht ziet. Zonder dit staan de onderste 60–90px van elk
+   bottom-sheet achter de adresbalk. */
+html, body, #root { height: 100dvh; }
+
+/* `hidden` is stiekem wél scrollbaar: de browser scrolt zo'n doos automatisch
+   als je een knop focust die er net buiten valt. Dat gebeurde: op 390px paste
+   de knoppenrij niet, en één tik op ☰ schoof de héle app 55px naar links —
+   titel weg, knop half buiten beeld, wereld scheef. `clip` maakt geen
+   scrollcontainer, dus dat kan niet meer. De layout eronder zorgt dat er ook
+   niets meer buiten valt; dit is het vangnet. */
+#root { overflow: clip; }
+
 .app { position: relative; width: 100%; height: 100%; }
 .app > div:first-child { position: absolute !important; inset: 0; }
 
@@ -34,7 +58,11 @@ html, body, #root {
   align-items: center;
   gap: 16px;
   padding: 10px 14px;
-  padding-top: calc(10px + env(safe-area-inset-top));
+  padding-top: calc(10px + var(--safe-t));
+  /* Liggend zit de notch links of rechts — zonder deze twee valt de titel of
+     de knoppenrij eronder. */
+  padding-left: calc(14px + var(--safe-l));
+  padding-right: calc(14px + var(--safe-r));
   background: linear-gradient(to bottom, rgba(13,15,18,0.92), rgba(13,15,18,0.55) 75%, transparent);
   pointer-events: none;
   z-index: 20;
@@ -59,6 +87,9 @@ html, body, #root {
   padding: 6px 10px;
   cursor: pointer;
   font-size: 13px;
+  /* Zonder dit wacht iOS 300ms op een mogelijke dubbeltik voordat de knop
+     reageert — dat voelt als een haperende app, niet als een trage knop. */
+  touch-action: manipulation;
 }
 .btn:hover { border-color: var(--accent); }
 .btn-active { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -189,7 +220,7 @@ html, body, #root {
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
-  padding-top: env(safe-area-inset-top);
+  padding-top: var(--safe-t);
 }
 .ov-header { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
 .ov-sub { flex: 1; color: var(--text-dim); font-size: 13px; }
@@ -249,7 +280,6 @@ html, body, #root {
 .ticker-row:last-child { color: var(--text); }
 .ticker-error { color: var(--amber); }
 @keyframes ticker-in { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
-@media (max-width: 800px) { .ticker { display: none; } }
 
 /* ── Takenbord ───────────────────────────── */
 .board {
@@ -280,10 +310,6 @@ html, body, #root {
 .board-title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-meta { color: var(--text-dim); font-size: 11px; flex-shrink: 0; }
 .board-sub { color: var(--text-dim); font-size: 11.5px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 800px) {
-  .board { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-height: 70vh; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); z-index: 19; }
-  .minimap { display: none; }
-}
 
 /* ── Token usage ─────────────────────────── */
 .usage { border-top: 1px solid var(--border); padding: 6px 10px; }
@@ -316,9 +342,10 @@ html, body, #root {
   backdrop-filter: blur(8px);
   cursor: pointer;
   z-index: 13;
-}
-@media (max-width: 800px) {
-  .minimap { display: none; }
+  /* Maat staat hier en niet als inline-style in de component, zodat de
+     telefoon hem kleiner kan zetten. */
+  width: 148px;
+  height: 148px;
 }
 
 /* ── Time scrubber ───────────────────────── */
@@ -342,10 +369,6 @@ html, body, #root {
   accent-color: var(--accent);
 }
 .scrubber-label { color: var(--text-dim); font-size: 12px; min-width: 42px; text-align: right; }
-@media (max-width: 800px) {
-  .scrubber { bottom: calc(64px + env(safe-area-inset-bottom)); }
-  .scrubber input[type='range'] { width: 130px; }
-}
 
 /* ── Banners / pulse / bubbles ───────────── */
 .banner {
@@ -403,44 +426,7 @@ html, body, #root {
   opacity: 0.6;
   margin: 0 auto;
 }
-@media (max-width: 800px) {
-  .grip { display: block; padding: 8px 0 2px; touch-action: none; }
-  .sheet-opener {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    left: 25%;
-    right: 25%;
-    bottom: 0;
-    height: 26px;
-    padding-bottom: env(safe-area-inset-bottom);
-    z-index: 12;
-  }
-}
 
-/* ── Mobile (≤800px): bottom sheet ───────── */
-@media (max-width: 800px) {
-  .topbar { gap: 8px; padding: 8px 10px; padding-top: calc(8px + env(safe-area-inset-top)); }
-  .topbar-title { font-size: 13px; }
-  .panel {
-    top: auto;
-    left: 0; right: 0; bottom: 0;
-    width: auto;
-    max-height: 55vh;
-    border-radius: 16px 16px 0 0;
-    border-bottom: none;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .drawer {
-    left: 0; right: 0; bottom: 0;
-    width: auto;
-    max-height: 60vh;
-    border-radius: 16px 16px 0 0;
-    z-index: 18;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-}
 
 /* ── Kantoren: interieur per project ──────────────────────────────────── */
 .office-overlay {
@@ -452,13 +438,17 @@ html, body, #root {
   grid-template-rows: 56px 1fr;
   background: #120b28;
   color: #ece7ff;
+  /* Het kantoor is fixed en dekt het hele scherm: zonder deze twee loopt de
+     kop onder de notch en het chatveld onder de home-indicator. */
+  padding-top: var(--safe-t);
+  padding-bottom: var(--safe-b);
 }
 .office-topbar {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 0 14px;
+  padding: 0 calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l));
   background: rgba(24, 15, 52, 0.96);
   border-bottom: 1px solid rgba(150, 120, 255, 0.25);
 }
@@ -680,12 +670,6 @@ html, body, #root {
 .action-detail { font-size: 12px; color: var(--text-dim); margin-top: 3px; white-space: pre-wrap; }
 .action-buttons { display: flex; gap: 6px; margin-top: 8px; }
 .btn-strong { background: var(--accent); border-color: var(--accent); color: #fff; }
-@media (max-width: 800px) {
-  .actions {
-    top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 72vh;
-    border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); z-index: 19;
-  }
-}
 
 /* ── Tabstrook boven de rechterkolom ──────────────────────────────────────
    Alleen zichtbaar als er een paneel open staat: is alles dicht, dan is de
@@ -737,6 +721,256 @@ html, body, #root {
 .sidetab-urgent { color: #ff9b8f; }
 .sidetab-urgent .sidetab-badge { background: rgba(255, 107, 94, 0.28); color: #ffd7d1; }
 
-@media (max-width: 860px) {
-  .sidetabs { left: 8px; right: 8px; width: auto; }
+
+/* ══ Telefoon ════════════════════════════════════════════════════════════
+   Eén plek voor alles wat op een telefoon anders moet. Het stond eerst
+   verspreid over acht losse @media-blokken met drie verschillende
+   breekpunten (800px, 860px, 900px); tussen 801 en 860 kreeg je daardoor een
+   tabstrook over de volle breedte boven een paneel van 352px. Eén breekpunt,
+   één blok, in de leesvolgorde staand ná alles wat het overschrijft.
+
+   Twee standen, want een telefoon heeft er twee:
+   • staand  — de wereld boven, een bottom sheet onder je duim, de tabstrook
+               vastgeplakt op de bovenrand van die sheet.
+   • liggend — 390px hoog: een sheet van 56% laat niets van de wereld over.
+               Dan wordt het een smalle kolom rechts, zoals op de desktop. */
+
+@media (max-width: 800px) {
+  :root {
+    /* Hoogte van de balk: twee regels (knoppen + cijfers). Panelen en minimap
+       hangen eraan, dus staat hij hier als getal in plaats van drie keer
+       overgeschreven te worden. */
+    --topbar-h: 78px;
+    --tabbar-h: 52px;
+    /* dvh, niet vh: met vh steekt de sheet op iOS Safari onder de adresbalk. */
+    --sheet-h: 56dvh;
+  }
+
+  /* ── Balk: twee regels ───────────────────────────────────────────────
+     Op één regel paste de knoppenrij niet naast de cijfers; de cijfers
+     schoven dan buiten beeld in een scroller die niemand ziet. En juist die
+     cijfers (wacht / bezig / fout / klaar) zijn waarvoor je je telefoon
+     pakt. Dus: knoppen boven, cijfers eronder over de volle breedte. */
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px;
+    row-gap: 4px;
+    padding: 6px calc(10px + var(--safe-r)) 6px calc(10px + var(--safe-l));
+    padding-top: calc(6px + var(--safe-t));
+  }
+  /* "⬡ ARA World" kost 95px voor informatie die je al weet als je naar je
+     eigen scherm kijkt. Het merkteken blijft, het woord gaat weg — en die
+     95px zijn precies wat de knoppenrij tekort kwam. De demo/replay-chips
+     zetten hun eigen font-size en blijven dus zichtbaar. */
+  .topbar-title { font-size: 0; display: flex; align-items: center; }
+  .topbar-title::before { content: '⬡'; font-size: 17px; }
+  .topbar-stats { order: 3; flex: 0 0 100%; gap: 12px; font-size: 12.5px; }
+  .topbar-actions { gap: 6px; margin-left: auto; }
+
+  .btn {
+    min-height: var(--tap);
+    min-width: var(--tap);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 9px;
+    font-size: 15px;
+  }
+
+  /* ── Tabstrook: op de sheet, niet los erboven ────────────────────────
+     Hij stond op 54px van de bovenrand terwijl het paneel dat hij bedient
+     onderaan het scherm hing: je duim was 700px van de tabs vandaan. Nu is
+     hij de kop van de sheet — en tegelijk de enige bediening die je met één
+     duim haalt. */
+  .sidetabs {
+    top: auto;
+    bottom: calc(var(--sheet-h) + var(--safe-b) - 1px);
+    left: 0;
+    right: 0;
+    width: auto;
+    height: auto;
+    padding: 3px 6px;
+    gap: 4px;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+  }
+  /* 36px is een vingertop, geen duim. */
+  .sidetab { min-height: 46px; font-size: 13px; border-radius: 12px; }
+  .sidetab-close { flex: 0 0 var(--tap); font-size: 16px; }
+
+  /* ── De sheets ───────────────────────────────────────────────────────
+     Alle vier even hoog. Wisselt de sheet van inhoud, dan mag de tabstrook
+     niet meespringen — anders staat de tab die je net indrukte ergens
+     anders dan je duim hem verwacht. */
+  .panel, .board, .actions, .drawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: calc(var(--sheet-h) + var(--safe-b));
+    max-height: none;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: var(--safe-b);
+  }
+  .grip { display: block; padding: 6px 0 4px; touch-action: none; }
+
+  /* Filterchips: één rij die je opzij veegt. Wrappend kostten ze drie regels
+     van een sheet die maar 56% hoog is — meer ruimte voor het filter dan
+     voor wat je filtert. */
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips .chip { min-height: 40px; display: inline-flex; align-items: center; padding: 4px 14px; font-size: 13px; }
+  .thread { min-height: var(--tap); padding: 10px 8px; }
+  .usage-toggle { min-height: var(--tap); }
+  /* Onder 16px zoomt iOS het hele scherm in zodra je een veld aantikt. */
+  .search, input, select, textarea { font-size: 16px; }
+
+  /* ── Overzicht ───────────────────────────────────────────────────────
+     Vult staand het scherm (het is een dashboard), maar laat de tabstrook
+     onderaan staan zodat je er met dezelfde duimbeweging weer uit komt.
+     Het :has() hangt aan de volgorde in App.tsx: .overview is een latere
+     buur van .sidetabs. */
+  .overview {
+    inset: calc(var(--topbar-h) + var(--safe-t)) 0 calc(var(--tabbar-h) + var(--safe-b)) 0;
+    border-radius: 0;
+    padding-top: 0;
+  }
+  .sidetabs:has(~ .overview) { bottom: var(--safe-b); }
+  .ov-header { padding: 12px 14px; }
+  .ov-grid { grid-template-columns: 1fr; gap: 10px; padding: 12px 14px; }
+
+  /* ── Minimap: blijft staan, maar klein ───────────────────────────────
+     Was verborgen op mobiel. Dat was de verkeerde kant op: op een telefoon
+     is de camera juist het lastigste onderdeel (slepen op een klein vlak
+     dat ook nog pods bevat die je per ongeluk selecteert), en de minimap is
+     de enige manier om in één tik naar een sessie aan de andere kant van de
+     wereld te springen. 148px was te groot voor 390px breed; 104px past
+     naast de balk zonder de wereld te verstoppen. De trefzone rekent met de
+     gemeten doos, dus schalen breekt het klikken niet (zie Minimap.tsx). */
+  .minimap {
+    width: 104px;
+    height: 104px;
+    top: calc(var(--topbar-h) + var(--safe-t) + 6px);
+    left: calc(8px + var(--safe-l));
+    border-radius: 10px;
+  }
+
+  .ticker { display: none; }
+
+  .scrubber { bottom: calc(var(--tap) + var(--safe-b) + 8px); }
+  .scrubber input[type='range'] { width: 130px; height: 28px; }
+
+  /* De opener is 26px hoog gebouwd voor een grijsje van 5px. Je duim is
+     dikker dan het streepje: het vlak wordt 44px, het streepje blijft klein. */
+  .sheet-opener {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    left: 20%;
+    right: 20%;
+    bottom: 0;
+    height: calc(var(--tap) + var(--safe-b));
+    padding-bottom: var(--safe-b);
+    z-index: 12;
+  }
+
+  /* Kantoor: tikdoelen en de home-indicator. */
+  .office-tabs button { min-height: var(--tap); }
+  .office-row { min-height: var(--tap); }
+  .office-chat-input input, .office-chat-input button { min-height: var(--tap); }
+}
+
+/* ── Liggend op een telefoon ────────────────────────────────────────────
+   Breed genoeg om de desktop-indeling te matchen (844px, 932px), maar met
+   390 of 430px hoogte: een bottom sheet van 56% laat dan niets over en de
+   notch zit ineens links of rechts in plaats van boven. Dus: smalle kolom
+   rechts, alles binnen de veilige zone, knoppen nog steeds 44px.
+   De max-width houdt echte desktopvensters (ook lage) hierbuiten. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+  :root { --topbar-h: 50px; --col-w: 316px; }
+
+  .topbar {
+    flex-wrap: nowrap;
+    gap: 10px;
+    row-gap: 0;
+    padding: 3px calc(10px + var(--safe-r)) 3px calc(10px + var(--safe-l));
+    padding-top: calc(3px + var(--safe-t));
+  }
+  .topbar-title { font-size: 0; display: flex; align-items: center; }
+  .topbar-title::before { content: '⬡'; font-size: 16px; }
+  .topbar-stats { order: 0; flex: 1 1 auto; gap: 12px; font-size: 12.5px; }
+  .topbar-actions { gap: 6px; margin-left: 0; }
+  .btn {
+    min-height: var(--tap);
+    min-width: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+
+  .sidetabs {
+    top: calc(var(--topbar-h) + var(--safe-t));
+    right: calc(8px + var(--safe-r));
+    left: auto;
+    bottom: auto;
+    width: var(--col-w);
+    height: auto;
+    padding: 3px;
+    border-radius: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidetab { min-height: var(--tap); font-size: 12.5px; }
+  .sidetab-close { flex: 0 0 38px; font-size: 15px; }
+
+  .panel, .board, .actions, .drawer {
+    top: calc(var(--topbar-h) + var(--safe-t) + 58px);
+    right: calc(8px + var(--safe-r));
+    left: auto;
+    bottom: calc(8px + var(--safe-b));
+    width: var(--col-w);
+    height: auto;
+    max-height: none;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding-bottom: 0;
+  }
+  /* Staand sluit je de sheet door hem omlaag te vegen; een kolom rechts veeg
+     je nergens heen, dus dat streepje zou alleen ruimte kosten. */
+  .grip { display: none; }
+  .sheet-opener { display: none; }
+
+  .overview {
+    inset: calc(var(--topbar-h) + var(--safe-t) + 58px) calc(8px + var(--safe-r))
+           calc(8px + var(--safe-b)) calc(8px + var(--safe-l));
+    border-radius: 14px;
+    padding-top: 0;
+  }
+  .sidetabs:has(~ .overview) { bottom: auto; }
+  .ov-header { padding: 10px 14px; }
+  .ov-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; padding: 12px 14px; }
+
+  .minimap {
+    width: 112px;
+    height: 112px;
+    top: calc(var(--topbar-h) + var(--safe-t) + 6px);
+    left: calc(8px + var(--safe-l));
+    border-radius: 10px;
+  }
+  .ticker { display: none; }
+  .scrubber { bottom: calc(8px + var(--safe-b)); }
+  .scrubber input[type='range'] { width: 160px; }
+
+  /* Kantoor liggend: het interieur naast de lijst, niet erboven — 42vh is
+     hier 164px en dan zie je van de werkvloer alleen de vloer. */
+  .office-overlay { grid-template-columns: 1fr minmax(272px, 36%); grid-template-rows: 46px 1fr; }
+  .office-side { border-left: 1px solid rgba(150, 120, 255, 0.22); border-top: none; }
+  .office-chat { max-height: 46vh; }
+  .office-tabs button { min-height: 40px; }
 }

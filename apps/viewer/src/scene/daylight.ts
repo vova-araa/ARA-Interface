@@ -373,7 +373,7 @@ const WIND_FACTOR: Record<Season, number> = { winter: 1.15, lente: 0.95, zomer: 
 const BARENESS: Record<Season, number> = { winter: 1, lente: 0.15, zomer: 0, herfst: 0.35 };
 const LEAF: Record<Season, string> = {
   winter: '#8a9aa6',
-  lente: '#ffd9e4', // abrikozenbloesem
+  lente: '#9ccf62', // fris uitlopend blad; de bloesem zit per boom in Seasons
   zomer: '#4f8f3d',
   herfst: '#d98b2b',
 };
