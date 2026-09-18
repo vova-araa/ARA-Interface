@@ -23,7 +23,40 @@ interface Petal {
   offset: number;
 }
 
-const PETAL_COLORS = ['#ffd9e2', '#ffc4d6', '#fbe0c4', '#ffe9f0'];
+const PETAL_COLORS = [
+  new THREE.Color('#ffd9e2'),
+  new THREE.Color('#ffc4d6'),
+  new THREE.Color('#fbe0c4'),
+  new THREE.Color('#ffe9f0'),
+];
+
+const PETAL_GEO = new THREE.PlaneGeometry(0.22, 0.15);
+/**
+ * Géén `vertexColors`. Met die vlag aan verwacht de shader een
+ * `color`-attribuut op de geometrie; dat is er niet, dus vColor begint op
+ * (0,0,0) en de kleuren uit `setColorAt` worden met nul vermenigvuldigd.
+ * instanceColor werkt juist zónder die vlag. Dit viel nooit op omdat de
+ * emissive de blaadjes alsnog roze houdt — ze toonden dus één kleur in plaats
+ * van de vier die hier gezet worden.
+ */
+const PETAL_MAT = new THREE.MeshStandardMaterial({
+  side: THREE.DoubleSide,
+  roughness: 0.6,
+  emissive: new THREE.Color('#ffd0dd'),
+  emissiveIntensity: 0.25,
+  transparent: true,
+  opacity: 0.95,
+  depthWrite: false,
+});
+
+// Rekenobjecten buiten de frame-lus: deze draaien 160 keer per frame, en een
+// nieuwe Matrix4 per blaadje per frame is precies het afval dat je pas merkt
+// als de hele wereld hapert.
+const matrix = new THREE.Matrix4();
+const quat = new THREE.Quaternion();
+const euler = new THREE.Euler();
+const pos = new THREE.Vector3();
+const scale = new THREE.Vector3(1, 1, 1);
 
 export function Petals(): JSX.Element {
   const ref = useRef<THREE.InstancedMesh>(null);
@@ -45,60 +78,39 @@ export function Petals(): JSX.Element {
     [],
   );
 
-  // Kleur per instance één keer zetten.
-  const colorInit = useRef(false);
-
   useFrame(({ clock }) => {
     const mesh = ref.current;
     if (!mesh) return;
     const t = clock.elapsedTime;
-    const m = new THREE.Matrix4();
-    const q = new THREE.Quaternion();
-    const e = new THREE.Euler();
-    const pos = new THREE.Vector3();
-    const scl = new THREE.Vector3(1, 1, 1);
-    petals.forEach((p, i) => {
+    for (let i = 0; i < petals.length; i += 1) {
+      const p = petals[i]!;
       const fallen = (t * p.fallSpeed + p.offset) % FALL;
-      const y = TOP - fallen;
       pos.set(
         p.x + Math.sin(t * 0.6 + p.offset) * p.swayAmp + p.drift * fallen * 0.3,
-        y,
+        TOP - fallen,
         p.z + Math.cos(t * 0.5 + p.offset) * p.swayAmp,
       );
-      e.set(t * p.spin, t * p.spin * 0.7 + p.offset, t * p.spin * 0.4);
-      q.setFromEuler(e);
-      m.compose(pos, q, scl);
-      mesh.setMatrixAt(i, m);
-      if (!colorInit.current) {
-        mesh.setColorAt(i, new THREE.Color(PETAL_COLORS[i % PETAL_COLORS.length]!));
-      }
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    if (!colorInit.current && mesh.instanceColor) {
-      mesh.instanceColor.needsUpdate = true;
-      colorInit.current = true;
+      euler.set(t * p.spin, t * p.spin * 0.7 + p.offset, t * p.spin * 0.4);
+      quat.setFromEuler(euler);
+      matrix.compose(pos, quat, scale);
+      mesh.setMatrixAt(i, matrix);
     }
+    mesh.instanceMatrix.needsUpdate = true;
   });
 
   return (
-    <instancedMesh ref={ref} args={[undefined, undefined, COUNT]} frustumCulled={false}>
-      {/* klein plat blaadje — iets emissief zodat het ook in schaduw oplicht */}
-      <planeGeometry args={[0.22, 0.15]} />
-      {/* Géén vertexColors. Met `vertexColors` aan verwacht de shader een
-          `color`-attribuut op de geometrie; dat is er niet, dus vColor begint
-          op (0,0,0) en de kleuren uit setColorAt worden met nul
-          vermenigvuldigd. instanceColor werkt juist zónder die vlag. Dit viel
-          nooit op omdat de emissive de blaadjes alsnog roze houdt — ze toonden
-          dus één kleur in plaats van de vijf die hier gezet worden. */}
-      <meshStandardMaterial
-        side={THREE.DoubleSide}
-        roughness={0.6}
-        emissive="#ffd0dd"
-        emissiveIntensity={0.25}
-        transparent
-        opacity={0.95}
-        depthWrite={false}
-      />
-    </instancedMesh>
+    <instancedMesh
+      ref={ref}
+      args={[PETAL_GEO, PETAL_MAT, COUNT]}
+      frustumCulled={false}
+      onUpdate={(mesh) => {
+        // Kleur per blaadje: één keer bij het opzetten, niet elke frame
+        // opnieuw met een vlag in de hete lus.
+        for (let i = 0; i < COUNT; i += 1) {
+          mesh.setColorAt(i, PETAL_COLORS[i % PETAL_COLORS.length]!);
+        }
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      }}
+    />
   );
 }
