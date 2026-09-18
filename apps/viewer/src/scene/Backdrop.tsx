@@ -8,30 +8,28 @@ import { useDaylight } from './daylight.ts';
 /**
  * Ararat, de hemelkoepel en de wolken.
  *
- * **Waarom de bergen opnieuw zijn gebouwd.** Ze waren gladde kegels met een
- * vaste kleur, met hun voet boven de horizon. Onder deze camera (ortho, ~39°
- * neerkijkend) is dat geen berg: van een kegel met straal 10 en hoogte 9,5 zie
- * je vooral het grondvlak, en dat projecteert als een ellips. Op een screenshot
- * las Ararat daardoor als een paarse schijf die naast de wereld in de lucht
- * hing — precies wat de eigenaar zag.
+ * **Waarom de bergen zijn zoals ze zijn.** Twee fouten, in deze volgorde.
  *
- * Drie dingen maken er een berg van, en alle drie volgen uit diezelfde hoek:
+ * De eerste was de *vorm*: gladde kegels met één vlakke kleur en hun voet boven
+ * de horizon. Dat leest onder deze camera als een paarse schijf. Daarvoor zijn
+ * `peak()` en het horizonvlak gemaakt — geribde flanken, een holle helling, een
+ * gekartelde sneeuwgrens, het licht in de hoekpunten gebakken, en de voet onder
+ * y = −8,6 zodat alleen het silhouet erboven overblijft.
  *
- * 1. **Slank.** Wat je van een berg ziet is `hoogte·cos(39°)` omhoog tegen
- *    `2·straal·sin(39°)` breed. Pas boven ongeveer 2,5:1 wint de top van de
- *    voet en ontstaat er een silhouet. Masis staat nu op ~3:1.
- * 2. **De voet onder de horizon.** De voet zit onder het horizonvlak (y=-8,6),
- *    dus je ziet alleen de driehoek erboven. Daarmee staat de berg ook ergens
- *    op: hij komt op tegen dezelfde vlakte waar de wereld op rust, in plaats
- *    van ernaast te zweven.
- * 3. **Facetten.** Weinig segmenten, ribben over de flanken, en de belichting
- *    in de hoekpunten gebakken naar dezelfde zon als de scene (18, 26, 10).
- *    Eén vlakke kleur geeft een blob; licht en schaduw geven een vorm — en dit
- *    kost geen enkel licht, want het materiaal is basic.
+ * De tweede was de *plek*, en die bleef staan toen de vorm al klopte. Een berg
+ * die verder naar achteren staat, komt in beeld omhoog: 0,44 eenheid per
+ * eenheid diepte (zie `placeSummit`). Masis stond 27 eenheden achter de wereld
+ * en 19,6 hoog, en dus kwam zijn top negen eenheden boven de bovenrand uit. Op
+ * het scherm bleef er één vlak stuk flank over — geen top, geen sneeuwgrens,
+ * geen silhouet. Precies wat de eigenaar zag, en precies wat een mooiere kegel
+ * niet oplost.
  *
- * De hele massief (Masis, Sis, het zadel ertussen en de verre keten) is één
+ * Daarom staat elke top hier in beeldtermen beschreven (`r`, `u`) en rekent
+ * `placeSummit` de wereldplek erbij. Wat je opgeeft is wat je ziet.
+ *
+ * De hele massief (Masis, Sis, het zadel ertussen en de keten eromheen) is één
  * samengevoegde geometrie met hoekpuntkleuren: één tekenopdracht voor alle
- * bergen samen, waar het er eerst vijf waren.
+ * bergen samen.
  */
 
 // ── Bergbouw ────────────────────────────────────────────────────────────────
@@ -161,21 +159,88 @@ function massif(specs: PeakSpec[]): THREE.BufferGeometry {
 const HORIZON_Y = -8.6;
 
 /**
- * Masis (5137 m) en Sis (3896 m) met het zadel ertussen, plus een verre keten
- * eromheen. De dubbele top ís Ararat: één piek is zomaar een berg.
+ * Waar een top op het scherm uitkomt, terugvertaald naar wereldcoördinaten.
+ *
+ * Onder de ortho-camera (positie 14,16,14, kijkend naar de oorsprong) projecteert
+ * een wereldpunt op
+ *
+ *     r = 0,7071·(x − z)                 — naar rechts, in wereldeenheden
+ *     u = −0,4445·(x + z) + 0,7780·y     — omhoog, in wereldeenheden
+ *
+ * De rustzoom is `min(breedte, hoogte) / 27,2`, dus op 1440×900 is het halve
+ * beeld 21,8 breed en **13,6 hoog**.
+ *
+ * Dat tweede getal is waar de vorige versie op stukliep. Masis stond 19,6 hoog
+ * met zijn voet 27 eenheden achter de wereld; die top komt uit op u = 23,5 —
+ * ruim negen eenheden bóven de bovenrand. Je zag dus de flank en nooit de top,
+ * en een flank zonder top is precies wat de eigenaar beschreef: een paarse muur
+ * naast de wereld. Slanker maken hielp niet, want de fout zat niet in de vorm
+ * maar in de plek: elke eenheid die een berg verder naar achteren gaat, duwt
+ * hem 0,44 eenheid omhoog in beeld.
+ *
+ * Daarom wordt een berg hier neergezet op de plek waar zijn **top** hoort te
+ * staan, en niet op een plek waarvan je maar moet afwachten wat ervan te zien
+ * is. `lean` verschuift de top in lokale x, dus die wordt er meteen af gerekend.
  */
-const ARARAT_GEO = massif([
-  // Masis — de grote. 19,6 hoog op straal 6,4 ≈ 3:1.
-  { x: 0, z: 0, base: HORIZON_Y - 1.2, height: 19.6, radius: 6.4, snow: 0.58, seed: 'masis', segments: 10, rings: 4, lean: 0.9 },
+const P_R = 0.70711;
+const P_S = -0.44450;
+const P_Y = 0.77796;
+
+function placeSummit(r: number, u: number, base: number, height: number, lean: number): {
+  x: number;
+  z: number;
+} {
+  const d = r / P_R; // x − z
+  const s = (u - P_Y * (base + height)) / P_S; // x + z
+  return { x: (s + d) / 2 - lean, z: (s - d) / 2 };
+}
+
+/** Een top, beschreven in beeldtermen; de wereldplek volgt eruit. */
+interface Placed extends Omit<PeakSpec, 'x' | 'z'> {
+  /** Waar de top hoort te staan: naar rechts en omhoog, in wereldeenheden. */
+  r: number;
+  u: number;
+}
+
+function placed(specs: Placed[]): THREE.BufferGeometry {
+  return massif(
+    specs.map(({ r, u, ...rest }) => ({
+      ...rest,
+      ...placeSummit(r, u, rest.base, rest.height, rest.lean ?? 0),
+    })),
+  );
+}
+
+/** Hoogste top die nog vrij van de bovenbalk blijft (48 px ≈ 1,45 eenheid). */
+const SKY_TOP = 11.4;
+
+/**
+ * Masis (5137 m) en Sis (3896 m) met het zadel ertussen, plus een keten die om
+ * de hele horizon doorloopt. De dubbele top ís Ararat: één piek is zomaar een
+ * berg.
+ *
+ * De toppen staan links van het midden, want dáár is lucht: de wereldschijf
+ * komt in het midden tot u ≈ 9,6 en bij r = −10 nog maar tot 6,8. Van Masis is
+ * daardoor ruim vier eenheden silhouet te zien in plaats van een strook flank.
+ * De verre keten loopt door tot achter de rechterhelft, zodat de bergen áchter
+ * de wereld staan in plaats van ernaast.
+ *
+ * Alle `snow`-grenzen liggen nu onder de horizonlijn van de wereldschijf: de
+ * sneeuwgrens moet zichtbaar zijn, anders is hij er niet.
+ */
+const ARARAT_GEO = placed([
+  // Masis — de grote, links. Top op 11,4: net onder de bovenbalk.
+  { r: -10.5, u: SKY_TOP, base: HORIZON_Y - 1.2, height: 8.2, radius: 6.6, snow: 0.42, seed: 'masis', segments: 11, rings: 5, lean: 0.7 },
   // Het zadel: laag en breed, zodat de twee toppen één massief vormen.
-  { x: 6.2, z: 1.1, base: HORIZON_Y - 1.2, height: 11.4, radius: 4.6, snow: 0.86, seed: 'zadel', segments: 8, rings: 3, lean: -0.4 },
-  // Sis — de kleine, rechts en iets naar voren.
-  { x: 10.4, z: 2.2, base: HORIZON_Y - 1.2, height: 14.6, radius: 3.9, snow: 0.66, seed: 'sis', segments: 9, rings: 4, lean: -0.7 },
-  // Verre keten: diepte achter de hoofdtoppen, opgelost in de nevel.
-  { x: -13.5, z: -6, base: HORIZON_Y - 1, height: 10.4, radius: 7.5, snow: 0.82, seed: 'keten-a', segments: 7, rings: 3, haze: 0.55, lean: 1.1 },
-  { x: -23, z: -2, base: HORIZON_Y - 1, height: 7.6, radius: 8.5, snow: 1, seed: 'keten-b', segments: 7, rings: 2, haze: 0.72 },
-  { x: 20, z: -5, base: HORIZON_Y - 1, height: 9.2, radius: 8, snow: 0.88, seed: 'keten-c', segments: 7, rings: 3, haze: 0.62, lean: -1.2 },
-  { x: 31, z: 1, base: HORIZON_Y - 1, height: 6.4, radius: 7, snow: 1, seed: 'keten-d', segments: 6, rings: 2, haze: 0.78 },
+  { r: -7.2, u: 9.4, base: HORIZON_Y - 1.2, height: 5.2, radius: 4.6, snow: 0.72, seed: 'zadel', segments: 8, rings: 3, lean: -0.35 },
+  // Sis — de kleine, rechts van Masis en iets naar voren.
+  { r: -4.0, u: 10.3, base: HORIZON_Y - 1.2, height: 6.4, radius: 4.4, snow: 0.5, seed: 'sis', segments: 9, rings: 4, lean: -0.55 },
+  // Keten: diepte naast en achter de hoofdtoppen, oplopend in de nevel.
+  { r: -17.5, u: 9.6, base: HORIZON_Y - 1.2, height: 5.6, radius: 6.2, snow: 0.66, seed: 'keten-a', segments: 7, rings: 3, haze: 0.45, lean: 0.8 },
+  { r: -21.0, u: 8.8, base: HORIZON_Y - 1.2, height: 4.8, radius: 6.0, snow: 0.8, seed: 'keten-b', segments: 7, rings: 2, haze: 0.62 },
+  { r: 3.0, u: 9.2, base: HORIZON_Y - 1.2, height: 5.0, radius: 5.8, snow: 0.74, seed: 'keten-c', segments: 7, rings: 3, haze: 0.58, lean: -0.6 },
+  { r: 10.5, u: 10.2, base: HORIZON_Y - 1.2, height: 6.0, radius: 7.0, snow: 0.6, seed: 'keten-d', segments: 8, rings: 3, haze: 0.4, lean: 0.5 },
+  { r: 18.0, u: 9.2, base: HORIZON_Y - 1.2, height: 4.6, radius: 6.2, snow: 0.78, seed: 'keten-e', segments: 6, rings: 2, haze: 0.68, lean: -0.9 },
 ]);
 
 /**
@@ -355,11 +420,11 @@ export function Backdrop(): JSX.Element {
         <meshBasicMaterial color={daylight.stops[3]} fog={false} />
       </mesh>
 
-      {/* Ararat: één massief, één tekenopdracht. Achter de wereld (de camera
-          kijkt richting -x/-z), ver genoeg om de hele horizon te vullen. */}
-      <group position={[-9, 0, -27]} rotation={[0, 0.22, 0]}>
-        <mesh geometry={ARARAT_GEO} material={ARARAT_MAT} dispose={null} />
-      </group>
+      {/* Ararat: één massief, één tekenopdracht. Geen groepsverschuiving meer —
+          elke top staat al op zijn eigen wereldplek, uitgerekend uit waar zijn
+          punt in beeld hoort te komen (zie `placeSummit`). Een offset hier zou
+          die rekensom stilletjes ongedaan maken. */}
+      <mesh geometry={ARARAT_GEO} material={ARARAT_MAT} dispose={null} />
 
       {/* Klein-Ararat aan de zuidwestrand: altijd in beeld, met de Ark erop */}
       <group position={[-7.2, -0.2, 12]}>
