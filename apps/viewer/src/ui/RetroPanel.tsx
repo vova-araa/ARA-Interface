@@ -6,7 +6,7 @@ import {
   type Retro,
   type RoleRow,
 } from '@ara/shared';
-import { withToken, type BoardTask } from '../api.ts';
+import { withToken, type BoardTask , loadRetro, loadTaskById } from '../api.ts';
 import { useAra } from '../store.ts';
 import { roleLabel } from './ChatPanel.tsx';
 
@@ -73,34 +73,6 @@ function durationString(ms: number): string {
   if (hours < 1) return `${Math.max(1, Math.round(ms / 60_000))} min`;
   if (hours < 48) return `${hours.toFixed(1).replace('.', ',')} uur`;
   return `${(hours / 24).toFixed(1).replace('.', ',')} dagen`;
-}
-
-/** Het rapport ophalen. `null` = niet gelukt; dan tonen we géén oude cijfers. */
-export async function loadRetro(days: number): Promise<Retro | null> {
-  try {
-    const res = await fetch(withToken(`/retro?days=${days}`));
-    if (!res.ok) return null;
-    return (await res.json()) as Retro;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Eén taak ophalen op id. Het bord laadt de laatste 100 taken, maar bewijs
- * wijst juist vaak naar ouder werk — dat is nu precies het werk dat blijft
- * liggen. Zonder deze ophaler zou "tik op een bevinding" de helft van de tijd
- * op een lege lijst uitkomen.
- */
-export async function loadTaskById(id: string): Promise<BoardTask | null> {
-  try {
-    const res = await fetch(withToken(`/tasks/${encodeURIComponent(id)}`));
-    if (!res.ok) return null;
-    const body = (await res.json()) as { ok?: boolean; task?: BoardTask };
-    return body.task ?? null;
-  } catch {
-    return null;
-  }
 }
 
 function RoleLine({ row, considered }: { row: RoleRow; considered: number }): JSX.Element {
@@ -212,7 +184,7 @@ export function RetroPanel({ onEvidence }: RetroPanelProps): JSX.Element {
   if (!live) {
     return (
       <div className="retro">
-        {head(demo ? 'demomodus' : 'geen verbinding')}
+        {head('niet gemeten')}
         <div className="empty">
           <div className="empty-title">{demo ? 'Demomodus' : 'Geen verbinding'}</div>
           <div className="empty-hint">

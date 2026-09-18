@@ -1,4 +1,4 @@
-import type { AraEvent, WorldConfig, WorldSnapshot } from '@ara/shared';
+import type { AraEvent, Retro, WorldConfig, WorldSnapshot } from '@ara/shared';
 import { useAra, type ChatMsg, type LatencyStat, type LiveStatus } from './store.ts';
 
 /**
@@ -283,5 +283,34 @@ export async function loadStats(): Promise<ProjectHourStats[]> {
     return res.stats;
   } catch {
     return [];
+  }
+}
+
+// ── Terugblik ───────────────────────────────────────────────────────────
+/** Het rapport ophalen. `null` = niet gelukt; dan tonen we géén oude cijfers. */
+export async function loadRetro(days: number): Promise<Retro | null> {
+  try {
+    const res = await fetch(withToken(`/retro?days=${days}`));
+    if (!res.ok) return null;
+    return (await res.json()) as Retro;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Eén taak ophalen op id. Het bord laadt de laatste 100 taken, maar bewijs
+ * wijst juist vaak naar ouder werk — dat is nu precies het werk dat blijft
+ * liggen. Zonder deze ophaler zou "tik op een bevinding" de helft van de tijd
+ * op een lege lijst uitkomen.
+ */
+export async function loadTaskById(id: string): Promise<BoardTask | null> {
+  try {
+    const res = await fetch(withToken(`/tasks/${encodeURIComponent(id)}`));
+    if (!res.ok) return null;
+    const body = (await res.json()) as { ok?: boolean; task?: BoardTask };
+    return body.task ?? null;
+  } catch {
+    return null;
   }
 }

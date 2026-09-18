@@ -12,7 +12,7 @@ import {
 import { projectPlacement } from '../placements.ts';
 import { ageString } from '../util.ts';
 import { openBoardRetro } from './BoardPanel.tsx';
-import { loadRetro } from './RetroPanel.tsx';
+import { loadRetro } from '../api.ts';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;

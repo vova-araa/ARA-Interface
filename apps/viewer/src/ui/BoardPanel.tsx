@@ -4,7 +4,8 @@ import { createUserTask, loadTasks, type BoardTask } from '../api.ts';
 import { useAra } from '../store.ts';
 import { ageString } from '../util.ts';
 import { openLeadershipChat, roleLabel } from './ChatPanel.tsx';
-import { loadTaskById, RetroPanel } from './RetroPanel.tsx';
+import { RetroPanel } from './RetroPanel.tsx';
+import { loadTaskById } from '../api.ts';
 
 const STATUS_LABEL: Record<BoardTask['status'], string> = {
   open: '🟡 Open',
