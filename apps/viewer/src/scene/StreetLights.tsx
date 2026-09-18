@@ -6,6 +6,7 @@ import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
 import { useDaylight } from './daylight.ts';
 import { buildRoads } from './roads.ts';
+import { LAKE_CENTER, LAKE_RADIUS } from './terrain.ts';
 
 /**
  * Lantaarns langs de wegen en op de districtpleinen.
@@ -25,8 +26,6 @@ import { buildRoads } from './roads.ts';
 
 // Zelfde meer als in HexGround/Traffic — die drie moeten hetzelfde blokkeren,
 // anders legt buildRoads hier een weg waar daar water ligt.
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 
 /** Bovenkant van een districtplatform; zie Blocks.tsx. */
 const PLATFORM_TOP = 0.31;

@@ -13,6 +13,7 @@ import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
 import { buildRoads, groundTop, openGround } from './roads.ts';
 import { useDaylight, type Daylight } from './daylight.ts';
+import { LAKE_CENTER, LAKE_RADIUS } from './terrain.ts';
 
 /**
  * Seizoenen — de achtergrond van de wereld, niet zijn toestand.
@@ -47,8 +48,6 @@ import { useDaylight, type Daylight } from './daylight.ts';
  * roads.ts, en om dezelfde reden: zonder deze twee getallen legt de winter
  * sneeuw ónder het wateroppervlak. Verschuift het meer daar, dan moet dit mee.
  */
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 /** Bovenkant van een watertegel (prisma van 0,22 op y=-0,06). */
 const LAKE_TOP = 0.05;
 

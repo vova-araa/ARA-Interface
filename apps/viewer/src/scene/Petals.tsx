@@ -84,9 +84,14 @@ export function Petals(): JSX.Element {
     <instancedMesh ref={ref} args={[undefined, undefined, COUNT]} frustumCulled={false}>
       {/* klein plat blaadje — iets emissief zodat het ook in schaduw oplicht */}
       <planeGeometry args={[0.22, 0.15]} />
+      {/* Géén vertexColors. Met `vertexColors` aan verwacht de shader een
+          `color`-attribuut op de geometrie; dat is er niet, dus vColor begint
+          op (0,0,0) en de kleuren uit setColorAt worden met nul
+          vermenigvuldigd. instanceColor werkt juist zónder die vlag. Dit viel
+          nooit op omdat de emissive de blaadjes alsnog roze houdt — ze toonden
+          dus één kleur in plaats van de vijf die hier gezet worden. */}
       <meshStandardMaterial
         side={THREE.DoubleSide}
-        vertexColors
         roughness={0.6}
         emissive="#ffd0dd"
         emissiveIntensity={0.25}

@@ -5,6 +5,7 @@ import { axialToWorld, axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS, type Wor
 import { HEX_SPACING } from '../placements.ts';
 import { buildRoads } from './roads.ts';
 import { stylize, tickSurface } from './stylize.ts';
+import { LAKE_CENTER, LAKE_RADIUS, terrainLift, valueNoise } from './terrain.ts';
 
 // Gedeelde gestileerde materialen voor de platforms (rim + koele schaduw).
 // De korrel zit in de shader en niet in een texture: er zijn hier duizenden
@@ -54,10 +55,6 @@ const SEVAN_BLUE = new THREE.Color('#2e9cc7');
 const SEVAN_SHALLOW = new THREE.Color('#57c6d8');
 const ROAD = new THREE.Color('#d8cdbd'); // aangestampt grind
 
-// Het meer schoof mee naar binnen toen de wereld kromp: op r=10 lag het buiten
-// de nieuwe schijf en was het simpelweg weg.
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 
 interface Tiles {
   /** `lift` is de hoogte van deze tegel; zonder dat is de grond een badmat. */
@@ -71,33 +68,6 @@ interface Tiles {
 }
 
 /**
- * Waardenruis over een grover raster dan de tegels zelf, met smoothstep tussen
- * de roosterpunten. Dat is het hele verschil tussen landschap en puin: een
- * hash per tegel geeft buren die niets met elkaar te maken hebben, dus een
- * veld losse zuilen. Hier hangt een tegel samen met zijn omgeving, en dan
- * ontstaan er glooiingen.
- *
- * Deterministisch — dezelfde wereld ziet er op elke machine hetzelfde uit, en
- * een screenshot van gisteren blijft vergelijkbaar met die van vandaag.
- */
-function valueNoise(q: number, r: number, scale: number): number {
-  const at = (cq: number, cr: number): number => (stableHash(`terr:${cq}:${cr}`) % 1000) / 1000;
-  const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
-  const ease = (t: number): number => t * t * (3 - 2 * t);
-  const fq = q / scale;
-  const fr = r / scale;
-  const q0 = Math.floor(fq);
-  const r0 = Math.floor(fr);
-  const tq = ease(fq - q0);
-  const tr = ease(fr - r0);
-  return mix(
-    mix(at(q0, r0), at(q0 + 1, r0), tq),
-    mix(at(q0, r0 + 1), at(q0 + 1, r0 + 1), tq),
-    tr,
-  );
-}
-
-/**
  * Hoogte uit samenhangende ruis, gesteente uit een eigen hash. Die twee apart
  * houden is met opzet: één bron voor beide koppelt kleur aan hoogte en dan
  * krijg je banden in plaats van vlekken.
@@ -106,14 +76,17 @@ function terrainAt(hex: { q: number; r: number }, key: string, distance: number)
   lift: number;
   color: THREE.Color;
 } {
-  // Twee octaven: de grove geeft de glooiing, de fijne haalt het vlakke eraf.
-  const height = valueNoise(hex.q, hex.r, 5) * 0.72 + valueNoise(hex.q, hex.r, 2) * 0.28;
   const rock = (stableHash(`${key}:rock`) % 1000) / 1000;
+  // Hoogte komt uit terrain.ts, want het verkeer, de kudde, de monumenten en
+  // de sneeuw moeten op exact dezelfde hoogte terechtkomen als deze tegel.
+  const lift = terrainLift(hex);
+  // De kleur wil nog wel weten hoe hoog hij zit; terugrekenen uit de lift zou
+  // de randophoging meenemen en dan kleurt de hele buitenring als bergtop.
+  const height = valueNoise(hex.q, hex.r, 5) * 0.72 + valueNoise(hex.q, hex.r, 2) * 0.28;
 
   // Naar de rand toe loopt het op: de hoogvlakte rond Yerevan. Dat houdt het
   // oog ook binnen de wereld in plaats van er overheen te laten glijden.
   const rim = Math.pow(distance / WORLD_HEX_RADIUS, 2.4);
-  const lift = -0.04 + height * 0.5 + rim * 1.1;
 
   // Hoger is kaler. Geen regel, maar zo leest het: bleke tuff in de laagte,
   // steppe halverwege, basalt op de hoogten.

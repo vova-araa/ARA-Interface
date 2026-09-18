@@ -1,5 +1,10 @@
 import { axialKey, axialToWorld, hexDisc, stableHash, WORLD_HEX_RADIUS, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
+import { groundTop } from './terrain.ts';
+
+// Doorgeven zodat wie het wegennet gebruikt de hoogte niet apart hoeft te
+// zoeken; de bron blijft terrain.ts.
+export { groundTop };
 
 /**
  * Het wegennet, op één plek.
@@ -97,44 +102,3 @@ export function openGround(
 
 /** Deterministische pseudo-random uit een sleutel, in [0,1). */
 export const rand = (key: string): number => (stableHash(key) % 10_000) / 10_000;
-
-/**
- * De hoogte van het grondoppervlak op een hex.
- *
- * Dit is een KOPIE van de formule in HexGround.tsx, en dat is een schuld, geen
- * ontwerp. Reden dat hij hier toch staat: het terreinreliëf kwam er later bij
- * dan het verkeer en de kudde, en die stonden op een vaste hoogte — met als
- * gevolg dat vrachtwagens ónder het wegdek reden en de schapen half in de
- * grond stonden. Zichtbaar fout, en niet op te lossen zonder deze formule.
- *
- * Zodra HexGround `terrainAt` exporteert hoort deze functie te verdwijnen en
- * die import ervoor in de plaats te komen. Tot dan: wijzigt daar het reliëf,
- * dan moet dit in dezelfde commit mee, anders zakt alles wat beweegt weer weg.
- *
- * Geeft de bovenkant van de tegel terug, dus de hoogte waar iets op staat.
- */
-export function groundTop(hex: { q: number; r: number }): number {
-  const noise = (scale: number): number => {
-    const at = (cq: number, cr: number): number => (stableHash(`terr:${cq}:${cr}`) % 1000) / 1000;
-    const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
-    const ease = (t: number): number => t * t * (3 - 2 * t);
-    const fq = hex.q / scale;
-    const fr = hex.r / scale;
-    const q0 = Math.floor(fq);
-    const r0 = Math.floor(fr);
-    const tq = ease(fq - q0);
-    const tr = ease(fr - r0);
-    return mix(
-      mix(at(q0, r0), at(q0 + 1, r0), tq),
-      mix(at(q0, r0 + 1), at(q0 + 1, r0 + 1), tq),
-      tr,
-    );
-  };
-  const height = noise(5) * 0.72 + noise(2) * 0.28;
-  const distance = Math.max(Math.abs(hex.q), Math.abs(hex.r), Math.abs(hex.q + hex.r));
-  const rim = Math.pow(distance / WORLD_HEX_RADIUS, 2.4);
-  const lift = -0.04 + height * 0.5 + rim * 1.1;
-  // Tegelprisma's zijn 2,4 hoog en hangen op -1,05 (grond) of -1,03 (weg); hun
-  // bovenkant ligt dus op 0,15 respectievelijk 0,17 plus de lift.
-  return 0.16 + lift;
-}

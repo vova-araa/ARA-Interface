@@ -6,6 +6,7 @@ import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
 import { useDaylight } from './daylight.ts';
 import { buildRoads } from './roads.ts';
+import { LAKE_CENTER, LAKE_RADIUS } from './terrain.ts';
 
 /**
  * Volumetrisch licht: zonnestralen overdag, lichtkegels in het donker.
@@ -327,8 +328,6 @@ function SunShafts({ world }: { world: WorldConfig | null }): JSX.Element | null
  * de bron van waarheid blijft daar. Wijzigt daar iets aan LAKE/ROAD_TOP/
  * PLATFORM_TOP/LAMP_HEIGHT of aan de pleinformule, dan hier mee.
  */
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 const PLATFORM_TOP = 0.31;
 const ROAD_TOP = 0.2;
 const LAMP_HEIGHT = 1.12;

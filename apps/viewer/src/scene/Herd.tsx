@@ -5,6 +5,7 @@ import { axialKey, axialToWorld, hexDisc, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
 import { buildRoads, groundTop, openGround, rand } from './roads.ts';
+import { LAKE_CENTER, LAKE_RADIUS } from './terrain.ts';
 
 /**
  * Een kudde op de lege grond tussen de districten.
@@ -19,8 +20,6 @@ import { buildRoads, groundTop, openGround, rand } from './roads.ts';
  * deze wereld beweegt hoort ergens voor te staan.
  */
 
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 const FLOCK_COUNT = 5;
 const PER_FLOCK = 7;
 

@@ -20,8 +20,18 @@ const TEST_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-pw-data-'));
 
 export default defineConfig({
   testDir: './tests',
-  timeout: 60_000,
+  timeout: 90_000,
   retries: 0,
+  // Eén worker. Vijf WebGL-flows tegelijk op een machine zonder GPU
+  // (SwiftShader, <1fps) laat ze om de beurt omvallen op een timeout, en dan
+  // is een rode run niet meer te onderscheiden van een echte fout. Gemeten:
+  // dezelfde test viel om binnen 60s naast vier andere flows en was in 27,4s
+  // groen toen hij alleen draaide. Een suite die alleen klopt als de machine
+  // toevallig rustig is, leert je om rood te negeren.
+  //
+  // De hele suite duurt zo ~2 minuten. Dat is de prijs voor een uitkomst
+  // waar je iets aan hebt.
+  workers: 1,
   use: {
     baseURL: 'http://localhost:4748',
     launchOptions: process.env.PW_CHROMIUM_PATH

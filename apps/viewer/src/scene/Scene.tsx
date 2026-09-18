@@ -42,6 +42,7 @@ import { Volumetrics } from './Volumetrics.tsx';
 import { Tour } from './Tour.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
+import { Seasons } from './Seasons.tsx';
 import { Drones } from './Drones.tsx';
 import { Petals } from './Petals.tsx';
 
@@ -301,6 +302,10 @@ export function Scene(): JSX.Element {
         <Landmarks world={world} />
         <AmbientLife />
         {!perfLow && <Weather />}
+        {/* Seizoen ligt over de hele wereld en is achtergrond; Weather hangt
+            boven één district en is een melding. Die twee delen bewust geen
+            enkel element — zie het blok bovenin Seasons.tsx. */}
+        <Seasons world={world} daylight={daylight} />
         {!perfLow && <Doves />}
         {/* Abrikozenbloesem-drift overdag/schemer (niet 's nachts). */}
         {!perfLow && daylight.period !== 'night' && <Petals />}

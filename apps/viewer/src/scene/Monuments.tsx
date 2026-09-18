@@ -14,6 +14,7 @@ import {
 import { HEX_SPACING, projectPlacement } from '../placements.ts';
 import { buildRoads, hexLine } from './roads.ts';
 import { useAra, useViewSnapshot } from '../store.ts';
+import { LAKE_CENTER, LAKE_RADIUS } from './terrain.ts';
 
 /**
  * Het geheugen van de wereld: wat er afkwam, en waar het sleet achterliet.
@@ -40,8 +41,6 @@ import { useAra, useViewSnapshot } from '../store.ts';
 
 // Het meer staat privé in HexGround; Traffic en Herd houden er om dezelfde reden
 // een eigen kopie van. Zonder deze twee getallen legt dit veld zijn stenen in Sevan.
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 /** Zeven dagen: het venster van de ring buffer, geen gekozen mooi getal. */
 const WINDOW_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;

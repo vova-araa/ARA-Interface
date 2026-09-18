@@ -740,7 +740,7 @@ html, body, #root { height: 100dvh; }
     /* Hoogte van de balk: twee regels (knoppen + cijfers). Panelen en minimap
        hangen eraan, dus staat hij hier als getal in plaats van drie keer
        overgeschreven te worden. */
-    --topbar-h: 80px;
+    --topbar-h: 81px;
     --tabbar-h: 52px;
     /* dvh, niet vh: met vh steekt de sheet op iOS Safari onder de adresbalk. */
     --sheet-h: 56dvh;
@@ -762,13 +762,20 @@ html, body, #root { height: 100dvh; }
      eigen scherm kijkt. Het merkteken blijft, het woord gaat weg — en die
      95px zijn precies wat de knoppenrij tekort kwam. De demo/replay-chips
      zetten hun eigen font-size en blijven dus zichtbaar. */
-  .topbar-title { font-size: 0; display: flex; align-items: center; }
+  .topbar-title { font-size: 0; display: flex; align-items: center; flex: 0 0 auto; }
   .topbar-title::before { content: '⬡'; font-size: 17px; }
-  /* Vaste regelhoogte: de emoji's bepaalden anders de hoogte van de balk, en
-     die verschilt per toestel — terwijl --topbar-h er wél op moet kloppen
-     (de minimap en het overzicht hangen eraan). */
-  .topbar-stats { order: 3; flex: 0 0 100%; gap: 12px; font-size: 12.5px; height: 20px; align-items: center; overflow-y: hidden; }
-  .topbar-actions { gap: 6px; margin-left: auto; }
+  /* Regel 1: merkteken + cijfers. Regel 2: de knoppen over de volle breedte.
+     Niet "laat maar wrappen": dan hing het aan de breedte van de titel of er
+     twee of drie regels ontstonden (de demo-chip maakt de titel 55px breder
+     en dat wipte de knoppen naar een eigen regel). De balk is een vast getal
+     waard, want de minimap en het overzicht hangen eraan.
+     Vaste regelhoogte op de cijfers om dezelfde reden: emoji-metrics
+     verschillen per toestel. */
+  .topbar-stats {
+    order: 1; flex: 1 1 auto; min-width: 0; gap: 10px; font-size: 12px;
+    height: 20px; align-items: center; overflow-y: hidden;
+  }
+  .topbar-actions { order: 2; flex: 0 0 100%; justify-content: space-between; gap: 6px; margin-left: 0; }
 
   .btn {
     min-height: var(--tap);
@@ -906,8 +913,9 @@ html, body, #root { height: 100dvh; }
   }
   .topbar-title { font-size: 0; display: flex; align-items: center; }
   .topbar-title::before { content: '⬡'; font-size: 16px; }
-  .topbar-stats { order: 0; flex: 1 1 auto; gap: 12px; font-size: 12.5px; }
-  .topbar-actions { gap: 6px; margin-left: 0; }
+  /* Liggend past alles op één regel; de staande regel-2-truc hier terugdraaien. */
+  .topbar-actions { order: 0; flex: 0 0 auto; justify-content: flex-end; gap: 6px; margin-left: 0; }
+  .topbar-stats { order: 0; flex: 1 1 auto; gap: 12px; font-size: 12.5px; height: auto; }
   .btn {
     min-height: var(--tap);
     min-width: 42px;

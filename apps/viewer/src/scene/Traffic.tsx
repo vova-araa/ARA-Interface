@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { axialKey, hexDisc, type WorldConfig } from '@ara/shared';
 import { useAra } from '../store.ts';
 import { buildRoads, groundTop, rand } from './roads.ts';
+import { LAKE_CENTER, LAKE_RADIUS } from './terrain.ts';
 
 /**
  * Verkeer over het wegennet.
@@ -23,8 +24,6 @@ import { buildRoads, groundTop, rand } from './roads.ts';
  * naast de weg die eronder ligt.
  */
 
-const LAKE_CENTER = { q: -2, r: 6 };
-const LAKE_RADIUS = 2;
 
 interface Vehicle {
   key: string;
