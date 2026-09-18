@@ -1425,6 +1425,182 @@ button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-col
   line-height: 1.4;
 }
 
+/* ── Terugblik (weergave van het takenbord) ────────────────────────────────
+   De terugblik hoort bij het bord dat hij meet, dus deelt hij het paneel: twee
+   weergaven, één kolom. Geen zesde tab in de strook — daar paste op 390px niets
+   meer bij, en het bewijs bij een bevinding is een gewone bordregel. */
+.board-views {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.board-view {
+  flex: 1;
+  min-height: 32px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.board-view:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+.board-view-on { color: var(--text); background: rgba(255, 255, 255, 0.09); border-color: var(--accent); }
+
+/* Bewijs: de taken achter een bevinding, als echte bordregels. */
+.board-evidence {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 8px 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.board-evidence-head { font-size: 12.5px; line-height: 1.45; }
+.board-evidence-note { color: var(--text-dim); font-size: 11.5px; }
+/* Een taak uit het bewijs die niet meer op te halen was: geen status, geen
+   rol, geen ingevuld vakje — alleen wat de terugblik zelf draagt. */
+.board-row-stub { border: 1px dashed var(--border); background: transparent; }
+
+/* Controletaken: een tweede oordeel over andermans werk. */
+.board-review { border-left: 3px solid #7aa2ff; }
+.board-review-chip {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(122, 162, 255, 0.18);
+  color: #a9c3ff;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: 1px;
+}
+.board-review-note {
+  margin-top: 3px;
+  color: var(--text-dim);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.board-review-note .board-link { margin-left: 6px; }
+
+.retro { display: flex; flex-direction: column; gap: 10px; padding: 2px 2px 8px; }
+.retro-head { display: flex; flex-direction: column; gap: 5px; }
+.retro-head-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.retro-head-sub { color: var(--text-dim); font-size: 11.5px; line-height: 1.4; }
+.retro-days { display: flex; gap: 4px; }
+.retro-day {
+  min-width: 38px;
+  min-height: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.retro-day-on { color: var(--text); border-color: var(--accent); background: rgba(255, 107, 87, 0.12); }
+.retro-scope { color: var(--text-dim); font-size: 11.5px; }
+.retro-note { color: var(--text-dim); font-size: 12px; padding: 8px 2px; }
+
+/* Te stil om iets te durven zeggen. Een eigen blok, want dit is een uitspraak
+   en geen lege lijst: "niets gevonden" en "niet gemeten" moeten nooit op
+   elkaar lijken. */
+.retro-quiet {
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 176, 32, 0.07);
+}
+.retro-quiet-title { color: var(--amber); font-size: 13px; margin-bottom: 6px; }
+.retro-quiet p { margin: 0 0 6px; font-size: 12px; line-height: 1.5; }
+.retro-quiet p:last-child { margin-bottom: 0; }
+.retro-quiet-hint { color: var(--text-dim); }
+
+.retro-group { display: flex; flex-direction: column; gap: 6px; }
+.retro-question {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding-top: 2px;
+}
+.retro-none { color: var(--text-dim); font-size: 11.5px; line-height: 1.45; }
+
+.retro-finding {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.retro-finding:hover { border-color: var(--accent); }
+.retro-text { font-size: 12.5px; line-height: 1.45; }
+.retro-kind {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-dim);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.retro-kind-vastgelopen, .retro-kind-mislukt { background: rgba(255, 107, 87, 0.16); color: #ffb0a4; }
+.retro-kind-escaleert-vaak { background: rgba(255, 176, 32, 0.16); color: #ffd08a; }
+.retro-evidence-cta { color: var(--text-dim); font-size: 11px; }
+.retro-finding:hover .retro-evidence-cta { color: var(--text); }
+
+.retro-roles-note { color: var(--text-dim); font-size: 11px; line-height: 1.45; }
+.retro-roles { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.retro-role { display: flex; flex-direction: column; gap: 3px; }
+.retro-role-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.retro-role-top b { font-size: 12.5px; }
+.retro-role-share { color: var(--text-dim); font-size: 11px; text-align: right; }
+.retro-bar { height: 5px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.retro-bar span { display: block; height: 100%; background: var(--accent); opacity: 0.75; }
+.retro-role-sub { display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-dim); font-size: 11px; }
+.retro-role-rate { color: var(--text-dim); font-size: 11px; }
+/* Onder de drempel geen percentage, maar de reden waarom er geen staat. */
+.retro-role-thin { color: var(--text-dim); font-size: 11px; font-style: italic; opacity: 0.85; }
+
+/* Wegwijzer in het overzicht: één regel die zegt wat het spoor oplevert. */
+.ov-retro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  margin: 0 14px;
+  padding: 10px 12px;
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.ov-retro:hover { border-color: var(--accent); }
+.ov-retro b { font-size: 12.5px; }
+.ov-retro > span { color: var(--text-dim); font-size: 11.5px; line-height: 1.4; }
+
 /* ── Actielijst ────────────────────────────────────────────────────────── */
 .actions-group + .actions-group { margin-top: 12px; }
 .actions-section {
@@ -1581,6 +1757,19 @@ button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-col
   .chips .chip { min-height: 40px; display: inline-flex; align-items: center; padding: 4px 14px; font-size: 13px; }
   .thread { min-height: var(--tap); padding: 10px 8px; }
   .usage-toggle { min-height: var(--tap); }
+
+  /* Alles in de terugblik wat je indrukt is een duimdoel: de weergavekeuze,
+     het venster in dagen en elke bevinding (die is de enige weg naar het
+     bewijs eronder). */
+  .board-view { min-height: var(--tap); font-size: 13px; }
+  .retro-day { min-height: var(--tap); min-width: var(--tap); font-size: 13px; }
+  .retro-finding { min-height: var(--tap); padding: 10px 12px; }
+  .retro-text { font-size: 13px; }
+  /* Staand is de kolom 390px: naam en aandeel naast elkaar werd twee keer
+     afgekapt, dus onder elkaar. */
+  .retro-role-top { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .retro-role-share { text-align: left; }
+  .ov-retro { margin: 0 14px; }
   /* Onder 16px zoomt iOS het hele scherm in zodra je een veld aantikt. */
   .search, input, select, textarea { font-size: 16px; }
 

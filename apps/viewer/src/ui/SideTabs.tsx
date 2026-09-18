@@ -99,7 +99,10 @@ export function SideTabs(): JSX.Element | null {
     {
       key: 'board',
       label: 'Bord',
-      hint: `Takenbord — ${openTasks} taken open of in behandeling (toets b)`,
+      // De terugblik is een weergave ván het bord en heeft daarom geen eigen
+      // tab (vijf plus een kruisje is op 390px al vol). Dan moet de hint wel
+      // zeggen dat hij daar zit, anders vindt niemand hem.
+      hint: `Takenbord — ${openTasks} taken open of in behandeling; met de terugblik op het werkspoor (toets b)`,
       on: boardOpen,
       set: setBoardOpen,
       badge: openTasks,

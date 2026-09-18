@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { VENTURES, type SessionState } from '@ara/shared';
+import { VENTURES, type Retro, type SessionState } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
 import {
   loadStats,
@@ -11,6 +11,8 @@ import {
 } from '../api.ts';
 import { projectPlacement } from '../placements.ts';
 import { ageString } from '../util.ts';
+import { openBoardRetro } from './BoardPanel.tsx';
+import { loadRetro } from './RetroPanel.tsx';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -67,10 +69,13 @@ export function OverviewPanel(): JSX.Element | null {
   const tasksVersion = useAra((s) => s.tasksVersion);
   const select = useAra((s) => s.select);
   const flyTo = useAra((s) => s.flyTo);
+  const setBoardOpen = useAra((s) => s.setBoardOpen);
+  const connected = useAra((s) => s.connected);
 
   const [usage, setUsage] = useState<UsageRow[]>([]);
   const [stats, setStats] = useState<ProjectHourStats[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
+  const [retro, setRetro] = useState<Retro | null>(null);
 
   useEffect(() => {
     if (!open || demo) return;
@@ -78,6 +83,9 @@ export function OverviewPanel(): JSX.Element | null {
       void loadUsage().then((r) => setUsage(r.usage));
       void loadStats().then(setStats);
       void loadTasks().then(setTasks);
+      // Eén regel uit de terugblik, als wegwijzer. Mislukt de meting, dan valt
+      // de regel weg — hier staat nooit een cijfer van daarnet.
+      void loadRetro(7).then(setRetro);
     };
     refresh();
     const timer = setInterval(refresh, 60_000);
@@ -156,6 +164,30 @@ export function OverviewPanel(): JSX.Element | null {
           ✕
         </button>
       </div>
+      {/* Het overzicht kijkt naar nu; de terugblik naar het spoor erachter. Eén
+          regel die zegt wat daar ligt — en die in demo of zonder verbinding
+          helemaal wegvalt, want dan is er niets gemeten om naar te wijzen. */}
+      {!demo && connected && retro && (
+        <button
+          className="ov-retro"
+          onClick={() => {
+            setBoardOpen(true);
+            openBoardRetro();
+            setOpen(false);
+          }}
+          title="Opent de terugblik op het takenbord"
+        >
+          <b>Terugblik over 7 dagen</b>
+          <span>
+            {retro.tooQuiet
+              ? `${retro.considered} ${retro.considered === 1 ? 'taak' : 'taken'} geraakt — te weinig om iets uit te lezen`
+              : retro.findings.length === 0
+                ? `${retro.considered} taken gemeten · geen patroon dat om aandacht vraagt`
+                : `${retro.findings.length} ${retro.findings.length === 1 ? 'patroon' : 'patronen'} uit ${retro.considered} taken, elk met de taken erbij`}
+          </span>
+          <span className="ov-card-cta">klik: open de terugblik op het bord →</span>
+        </button>
+      )}
       <div className="ov-grid">
         {cards.length === 0 && (
           <div className="empty">
