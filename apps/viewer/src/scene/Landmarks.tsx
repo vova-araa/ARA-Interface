@@ -206,9 +206,7 @@ const KHACHKAR_GEO = merge([
   part(box(0.055, 0.15, 0.045), TUFF_CREAM, [-0.185, 0.78, FACE]),
   part(box(0.055, 0.15, 0.045), TUFF_CREAM, [0.185, 0.78, FACE]),
   part(box(0.15, 0.055, 0.045), TUFF_CREAM, [0, 0.345, FACE]),
-  part(cyl(0.11, 0.11, 0.05, 8), TUFF_CREAM, [0, 0.255, FACE - 0.01], [Math.PI / 2, 0, 0]),
-  part(box(0.045, 0.94, 0.06), TUFF_SHADE, [-0.238, 0.6, FACE - 0.02]),
-  part(box(0.045, 0.94, 0.06), TUFF_SHADE, [0.238, 0.6, FACE - 0.02]),
+  part(cyl(0.11, 0.11, 0.05, 6), TUFF_CREAM, [0, 0.255, FACE - 0.01], [Math.PI / 2, 0, 0]),
 ]);
 
 /**
@@ -217,6 +215,11 @@ const KHACHKAR_GEO = merge([
  * onder nul doorloopt — het terrein onder de hub verloopt met ~0,1 per tegel en
  * een monument van drie eenheden diep kan dat niet volgen; een voet die
  * doorloopt is beter dan een monument dat aan één kant zweeft.
+ *
+ * De terrassen wisselen room/oker af en de balustrades zijn basalt. Dat is een
+ * keuze tegen de ondergrond in: de hexen zelf zijn al roze tuff, dus een
+ * monument in dezelfde toon lost erin op. De tint blijft Yerevan, het verschil
+ * zit in de helderheid.
  */
 const TERRACES = 6;
 const RISE = 0.3;
@@ -225,15 +228,25 @@ const CASCADE_TOP = TERRACES * RISE;
 const CASCADE_DEPTH = TERRACES * RUN;
 const terraceWidth = (i: number): number => 3.1 - i * 0.3;
 
+/**
+ * Het Republiekplein ligt vóór de trap en hoort bij hetzelfde bouwwerk, dus het
+ * zit in dezelfde geometrie: een plein kost zo geen extra tekenopdracht. Het is
+ * een geplaveid vlak dat ~0,07 boven de hub uitkomt en met een dikke voet naar
+ * beneden doorloopt, zodat het op elke buurtegel nog aansluit.
+ */
+const PLAZA_LZ = 1.9;
+const PLAZA_R = 2.05;
+const PLAZA_TOP = 0.07;
+
 const CASCADE_GEO = merge([
   ...Array.from({ length: TERRACES }, (_, i) => {
     const w = terraceWidth(i);
     const top = (i + 1) * RISE;
     const z = -i * RUN - RUN / 2;
     const parts = [
-      part(box(w, top + 0.5, RUN), i % 2 ? TUFF_PINK : TUFF_CREAM, [0, (top - 0.5) / 2, z]),
-      part(box(0.18, 0.22, RUN), TUFF_OCHRE, [-(w / 2 - 0.09), top + 0.11, z]),
-      part(box(0.18, 0.22, RUN), TUFF_OCHRE, [w / 2 - 0.09, top + 0.11, z]),
+      part(box(w, top + 0.5, RUN), i % 2 ? TUFF_OCHRE : TUFF_CREAM, [0, (top - 0.5) / 2, z]),
+      part(box(0.18, 0.22, RUN), BASALT, [-(w / 2 - 0.09), top + 0.11, z]),
+      part(box(0.18, 0.22, RUN), BASALT, [w / 2 - 0.09, top + 0.11, z]),
     ];
     // Vier treden per terras. Meer treden zijn op deze zoom één grijze wig.
     for (let k = 0; k < 4; k += 1) {
@@ -253,6 +266,8 @@ const CASCADE_GEO = merge([
     (CASCADE_TOP - 0.5) / 2,
     -CASCADE_DEPTH - 0.6,
   ]),
+  part(cyl(PLAZA_R + 0.16, PLAZA_R + 0.2, 0.62, 12), TUFF_DEEP, [0, PLAZA_TOP - 0.35, PLAZA_LZ]),
+  part(cyl(PLAZA_R, PLAZA_R + 0.06, 0.66, 12), TUFF_CREAM, [0, PLAZA_TOP - 0.33, PLAZA_LZ]),
 ]);
 
 /**
@@ -261,8 +276,9 @@ const CASCADE_GEO = merge([
  * een verticale figuur zonder dat is een paal.
  */
 const MOTHER_GEO = merge([
-  part(box(1.0, 0.75, 0.9), TUFF_CREAM, [0, 0.375, 0]),
-  part(box(1.12, 0.1, 1.02), TUFF_OCHRE, [0, 0.78, 0]),
+  part(box(1.16, 0.18, 1.06), BASALT, [0, 0.09, 0]),
+  part(box(1.0, 0.68, 0.9), TUFF_CREAM, [0, 0.52, 0]),
+  part(box(1.12, 0.1, 1.02), TUFF_OCHRE, [0, 0.9, 0]),
   part(cyl(0.17, 0.34, 0.95, 8), PATINA, [0, 1.31, 0]),
   part(box(0.34, 0.4, 0.24), PATINA, [0, 1.95, 0]),
   part(box(0.54, 0.52, 0.09), PATINA, [0, 1.9, -0.13]),
@@ -281,18 +297,10 @@ const CHURCH_GEO = merge([
   part(box(1.25, 0.62, 0.62), TUFF_PINK, [0, 0.43, 0]),
   part(box(0.6, 0.62, 1.15), TUFF_PINK, [0, 0.43, 0]),
   part(cyl(0.31, 0.31, 0.62, 8), TUFF_PINK, [-0.6, 0.43, 0]),
-  part(box(1.28, 0.44, 0.44), SLATE, [0, 0.74, 0], [Math.PI / 4, 0, 0]),
-  part(box(0.44, 0.44, 1.18), SLATE, [0, 0.74, 0], [0, 0, Math.PI / 4]),
-  part(cyl(0.27, 0.29, 0.5, 8), TUFF_CREAM, [0, 1.05, 0]),
-  // Boognissen in de tamboer: vier donkere streepjes die de achthoek verraden.
-  ...[0, 1, 2, 3].map((k) =>
-    part(box(0.08, 0.26, 0.08), TUFF_SHADE, [
-      Math.cos((k * Math.PI) / 2) * 0.28,
-      1.05,
-      Math.sin((k * Math.PI) / 2) * 0.28,
-    ]),
-  ),
-  part(cone(0.38, 0.5, 8), SLATE, [0, 1.55, 0]),
+  part(box(1.28, 0.44, 0.44), BASALT, [0, 0.74, 0], [Math.PI / 4, 0, 0]),
+  part(box(0.44, 0.44, 1.18), BASALT, [0, 0.74, 0], [0, 0, Math.PI / 4]),
+  part(cyl(0.29, 0.31, 0.56, 8), TUFF_CREAM, [0, 1.08, 0]),
+  part(cone(0.42, 0.62, 8), BASALT, [0, 1.67, 0]),
   part(box(0.04, 0.24, 0.04), STEEL, [0, 1.92, 0]),
   part(box(0.15, 0.04, 0.04), STEEL, [0, 1.95, 0]),
   part(box(0.2, 0.32, 0.06), TUFF_SHADE, [0.63, 0.28, 0]),
@@ -305,7 +313,7 @@ const CHURCH_GEO = merge([
  */
 const ARCADE_GEO = merge([
   part(box(1.86, 0.62, 0.56), TUFF_OCHRE, [0, -0.2, 0]),
-  part(box(1.72, 0.85, 0.16), TUFF_ROSE, [0, 0.53, -0.16]),
+  part(box(1.72, 0.85, 0.16), TUFF_SHADE, [0, 0.53, -0.16]),
   ...[-0.72, -0.24, 0.24, 0.72].map((x) =>
     part(cyl(0.075, 0.085, 0.72, 6), TUFF_CREAM, [x, 0.47, 0.12]),
   ),
@@ -338,19 +346,19 @@ const STATUE_GEO = merge([
  * Eén oranje tros aan de rand van de kruin doet hetzelfde werk in het silhouet.
  */
 const APRICOT_GEO = merge([
-  part(cyl(0.05, 0.085, 0.62, 6), BARK, [0, 0.31, 0]),
-  part(ball(0.34, 7, 5), LEAF, [0, 0.86, 0]),
-  part(ball(0.24, 6, 4), LEAF_DEEP, [0.2, 0.7, -0.14]),
-  part(ball(0.12, 5, 4), APRICOT, [-0.19, 0.8, 0.16]),
+  part(cyl(0.05, 0.085, 0.62, 5), BARK, [0, 0.31, 0]),
+  part(ball(0.34, 6, 4), LEAF, [0, 0.86, 0]),
+  part(ball(0.24, 5, 3), LEAF_DEEP, [0.2, 0.7, -0.14]),
+  part(ball(0.12, 5, 3), APRICOT, [-0.19, 0.8, 0.16]),
 ]);
 
 /** Granaatappel: lager, donkerder blad, twee rode trossen. */
 const POME_GEO = merge([
-  part(cyl(0.045, 0.075, 0.44, 6), BARK, [0, 0.22, 0]),
-  part(ball(0.3, 7, 5), LEAF_DEEP, [0, 0.66, 0]),
-  part(ball(0.2, 6, 4), LEAF, [-0.18, 0.55, 0.15]),
-  part(ball(0.1, 5, 4), POME, [0.21, 0.63, 0.1]),
-  part(ball(0.085, 5, 4), '#8e2020', [-0.08, 0.8, -0.16]),
+  part(cyl(0.045, 0.075, 0.44, 5), BARK, [0, 0.22, 0]),
+  part(ball(0.3, 6, 4), LEAF_DEEP, [0, 0.66, 0]),
+  part(ball(0.2, 5, 3), LEAF, [-0.18, 0.55, 0.15]),
+  part(ball(0.1, 5, 3), POME, [0.21, 0.63, 0.1]),
+  part(ball(0.085, 5, 3), '#8e2020', [-0.08, 0.8, -0.16]),
 ]);
 
 // ── Vak-specifieke gebouwen per district ────────────────────────────────────
@@ -502,19 +510,39 @@ const HUB_SIN = Math.sin(HUB_YAW);
 const hubX = (lx: number, lz: number): number => lx * HUB_COS + lz * HUB_SIN;
 const hubZ = (lx: number, lz: number): number => -lx * HUB_SIN + lz * HUB_COS;
 
-/** Een stuk op hubcoördinaten, met de grond eronder opgezocht. */
+/** De grond onder het midden van de wereld; de hele hub hangt eraan. */
+const HUB_GROUND = groundAt(0, 0);
+
+/**
+ * Een stuk op hubcoördinaten. `on` zegt waar de voet staat: op het terrein, op
+ * het geplaveide plein of op het bouwwerk zelf. Dat verschil is geen detail —
+ * een beeld dat zijn hoogte uit het terrein haalt terwijl het op een balustrade
+ * hoort te staan, zakt er tot een tiende in weg.
+ */
 function hubPiece(
   key: string,
   lx: number,
   lz: number,
-  opts: { lift?: number; yaw?: number; tilt?: number; scale?: number } = {},
+  opts: {
+    on?: 'terrein' | 'plein' | 'bouwwerk';
+    lift?: number;
+    yaw?: number;
+    tilt?: number;
+    scale?: number;
+  } = {},
 ): Piece {
   const x = hubX(lx, lz);
   const z = hubZ(lx, lz);
+  const base =
+    opts.on === 'plein'
+      ? HUB_GROUND + PLAZA_TOP
+      : opts.on === 'bouwwerk'
+        ? HUB_GROUND
+        : groundAt(x, z);
   const shade = 0.88 + ((stableHash(key) % 120) / 1000);
   return {
     x,
-    y: (opts.lift ?? 0) + groundAt(x, z),
+    y: base + (opts.lift ?? 0),
     z,
     yaw: HUB_YAW + (opts.yaw ?? 0),
     tilt: opts.tilt ?? 0,
@@ -525,31 +553,34 @@ function hubPiece(
   };
 }
 
-/** Khachkars staan op een rij langs de trap, met hun snijwerk naar de kijker. */
+/**
+ * Khachkar-tuin langs de flanken van de trap, met het snijwerk naar de kijker.
+ * Ze staan náást de trap en niet op het plein: een kruissteen hoort in een tuin,
+ * en op het plein zou hij het zicht op de terrassen blokkeren.
+ */
 const HUB_KHACHKARS: [number, number][] = [
-  [-2.15, 0.35],
-  [-2.15, -0.3],
-  [-2.15, -0.95],
-  [-2.15, -1.6],
-  [-2.15, -2.25],
-  [2.15, 0.15],
-  [2.15, -0.5],
-  [2.15, -1.15],
+  [-2.1, -0.15],
+  [-2.1, -0.85],
+  [-2.1, -1.55],
+  [-2.25, -2.3],
+  [2.1, -0.35],
+  [2.1, -1.05],
+  [2.25, -1.85],
 ];
 
 const HUB_TREES: { at: [number, number]; pome?: boolean }[] = [
-  { at: [-3.05, 1.5] },
-  { at: [3.0, 1.2] },
-  { at: [-2.6, -2.9], pome: true },
-  { at: [2.6, -2.75], pome: true },
-  { at: [-3.5, 2.5], pome: true },
-  { at: [3.45, 2.4], pome: true },
-  { at: [-1.4, 4.2] },
-  { at: [1.45, 4.25] },
-  { at: [-2.5, 4.0], pome: true },
-  { at: [2.55, 4.05], pome: true },
-  { at: [-4.0, 0.2] },
-  { at: [3.95, -0.4] },
+  { at: [-3.3, 1.4] },
+  { at: [3.25, 1.1] },
+  { at: [-2.7, -3.0], pome: true },
+  { at: [2.7, -2.85], pome: true },
+  { at: [-3.6, 2.6], pome: true },
+  { at: [3.55, 2.5], pome: true },
+  { at: [-1.5, 4.5] },
+  { at: [1.55, 4.55] },
+  { at: [-2.9, 3.9], pome: true },
+  { at: [2.95, 3.85], pome: true },
+  { at: [-4.1, 0.1] },
+  { at: [4.05, -0.5] },
 ];
 
 function buildField(world: WorldConfig | null, perfLow: boolean): Field {
@@ -572,7 +603,9 @@ function buildField(world: WorldConfig | null, perfLow: boolean): Field {
         // Achterover: een verticaal vlak vangt onder deze camera nauwelijks
         // licht, een helling van ~10° laat het snijwerk juist oplichten.
         tilt: -0.16,
-        scale: 0.9 + jitter(`hub-kh-s-${i}`) * 0.18,
+        // Klein houden: op ware grootte is een khachkar zo hoog als een huis en
+        // neemt een tuin van zeven stuks het hele centrum over.
+        scale: 0.74 + jitter(`hub-kh-s-${i}`) * 0.14,
       }),
     );
   }
@@ -584,31 +617,37 @@ function buildField(world: WorldConfig | null, perfLow: boolean): Field {
       const w = terraceWidth(i);
       const lift = (i + 1) * RISE + 0.22;
       const lz = -i * RUN - RUN / 2;
-      field.statues.push(hubPiece(`stat-l-${i}`, -(w / 2 - 0.09), lz, { lift, scale: 0.78 }));
-      field.statues.push(hubPiece(`stat-r-${i}`, w / 2 - 0.09, lz, { lift, scale: 0.78 }));
+      const on = 'bouwwerk' as const;
+      field.statues.push(hubPiece(`stat-l-${i}`, -(w / 2 - 0.09), lz, { on, lift, scale: 0.78 }));
+      field.statues.push(hubPiece(`stat-r-${i}`, w / 2 - 0.09, lz, { on, lift, scale: 0.78 }));
     }
   }
 
-  // Fonteinrij op het plein: zeven kleine op een lijn, één grote erachter.
-  for (let k = 0; k < 7; k += 1) {
-    field.fountains.push(hubPiece(`fnt-${k}`, -1.8 + k * 0.6, 1.7, { scale: 0.92 }));
+  // Fonteinrij dwars over het plein, met één grote in het hart ervan.
+  for (let k = 0; k < 5; k += 1) {
+    field.fountains.push(
+      hubPiece(`fnt-${k}`, -1.3 + k * 0.65, PLAZA_LZ - 1.15, { on: 'plein', scale: 0.85 }),
+    );
   }
-  field.fountains.push(hubPiece('fnt-big', 0, 2.75, { scale: 1.5 }));
+  field.fountains.push(hubPiece('fnt-big', 0, PLAZA_LZ, { on: 'plein', scale: 1.4 }));
 
-  // Tuff-gevels: drie aan de achterkant van het plein, twee opzij, twee
-  // flankerend bij de voet van de trap.
-  for (const [k, lx] of [-1.85, 0, 1.85].entries()) {
-    field.arcades.push(hubPiece(`arc-b-${k}`, lx, 3.55, { yaw: Math.PI }));
-  }
-  field.arcades.push(hubPiece('arc-l', -3.05, 1.7, { yaw: Math.PI / 2 }));
-  field.arcades.push(hubPiece('arc-r', 3.05, 1.7, { yaw: -Math.PI / 2 }));
-  if (!perfLow) {
-    field.arcades.push(hubPiece('arc-cl', -2.45, -0.75, { yaw: Math.PI / 2 }));
-    field.arcades.push(hubPiece('arc-cr', 2.45, -0.75, { yaw: -Math.PI / 2 }));
+  // Tuff-gevels als halve ring om het plein: elke gevel kijkt naar het midden,
+  // dus de bogen staan altijd naar de kijker toe in plaats van op hun kant.
+  const ring = perfLow ? [-40, 0, 40] : [-75, -40, 0, 40, 75];
+  for (const deg of ring) {
+    const theta = (deg * Math.PI) / 180;
+    field.arcades.push(
+      hubPiece(
+        `arc-${deg}`,
+        Math.sin(theta) * 2.35,
+        PLAZA_LZ + Math.cos(theta) * 2.35,
+        { yaw: theta + Math.PI },
+      ),
+    );
   }
 
-  field.churches.push(hubPiece('church', -3.5, -1.4, { yaw: 0.55, scale: 1.15 }));
-  field.churches.push(hubPiece('chapel', 3.4, -1.8, { yaw: -0.7, scale: 0.7 }));
+  field.churches.push(hubPiece('church', -3.3, -1.2, { yaw: 0.55, scale: 1.2 }));
+  field.churches.push(hubPiece('chapel', 3.3, -1.7, { yaw: -0.7, scale: 0.72 }));
 
   for (const [i, tree] of HUB_TREES.entries()) {
     if (perfLow && tree.pome) continue;
@@ -640,7 +679,7 @@ function buildField(world: WorldConfig | null, perfLow: boolean): Field {
         tint: new THREE.Color(shade + 0.06, shade, shade - 0.03),
       };
     };
-    const kh = spot(-1.05, 0.85, `${id}-kh`, 0.85);
+    const kh = spot(-1.05, 0.85, `${id}-kh`, 0.72);
     kh.tilt = -0.16;
     field.khachkars.push(kh);
     field.apricots.push(spot(0.95, -0.65, `${id}-ap`, 0.85));
@@ -710,8 +749,6 @@ function Instanced({
 }
 
 export function Landmarks({ world }: { world: WorldConfig | null }): JSX.Element {
-  // TEMP-PROBE
-  if (typeof location !== 'undefined' && location.search.includes('off=landmarks')) return <group />;
   const perfLow = useAra((s) => s.perfLow);
   const field = useMemo(() => buildField(world, perfLow), [world, perfLow]);
   const districts = useMemo(() => {
