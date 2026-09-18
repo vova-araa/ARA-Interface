@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialKey, hexDisc, type WorldConfig } from '@ara/shared';
 import { useAra } from '../store.ts';
-import { buildRoads, rand } from './roads.ts';
+import { buildRoads, groundTop, rand } from './roads.ts';
 
 /**
  * Verkeer over het wegennet.
@@ -28,7 +28,7 @@ const LAKE_RADIUS = 2;
 
 interface Vehicle {
   key: string;
-  path: { x: number; z: number }[];
+  path: { x: number; z: number; y: number }[];
   /** 0..1 over de route; rijdt heen en terug. */
   offset: number;
   speed: number;
@@ -100,7 +100,11 @@ function Runner({ vehicle }: { vehicle: Vehicle }): JSX.Element {
     const b = path[i + 1]!;
     const x = a.x + (b.x - a.x) * f;
     const z = a.z + (b.z - a.z) * f;
-    g.position.set(x, 0.2, z);
+    // Hoogte uit het wegdek zelf. Stond op een vaste 0,2 en dat was goed
+    // zolang de wereld plat was; sinds het terrein reliëf heeft reed alles
+    // ónder de weg door.
+    const y = a.y + (b.y - a.y) * f;
+    g.position.set(x, y, z);
     // Kijkrichting uit het segment zelf; bij terugrijden een halve slag om.
     const angle = Math.atan2(b.z - a.z, b.x - a.x) + (forward ? 0 : Math.PI);
     g.rotation.y = -angle;

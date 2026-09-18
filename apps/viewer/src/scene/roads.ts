@@ -13,7 +13,7 @@ export interface RoadNet {
   /** Sleutels van alle tegels die weg zijn — voor de grondlaag. */
   tiles: Set<string>;
   /** Per district één route van de hub naar het hart, in wereldcoördinaten. */
-  paths: { venture: string; color: string; points: { x: number; z: number }[] }[];
+  paths: { venture: string; color: string; points: { x: number; z: number; y: number }[] }[];
 }
 
 /**
@@ -62,7 +62,7 @@ export function buildRoads(
       r: Math.round(hexes.reduce((sum, h) => sum + h.r, 0) / hexes.length),
     };
 
-    const points: { x: number; z: number }[] = [];
+    const points: { x: number; z: number; y: number }[] = [];
     for (const hex of hexLine({ q: 0, r: 0 }, centre)) {
       const key = axialKey(hex);
       // Een weg loopt niet dóór een district of het meer heen; hij houdt op
@@ -70,7 +70,9 @@ export function buildRoads(
       // anders stopt het verkeer midden in het veld.
       if (!blocked.claimed.has(key) && !blocked.lake.has(key)) net.tiles.add(key);
       const { x, z } = axialToWorld(hex);
-      points.push({ x: x * HEX_SPACING, z: z * HEX_SPACING });
+      // De hoogte hoort bij het punt: een route is een lijn over heuvels, geen
+      // lijn op zeeniveau met iets erboven.
+      points.push({ x: x * HEX_SPACING, z: z * HEX_SPACING, y: groundTop(hex) });
     }
     net.paths.push({ venture: district.venture.id, color: district.venture.color, points });
   }
@@ -95,3 +97,44 @@ export function openGround(
 
 /** Deterministische pseudo-random uit een sleutel, in [0,1). */
 export const rand = (key: string): number => (stableHash(key) % 10_000) / 10_000;
+
+/**
+ * De hoogte van het grondoppervlak op een hex.
+ *
+ * Dit is een KOPIE van de formule in HexGround.tsx, en dat is een schuld, geen
+ * ontwerp. Reden dat hij hier toch staat: het terreinreliëf kwam er later bij
+ * dan het verkeer en de kudde, en die stonden op een vaste hoogte — met als
+ * gevolg dat vrachtwagens ónder het wegdek reden en de schapen half in de
+ * grond stonden. Zichtbaar fout, en niet op te lossen zonder deze formule.
+ *
+ * Zodra HexGround `terrainAt` exporteert hoort deze functie te verdwijnen en
+ * die import ervoor in de plaats te komen. Tot dan: wijzigt daar het reliëf,
+ * dan moet dit in dezelfde commit mee, anders zakt alles wat beweegt weer weg.
+ *
+ * Geeft de bovenkant van de tegel terug, dus de hoogte waar iets op staat.
+ */
+export function groundTop(hex: { q: number; r: number }): number {
+  const noise = (scale: number): number => {
+    const at = (cq: number, cr: number): number => (stableHash(`terr:${cq}:${cr}`) % 1000) / 1000;
+    const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
+    const ease = (t: number): number => t * t * (3 - 2 * t);
+    const fq = hex.q / scale;
+    const fr = hex.r / scale;
+    const q0 = Math.floor(fq);
+    const r0 = Math.floor(fr);
+    const tq = ease(fq - q0);
+    const tr = ease(fr - r0);
+    return mix(
+      mix(at(q0, r0), at(q0 + 1, r0), tq),
+      mix(at(q0, r0 + 1), at(q0 + 1, r0 + 1), tq),
+      tr,
+    );
+  };
+  const height = noise(5) * 0.72 + noise(2) * 0.28;
+  const distance = Math.max(Math.abs(hex.q), Math.abs(hex.r), Math.abs(hex.q + hex.r));
+  const rim = Math.pow(distance / WORLD_HEX_RADIUS, 2.4);
+  const lift = -0.04 + height * 0.5 + rim * 1.1;
+  // Tegelprisma's zijn 2,4 hoog en hangen op -1,05 (grond) of -1,03 (weg); hun
+  // bovenkant ligt dus op 0,15 respectievelijk 0,17 plus de lift.
+  return 0.16 + lift;
+}

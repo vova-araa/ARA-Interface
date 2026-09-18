@@ -62,6 +62,8 @@ const CIRCLE_SPEED = 0.22; // rad/s — een kwartslag in zeven tellen
 const CIRCLE_ZOOM = 1.25;
 /** Tijdlapse: het terugkijken draait langzaam om het midden van de wereld. */
 const REPLAY_SPEED = 0.07;
+/** De tijdlapse pakt de camera pas terug na deze rust — zie de reden hieronder. */
+const REPLAY_IDLE_MS = 6000;
 
 /**
  * Hoe lang de gebruiker met rust gelaten moet zijn voordat de automaat weer
@@ -271,14 +273,17 @@ export function CameraRig(): JSX.Element {
         wantedOrbit = CIRCLE_SPEED;
         if (s.t > CIRCLE_SEC) shot.current = null;
       }
-    } else if (replaying && userIdle) {
+    } else if (replaying && now - lastInteraction.current > REPLAY_IDLE_MS && !dragging.current) {
       // Tijdlapse: terugkijken hoort een filmpje te zijn, dus draait de camera
       // traag om het midden van de wereld in plaats van stil te staan.
+      //
+      // Bewust een langere rustperiode dan de rest én géén zoomdoel: wie tijdens
+      // het terugkijken zelf inzoomt op een district wil dáár het filmpje zien,
+      // niet teruggesleept worden naar het overzicht.
       shot.current = null;
       autoTarget = ORIGIN;
       smoothing = 1.2;
       wantedOrbit = REPLAY_SPEED;
-      zoomGoal = restZoom;
     } else if (tourWants && userIdle) {
       autoTarget = director.target;
       smoothing = director.smoothing;

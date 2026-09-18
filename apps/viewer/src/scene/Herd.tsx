@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { axialKey, axialToWorld, hexDisc, type WorldConfig } from '@ara/shared';
 import { HEX_SPACING } from '../placements.ts';
 import { useAra } from '../store.ts';
-import { buildRoads, openGround, rand } from './roads.ts';
+import { buildRoads, groundTop, openGround, rand } from './roads.ts';
 
 /**
  * Een kudde op de lege grond tussen de districten.
@@ -27,6 +27,8 @@ const PER_FLOCK = 7;
 interface Animal {
   key: string;
   home: [number, number];
+  /** Grondhoogte van de hex waar dit dier op staat. */
+  ground: number;
   /** Fase en straal van het gedrentel rond het eigen plekje. */
   phase: number;
   wander: number;
@@ -88,7 +90,7 @@ function Flock({ animals }: { animals: Animal[] }): JSX.Element {
       euler.set(0, facing, 0);
       quat.setFromEuler(euler);
       scale.setScalar(animal.scale);
-      pos.set(x, 0.33, z);
+      pos.set(x, animal.ground + 0.09, z);
       matrix.compose(pos, quat, scale);
       body.setMatrixAt(i, matrix);
 
@@ -97,7 +99,7 @@ function Flock({ animals }: { animals: Animal[] }): JSX.Element {
       quat.setFromEuler(euler);
       pos.set(
         x + Math.cos(facing) * 0.075 * animal.scale,
-        0.35 * animal.scale + 0.02,
+        animal.ground + 0.11 * animal.scale,
         z - Math.sin(facing) * 0.075 * animal.scale,
       );
       matrix.compose(pos, quat, scale);
@@ -108,7 +110,7 @@ function Flock({ animals }: { animals: Animal[] }): JSX.Element {
       LEG_OFFSETS.forEach(([lx, lz], k) => {
         const rx = lx * Math.cos(facing) - lz * Math.sin(facing);
         const rz = lx * Math.sin(facing) + lz * Math.cos(facing);
-        legPos.set(x + rx * animal.scale, 0.33 * animal.scale - 0.07, z + rz * animal.scale);
+        legPos.set(x + rx * animal.scale, animal.ground + 0.09 - 0.07 * animal.scale, z + rz * animal.scale);
         legMatrix.compose(legPos, quat, scale);
         leg.setMatrixAt(i * 4 + k, legMatrix);
       });
@@ -169,6 +171,9 @@ export function Herd({ world }: { world: WorldConfig | null }): JSX.Element | nu
       const { x, z } = axialToWorld(hex);
       const cx = x * HEX_SPACING;
       const cz = z * HEX_SPACING;
+      // Stond op een vaste 0,33 en zakte daarmee half in de heuvels sinds het
+      // terrein reliëf kreeg.
+      const ground = groundTop(hex);
       for (let i = 0; i < PER_FLOCK; i += 1) {
         const seed = `flock:${f}:${i}`;
         const angle = rand(seed) * Math.PI * 2;
@@ -176,6 +181,7 @@ export function Herd({ world }: { world: WorldConfig | null }): JSX.Element | nu
         out.push({
           key: seed,
           home: [cx + Math.cos(angle) * radius, cz + Math.sin(angle) * radius],
+          ground,
           phase: rand(`${seed}:p`) * Math.PI * 2,
           wander: 0.05 + rand(`${seed}:w`) * 0.12,
           scale: 0.85 + rand(`${seed}:s`) * 0.45,

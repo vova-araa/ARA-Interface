@@ -16,57 +16,61 @@ import { buildRoads, hexLine } from './roads.ts';
 import { useAra, useViewSnapshot } from '../store.ts';
 
 /**
- * Het geheugen van de wereld: wat af is gekomen, en waar het sleet achterliet.
+ * Het geheugen van de wereld: wat er afkwam, en waar het sleet achterliet.
  *
  * De rest van de scene toont het nú — pods die draaien, verkeer dat rijdt. Zodra
- * een sessie eindigt verdwijnt ze en is er van een afgemaakte week niets meer te
- * zien. Deze laag legt daar een steen voor neer bij het district waar het gebeurde.
+ * een sessie eindigt verdwijnt ze, en van een week hard werken is daarna niets
+ * meer te zien. Deze laag zet daar een steen voor neer, bij het district waar
+ * het gebeurde.
  *
- * EERLIJKHEIDSGRENS — de reden dat dit veld uit zeven dagplaten bestaat.
+ * EERLIJKHEIDSGRENS — de reden dat het veld uit precies zeven platen bestaat.
  * De collector is een ring buffer van zeven dagen (RETENTION_MS) en de
- * WorldState gooit stille sessies al na 48 uur weg. Wat ARA van vorige maand
- * weet is dus: niets. Een monumentenveld dat "ooit" suggereert zou daarom liegen
- * zodra de data verlopen is — een leeg veld leest dan als "hier is nooit iets
- * afgemaakt" in plaats van "dit weet ik niet meer".
+ * WorldState vergeet stille sessies al na 48 uur. Wat ARA van vorige maand weet
+ * is dus: niets. Een monumentenveld dat "ooit" suggereert liegt daarom zodra de
+ * data verlopen is: een leeg veld zou lezen als "hier is nooit iets afgemaakt"
+ * in plaats van "verder terug kijk ik niet".
  *
- * Daarom is de vórm zelf de voetnoot: exact zeven platen naast elkaar, één per
- * dag, altijd alle zeven aanwezig ook als er geen steen op ligt. Je kijkt naar
- * een week, dat zie je aan het veld. De platen verweren naar achteren (lager,
- * bleker, stenen die schever staan): de oudste plaat staat op de rand van wat de
- * db nog weet, en daarachter houdt het zichtbaar op. Nooit een steen tekenen voor
- * iets buiten dat venster, en nooit een steen verzinnen voor een gat erbinnen.
+ * Daarom is de vórm de voetnoot. Zeven dagplaten naast elkaar, altijd alle
+ * zeven, ook als er geen steen op ligt — je ziet dat je naar een week kijkt.
+ * Naar achteren verweert het veld zichtbaar (de plaat zakt, de kleur verbleekt,
+ * de stenen gaan schever staan): de laatste plaat is de rand van wat de db nog
+ * weet, en daarachter houdt het op. Nooit een steen buiten dat venster, en nooit
+ * een verzonnen steen voor een gat erbinnen.
  */
 
 // Het meer staat privé in HexGround; Traffic en Herd houden er om dezelfde reden
 // een eigen kopie van. Zonder deze twee getallen legt dit veld zijn stenen in Sevan.
 const LAKE_CENTER = { q: -2, r: 6 };
 const LAKE_RADIUS = 2;
-
-/** Zeven dagen: het venster van de ring buffer, niet een gekozen mooi getal. */
+/** Zeven dagen: het venster van de ring buffer, geen gekozen mooi getal. */
 const WINDOW_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const SLAB_GAP = 0.62; // hart-op-hart tussen twee dagplaten
-const SLAB_WIDTH = 0.5;
-const SLAB_MIN_DEPTH = 1.15;
-const STONE_PITCH = 0.3;
-// Bovenkant van een gewone terreintegel resp. een wegtegel in HexGround
-// (prisma van 2,4 hoog, opgehangen op -1,05 / -1,03, plus de terreinhoogte).
+const SLAB_GAP = 0.8; // hart-op-hart tussen twee dagplaten
+const SLAB_WIDTH = 0.66;
+const SLAB_MIN_DEPTH = 1.1;
+const STONE_PITCH = 0.22;
+// Bovenkant van een gewone terreintegel resp. een wegtegel in HexGround: prisma
+// van 2,4 hoog, opgehangen op -1,05 / -1,03, plus de terreinhoogte van die tegel.
 const GROUND_TOP = 0.15;
 const ROAD_TOP = 0.17;
-// Een dag met meer dan dit aantal afrondingen is geen dag meer maar een storing;
-// het veld krimpt eerst zijn onderlinge afstand voordat het hier stopt.
+// Een dag met meer afrondingen dan dit is geen dag meer maar een storing; het
+// veld kruipt eerst dichter op elkaar voordat het hier ophoudt.
 const MAX_STONES_PER_DAY = 60;
+/** Stenen per rij; een drukke dag wordt breder voordat hij dieper wordt. */
+const columnsFor = (n: number): number => (n <= 12 ? 2 : n <= 30 ? 3 : 4);
+/** Buitenste tegelring van de wereld; daarbuiten zweeft een steen in de lucht. */
+const FIELD_LIMIT = axialToWorld({ q: WORLD_HEX_RADIUS, r: 0 }).x * HEX_SPACING - 1.3;
 
 const TUFF = new THREE.Color('#c07a63'); // khachkar: rode tuf
 const PALE = new THREE.Color('#e3d3bf'); // obelisk: gebleekte kalksteen
 const BRONZE = new THREE.Color('#b08d57'); // plaquette
 const WEATHERED = new THREE.Color('#9a9188'); // waar de tijd aan getrokken heeft
 const SLAB = new THREE.Color('#cabaa7');
-const ROAD = new THREE.Color('#d8cdbd'); // zelfde grind als HexGround: sleet = 0 valt weg
+const ROAD = new THREE.Color('#d8cdbd'); // zelfde grind als HexGround: geen sleet = niets te zien
 const WORN = new THREE.Color('#6d5c49');
 
-/** Eén geïnstanceerd onderdeel; rot in Euler-volgorde YXZ (draai eerst, leun daarna). */
+/** Eén geïnstanceerd onderdeel; rot in Euler-volgorde YXZ (eerst draaien, dan leunen). */
 interface Piece {
   x: number;
   y: number;
@@ -95,10 +99,10 @@ const startOfDay = (ts: number): number => {
 /**
  * De terreinhoogte staat privé in HexGround (valueNoise/terrainAt) en wordt
  * nergens gedeeld. Toch moet dit veld hem kennen: de wegtegels liggen in de
- * praktijk op y≈0,44–0,58 en niet op de ~0,2 waar de rest van de scene van
- * uitgaat, dus sleet op een vaste hoogte verdwijnt onzichtbaar ín de weg en
- * stenen zakken in de heuvel. Deze twee functies zijn met opzet een letterlijke
- * kopie van de formule daar — wijzigt het terrein, dan moet dit mee.
+ * praktijk op y≈0,45–0,60 en niet op de ~0,2 waar de rest van de scene vanuit
+ * gaat, dus sleet op een vaste hoogte verdwijnt ónder het wegdek en stenen
+ * zakken in de heuvel. Deze drie functies zijn met opzet een letterlijke kopie
+ * van de formule daar — verandert het terrein, dan moet dit mee.
  */
 function valueNoise(q: number, r: number, scale: number): number {
   const at = (cq: number, cr: number): number => (stableHash(`terr:${cq}:${cr}`) % 1000) / 1000;
@@ -144,18 +148,17 @@ function hexAt(x: number, z: number): { q: number; r: number } {
 const jitter = (key: string): number => (stableHash(key) % 1000) / 1000 - 0.5;
 
 /**
- * Een mijlpaal is een sessie die uit zichzelf klaar is: geëindigd, status `done`
- * (dus niet in een fout blijven hangen) en geen enkele tool-fout onderweg.
- * Afgebroken of foute sessies krijgen geen steen — een monument dat ook voor
- * mislukkingen staat zegt niets meer.
+ * Een mijlpaal is een sessie die uit zichzelf klaar kwam: geëindigd, status
+ * `done` (dus niet in een fout blijven hangen) en geen enkele tool-fout
+ * onderweg. Een monument dat ook voor mislukkingen staat zegt niets meer.
  */
 const isMilestone = (s: SessionState): boolean =>
   s.endedAt !== undefined && s.status === 'done' && s.errorCount === 0;
 
-/** Hoe zwaar het werk was bepaalt de steensoort; groot werk krijgt een obelisk. */
+/** Hoe zwaar het werk was bepaalt de steensoort; lang doorwerken krijgt een obelisk. */
 const kindOf = (s: SessionState): 0 | 1 | 2 => (s.toolCount >= 40 ? 2 : s.toolCount >= 12 ? 1 : 0);
 
-export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, perfLow: boolean): Field {
+function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, perfLow: boolean): Field {
   if (!world || world.districts.length === 0) return EMPTY_FIELD;
   const field: Field = { khachkars: [], obelisks: [], plaques: [], slabs: [], wear: [] };
 
@@ -175,12 +178,30 @@ export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, p
     });
   }
 
+  // Project → tak, één keer opgezocht. visibleInWorld loopt élk district langs en
+  // dat pad wordt per binnenkomend event opnieuw gelopen voor elke sessie.
+  const ventureOf = new Map<string, string | null>();
+  for (const district of world.districts) {
+    for (const project of district.projects) ventureOf.set(project.name, district.venture.id);
+  }
+  const ventureFor = (project: string): string | null => {
+    let venture = ventureOf.get(project);
+    if (venture === undefined) {
+      // Onbekend project: het staat wél in de wereld (placementForProject vindt
+      // een plek bij Nor Kaghak) tenzij zijn tak bewust verborgen is.
+      venture = visibleInWorld(world, project) ? projectPlacement(world, project).venture : null;
+      ventureOf.set(project, venture);
+    }
+    return venture;
+  };
+
   for (const session of Object.values(snapshot.sessions)) {
-    if (!visibleInWorld(world, session.project)) continue;
-    const bucket = byVenture.get(projectPlacement(world, session.project).venture);
+    const venture = ventureFor(session.project);
+    if (venture === null) continue;
+    const bucket = byVenture.get(venture);
     if (!bucket) continue;
-    // Sleet komt van álles wat er liep, ook van wat nog draait of stukliep:
-    // een pad slijt van de voeten, niet van het resultaat.
+    // Sleet komt van álles wat er liep, ook van wat nog draait of stukliep: een
+    // pad slijt van de voeten, niet van het resultaat.
     bucket.traffic += session.toolCount;
     if (!isMilestone(session)) continue;
     const day = Math.floor((today - startOfDay(session.endedAt as number)) / DAY_MS);
@@ -190,9 +211,20 @@ export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, p
     bucket.days[day]?.push(session);
   }
 
-  const lakeWorld = axialToWorld(LAKE_CENTER);
-  const lakeX = lakeWorld.x * HEX_SPACING;
-  const lakeZ = lakeWorld.z * HEX_SPACING;
+  // Bezette grond: districten, meer en wegen. Het veld moet ergens staan waar
+  // niets anders staat, en dezelfde verzameling voedt straks de sleetlaag.
+  const claimed = new Set<string>();
+  for (const d of world.districts) {
+    for (const p of d.projects) for (const h of p.hexes) claimed.add(axialKey(h));
+  }
+  const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
+  const net = buildRoads(world, { claimed, lake });
+  const occupied = (hex: { q: number; r: number }): boolean => {
+    const key = axialKey(hex);
+    if (claimed.has(key) || lake.has(key) || net.tiles.has(key)) return true;
+    // Buiten de schijf is er geen grond meer om een steen op te zetten.
+    return Math.max(Math.abs(hex.q), Math.abs(hex.r), Math.abs(hex.q + hex.r)) > WORLD_HEX_RADIUS;
+  };
 
   for (const district of world.districts) {
     const bucket = byVenture.get(district.venture.id);
@@ -202,81 +234,183 @@ export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, p
     const centre = axialToWorld(district.center);
     const cx = centre.x * HEX_SPACING;
     const cz = centre.z * HEX_SPACING;
-    // Hoe ver het district zelf reikt, gemeten aan zijn eigen hexen: het veld
-    // hoort er nét buiten te liggen, ook als een district groeit.
-    let reach = 0;
-    for (const project of district.projects) {
-      for (const hex of project.hexes) {
-        const w = axialToWorld(hex);
-        reach = Math.max(reach, Math.hypot(w.x * HEX_SPACING - cx, w.z * HEX_SPACING - cz));
+    // Naar buiten = van de hub weg. Daar loopt geen weg en staan geen pods, dus
+    // komt het veld niet in de rijbaan of boven op het district te staan.
+    const len = Math.hypot(cx, cz) || 1;
+    const outX = cx / len;
+    const outZ = cz / len;
+
+    /** Hoe ver het district in déze richting uitsteekt — niet zijn grootste
+     * straal: een langgerekt cluster zou het veld anders de wereld uit duwen. */
+    const extentAlong = (ux: number, uz: number): number => {
+      let out = 0;
+      for (const project of district.projects) {
+        for (const hex of project.hexes) {
+          const w = axialToWorld(hex);
+          out = Math.max(out, (w.x * HEX_SPACING - cx) * ux + (w.z * HEX_SPACING - cz) * uz);
+        }
       }
+      return out;
+    };
+
+    // De vrije strook tussen de rand van het district en de rand van de wereld.
+    // Dat is een harde grens: liever stenen dicht op elkaar dan een veld dat de
+    // wereld af loopt of op het district klimt.
+    const room = Math.max(SLAB_MIN_DEPTH, FIELD_LIMIT - len - extentAlong(outX, outZ) - 0.9);
+
+    interface Day {
+      sessions: SessionState[];
+      columns: number;
+      pitch: number;
+      depth: number;
+    }
+    interface Plan {
+      slabGap: number;
+      slabWidth: number;
+      halfWidth: number;
+      fieldDepth: number;
+      days: Day[];
     }
 
-    // Naar buiten = van de hub weg; daar is geen weg en geen verkeer, dus staat
-    // het veld nooit in de rijbaan of tussen de pods.
-    const len = Math.hypot(cx, cz) || 1;
-    let dirX = cx / len;
-    let dirZ = cz / len;
-    let originX = cx + dirX * (reach + 0.95);
-    let originZ = cz + dirZ * (reach + 0.95);
-    if (Math.hypot(originX - lakeX, originZ - lakeZ) < (LAKE_RADIUS + 1.6) * 1.75) {
-      // Liever scheef aan de rand dan onder water: een vaste draai, geen gok.
-      const a = -0.95;
-      const nx = dirX * Math.cos(a) - dirZ * Math.sin(a);
-      const nz = dirX * Math.sin(a) + dirZ * Math.cos(a);
-      dirX = nx;
-      dirZ = nz;
-      originX = cx + dirX * (reach + 0.95);
-      originZ = cz + dirZ * (reach + 0.95);
+    /** `squeeze` < 1 = hetzelfde veld, compacter; zo past het ook in een drukke wereld. */
+    const planFor = (squeeze: number): Plan => {
+      const slabGap = SLAB_GAP * squeeze;
+      const slabWidth = SLAB_WIDTH * squeeze;
+      const depthRoom = room * squeeze;
+      const days = bucket.days.map((raw): Day => {
+        const sessions = raw
+          // Deterministisch: Object.values geeft de volgorde van binnenkomst, en
+          // dan verspringt het hele veld na een herstart.
+          .sort(
+            (a, b) => (a.endedAt ?? 0) - (b.endedAt ?? 0) || a.sessionId.localeCompare(b.sessionId),
+          )
+          .slice(-MAX_STONES_PER_DAY);
+        const columns = columnsFor(sessions.length);
+        const rows = Math.max(1, Math.ceil(sessions.length / columns));
+        // Een drukke dag kruipt dichter op elkaar in plaats van door te groeien:
+        // stenen die elkaar raken lezen als een muur werk, een veld dat buiten de
+        // wereld steekt leest als een fout.
+        const pitch = Math.max(0.05, Math.min(STONE_PITCH * squeeze, (depthRoom - 0.3) / rows));
+        return {
+          sessions,
+          columns,
+          pitch,
+          depth: Math.min(depthRoom, Math.max(SLAB_MIN_DEPTH * squeeze, 0.3 + rows * pitch)),
+        };
+      });
+      return {
+        slabGap,
+        slabWidth,
+        halfWidth: 3 * slabGap + slabWidth / 2,
+        fieldDepth: Math.max(...days.map((d) => d.depth)),
+        days,
+      };
+    };
+
+    const anchorFor = (plan: Plan, ux: number, uz: number): { x: number; z: number } => {
+      let gap = extentAlong(ux, uz) + 0.9;
+      // De wereld is een schijf: voorbij de buitenste tegelring is er geen grond
+      // meer om een steen op te zetten, dus schuift het veld terug naar binnen.
+      const far = Math.hypot(cx + ux * (gap + plan.fieldDepth), cz + uz * (gap + plan.fieldDepth));
+      if (far > FIELD_LIMIT) gap = Math.max(0.3, gap - (far - FIELD_LIMIT));
+      return { x: cx + ux * gap, z: cz + uz * gap };
+    };
+
+    /**
+     * Hoeveel van het veld op bezette grond zou vallen. Alleen het ankerpunt
+     * toetsen is niet genoeg: de zeven platen staan náást elkaar, en juist de
+     * buitenste plaat belandt anders in het meer, op de weg of op de buurman.
+     */
+    const blockedFor = (
+      plan: Plan,
+      a: { x: number; z: number },
+      ux: number,
+      uz: number,
+    ): number => {
+      let bad = 0;
+      for (let i = 0; i <= 8; i += 1) {
+        const lat = -plan.halfWidth + (i / 8) * plan.halfWidth * 2;
+        for (const out of [0, plan.fieldDepth / 2, plan.fieldDepth]) {
+          const px = a.x + uz * lat + ux * out;
+          const pz = a.z - ux * lat + uz * out;
+          if (occupied(hexAt(px, pz))) bad += 1;
+        }
+      }
+      return bad;
+    };
+
+    // Recht naar buiten is de eerste keuze; past dat niet, dan draait het veld in
+    // vaste stapjes mee langs de rand en wordt het daarna compacter. Vaste hoeken
+    // en vaste stappen, geen zoektocht met toeval: hetzelfde district komt altijd
+    // op dezelfde plek terecht.
+    let chosen: { plan: Plan; x: number; z: number; ux: number; uz: number; bad: number } | null =
+      null;
+    for (const squeeze of [1, 0.72, 0.5]) {
+      const plan = planFor(squeeze);
+      for (const turn of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05, 1.4, -1.4, 1.75, -1.75]) {
+        const ux = outX * Math.cos(turn) - outZ * Math.sin(turn);
+        const uz = outX * Math.sin(turn) + outZ * Math.cos(turn);
+        const a = anchorFor(plan, ux, uz);
+        const bad = blockedFor(plan, a, ux, uz);
+        if (!chosen || bad < chosen.bad) chosen = { plan, x: a.x, z: a.z, ux, uz, bad };
+        if (bad === 0) break;
+      }
+      if (chosen && chosen.bad === 0) break;
     }
-    // Het veld staat op het terrein buiten het district, en dat glooit. De
-    // sokkel krijgt daarom een dikke voet die naar beneden doorsteekt: op een
-    // helling graaft hij zich in plaats van te zweven.
-    const fieldTop = GROUND_TOP + terrainLift(hexAt(originX, originZ)) + 0.06;
+    if (!chosen) continue;
+
+    const { plan } = chosen;
+    const dirX = chosen.ux;
+    const dirZ = chosen.uz;
     const yaw = Math.atan2(dirX, dirZ);
     // Dwars op de kijkrichting: hierlangs staan de zeven dagen naast elkaar.
     const acrossX = dirZ;
     const acrossZ = -dirX;
 
-    for (let day = 0; day < WINDOW_DAYS; day += 1) {
-      const sessions = (bucket.days[day] ?? [])
-        // Deterministisch: de volgorde van Object.values is die van binnenkomst,
-        // en dan verspringt het veld bij elke herstart.
-        .sort((a, b) => (a.endedAt ?? 0) - (b.endedAt ?? 0) || a.sessionId.localeCompare(b.sessionId))
-        .slice(-MAX_STONES_PER_DAY);
-      // 0 = vandaag, 6 = de rand van wat de db nog weet. Verweer loopt mee.
-      const age = day / (WINDOW_DAYS - 1);
-      const slabLat = (3 - day) * SLAB_GAP;
+    /**
+     * Het terrein glooit en loopt naar de rand toe op. Elke dagplaat pakt de
+     * hoogte van zijn eigen strook — zo trappen de zeven platen mee met de
+     * helling in plaats van als één vlonder te zweven. Het hoogste punt van de
+     * strook wint en de plaat heeft een dikke voet die doorsteekt: liever
+     * ingegraven dan zwevend boven de grond.
+     */
+    const topOf = (lat: number, depth: number): number => {
+      let lift = -Infinity;
+      for (const out of [0, depth / 2, depth]) {
+        const px = chosen.x + acrossX * lat + dirX * out;
+        const pz = chosen.z + acrossZ * lat + dirZ * out;
+        lift = Math.max(lift, terrainLift(hexAt(px, pz)));
+      }
+      return GROUND_TOP + lift + 0.06;
+    };
 
-      const columns = sessions.length > 20 ? 3 : 2;
-      const rows = Math.ceil(sessions.length / columns);
-      // Eerst dichter op elkaar, pas daarna stoppen: een drukke dag hoort zwaarder
-      // te lijken, niet afgekapt.
-      const pitch = rows > 8 ? Math.min(STONE_PITCH, 2.6 / rows) : STONE_PITCH;
-      const depth = Math.max(SLAB_MIN_DEPTH, 0.4 + rows * pitch);
+    plan.days.forEach((day, index) => {
+      // 0 = vandaag, 6 = de rand van wat de db nog weet.
+      const age = index / (WINDOW_DAYS - 1);
+      const slabLat = (3 - index) * plan.slabGap;
+      // Oudere dagen zakken weg; achter de laatste plaat houdt het zichtbaar op.
+      const slabTop = topOf(slabLat, day.depth) - age * 0.025;
 
-      // Oudere dagen zakken weg: de plaat van zes dagen terug ligt lager dan die
-      // van vandaag, en achter de laatste plaat houdt het zichtbaar op.
-      const slabTop = fieldTop - age * 0.025;
       field.slabs.push({
-        x: originX + dirX * (depth / 2) + acrossX * slabLat,
+        x: chosen.x + dirX * (day.depth / 2) + acrossX * slabLat,
         y: slabTop - 0.25,
-        z: originZ + dirZ * (depth / 2) + acrossZ * slabLat,
+        z: chosen.z + dirZ * (day.depth / 2) + acrossZ * slabLat,
         rot: [0, yaw, 0],
-        scale: [SLAB_WIDTH, 0.5, depth],
+        scale: [plan.slabWidth, 0.5, day.depth],
         color: SLAB.clone().lerp(WEATHERED, age * 0.55).lerp(ventureColor, 0.1),
       });
 
-      sessions.forEach((session, i) => {
-        const col = i % columns;
-        const row = Math.floor(i / columns);
-        const lat = slabLat + (col - (columns - 1) / 2) * (SLAB_WIDTH / columns);
-        const out = 0.26 + row * pitch;
-        const x = originX + dirX * out + acrossX * lat;
-        const z = originZ + dirZ * out + acrossZ * lat;
-        // Ouder = schever en bleker; de wind heeft er langer aan getrokken.
+      day.sessions.forEach((session, i) => {
+        const col = i % day.columns;
+        const row = Math.floor(i / day.columns);
+        const lat =
+          slabLat + (col - (day.columns - 1) / 2) * (plan.slabWidth / (day.columns + 0.4));
+        const out = 0.22 + row * day.pitch;
+        const x = chosen.x + dirX * out + acrossX * lat;
+        const z = chosen.z + dirZ * out + acrossZ * lat;
+        // Ouder = schever en bleker: de wind heeft er langer aan getrokken.
         const lean = (0.05 + age * 0.13) * jitter(`${session.sessionId}:lean`) * 2;
-        const height = 1 - age * 0.2;
+        const height = (1 - age * 0.2) * Math.min(1, plan.slabWidth / SLAB_WIDTH + 0.25);
         const kind = kindOf(session);
         const base = kind === 2 ? PALE : kind === 1 ? TUFF : BRONZE;
         const color = base
@@ -290,52 +424,60 @@ export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, p
           lean,
         ];
         if (kind === 2) {
-          field.obelisks.push({ x, y: slabTop + 0.3 * height, z, rot, scale: [1, height, 1], color });
+          field.obelisks.push({
+            x,
+            y: slabTop + 0.3 * height,
+            z,
+            rot,
+            scale: [height, height, height],
+            color,
+          });
         } else if (kind === 1) {
-          field.khachkars.push({ x, y: slabTop + 0.21 * height, z, rot, scale: [1, height, 1], color });
+          field.khachkars.push({
+            x,
+            y: slabTop + 0.21 * height,
+            z,
+            rot,
+            scale: [height, height, height],
+            color,
+          });
         } else {
-          // De plaquette ligt: een kleine afronding krijgt een steen in de grond,
-          // geen paal in de lucht.
+          // Het kleinste werk krijgt een liggende steen, geen paal in de lucht.
           field.plaques.push({
             x,
-            y: slabTop + 0.025,
+            y: slabTop + 0.04,
             z,
-            rot: [0.32 + lean * 0.3, rot[1], lean * 0.4],
-            scale: [1, 1, 1],
+            rot: [0.3 + lean * 0.3, rot[1], lean * 0.4],
+            scale: [height, 1, height],
             color,
           });
         }
       });
-    }
+    });
   }
 
   // Sleetse paden. De grondtegels zijn van HexGround, dus dit is een eigen dun
-  // vlak dat er net boven ligt — de weg zelf blijft onaangeraakt.
+  // vlak dat er net bovenop ligt — de weg zelf blijft onaangeraakt.
   if (!perfLow) {
-    const claimed = new Set<string>();
-    for (const d of world.districts) {
-      for (const p of d.projects) for (const h of p.hexes) claimed.add(axialKey(h));
-    }
-    const lake = new Set(hexDisc(LAKE_CENTER, LAKE_RADIUS).map(axialKey));
-    const net = buildRoads(world, { claimed, lake });
-
     const load = new Map<string, { hex: { q: number; r: number }; total: number }>();
     for (const district of world.districts) {
       const traffic = byVenture.get(district.venture.id)?.traffic ?? 0;
       if (traffic <= 0) continue;
       const hexes = district.projects.flatMap((p) => p.hexes);
       if (hexes.length === 0) continue;
-      // Exact het middelpunt dat buildRoads ook kiest: een eigen benadering legt
-      // de sleet naast de weg in plaats van erop.
+      // Exact het middelpunt dat buildRoads ook kiest; een eigen benadering legt
+      // de sleet náást de weg in plaats van erop.
       const target = {
         q: Math.round(hexes.reduce((sum, h) => sum + h.q, 0) / hexes.length),
         r: Math.round(hexes.reduce((sum, h) => sum + h.r, 0) / hexes.length),
       };
       for (const hex of hexLine({ q: 0, r: 0 }, target)) {
         const key = axialKey(hex);
-        // Alleen echte wegtegels: net.tiles is de baas, de lijn is enkel de route.
+        // net.tiles is de baas over wat weg is; de lijn geeft alleen de route.
         if (!net.tiles.has(key)) continue;
         const seen = load.get(key);
+        // Het stuk bij de hub draagt het verkeer van álle districten, en dat is
+        // precies waar een pad in het echt het eerst kaal is.
         if (seen) seen.total += traffic;
         else load.set(key, { hex, total: traffic });
       }
@@ -343,15 +485,15 @@ export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, p
 
     for (const { hex, total } of load.values()) {
       // Logaritmisch: het verschil tussen 10 en 100 tool-calls moet je zien, dat
-      // tussen 5000 en 5100 niet. Bij weinig verkeer blijft de kleur die van de
-      // weg zelf — dan is er niets te zien, en dat klopt ook.
+      // tussen 5000 en 5100 niet. Weinig verkeer houdt de kleur van de weg zelf —
+      // dan is er niets te zien, en dat klopt ook.
       const amount = Math.min(1, Math.log10(1 + total) / 3.2);
       if (amount < 0.05) continue;
       const w = axialToWorld(hex);
       field.wear.push({
         x: w.x * HEX_SPACING,
-        // Op het wegdek zelf, dus mét de hoogte van die tegel: een vaste hoogte
-        // ligt op de ene weg te zweven en in de andere begraven.
+        // Op het wegdek van díe tegel: een vaste hoogte zweeft boven de ene weg
+        // en ligt begraven onder de andere.
         y: ROAD_TOP + terrainLift(hex) + 0.012,
         z: w.z * HEX_SPACING,
         rot: [0, 0, 0],
@@ -365,9 +507,9 @@ export function buildField(world: WorldConfig | null, snapshot: WorldSnapshot, p
 }
 
 /**
- * Matrices eenmalig wegschrijven. `count` gaat mee omdat de mesh op een minimum
- * van één instance staat: zonder dat staat er een losse steen op de oorsprong
- * zodra een veld leeg is.
+ * Matrices eenmalig wegschrijven. `count` gaat mee omdat elke mesh op minstens
+ * één instance staat: zonder dat staat er een losse steen op de oorsprong zodra
+ * een soort nog niet voorkomt.
  */
 function place(items: Piece[]): (mesh: THREE.InstancedMesh | null) => void {
   return (mesh) => {
@@ -403,7 +545,7 @@ export function Monuments({ world }: { world: WorldConfig }): JSX.Element | null
   return (
     <group>
       {/* Zeven dagplaten per district — altijd alle zeven, ook leeg. Dit is wat
-          het veld eerlijk houdt: je ziet dat je naar een week kijkt. */}
+          het veld eerlijk houdt: je ziet dat je naar één week kijkt. */}
       <instancedMesh
         key={`slab-${field.slabs.length}`}
         args={[undefined, undefined, Math.max(1, field.slabs.length)]}
@@ -438,7 +580,7 @@ export function Monuments({ world }: { world: WorldConfig }): JSX.Element | null
         <meshStandardMaterial color="#ffffff" roughness={0.65} />
       </instancedMesh>
 
-      {/* Plaquette: een kort klusje krijgt een liggende steen. */}
+      {/* Plaquette: het kleinste werk krijgt een liggende steen. */}
       <instancedMesh
         key={`plaque-${field.plaques.length}`}
         args={[undefined, undefined, Math.max(1, field.plaques.length)]}
@@ -449,10 +591,10 @@ export function Monuments({ world }: { world: WorldConfig }): JSX.Element | null
         <meshStandardMaterial color="#ffffff" roughness={0.5} metalness={0.25} />
       </instancedMesh>
 
-      {/* Sleet over de wegtegels: doorzichtig vlak, schrijft geen diepte en duwt
-          zichzelf met polygonOffset boven het wegdek — anders knippert het ertegen.
-          Bij perfLow bestaat deze laag niet: doorzichtige vlakken zijn precies wat
-          een zwakke GPU (of SwiftShader) laat inzakken. */}
+      {/* Sleet over de wegtegels: doorzichtig vlak dat geen diepte schrijft en
+          zich met polygonOffset boven het wegdek duwt, anders knippert het
+          ertegenaan. Bij perfLow bestaat deze laag niet — doorzichtige vlakken
+          zijn precies wat een zwakke GPU (of SwiftShader) laat inzakken. */}
       {field.wear.length > 0 && (
         <instancedMesh
           key={`wear-${field.wear.length}`}

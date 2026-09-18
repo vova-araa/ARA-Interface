@@ -22,28 +22,30 @@ export interface StylizeOptions {
 /**
  * Waarde-ruis in de shader. Bewust een hash van de wereldpositie en geen
  * texture: een texture kost een bind, een upload en geheugen per materiaal, en
- * de wereld is oneindig groot te pannen — een hash herhaalt zich nooit en kost
- * één draw call minder dan niets. Dezelfde reden als in HexGround: een hash is
- * deterministisch, dus het beeld is op elke machine identiek.
+ * de wereld is oneindig ver te pannen — een hash herhaalt zich nooit en kost
+ * geen enkele draw call. Net als in HexGround is een hash deterministisch, dus
+ * het beeld is op elke machine identiek.
+ *
+ * Twee dimensies, geen drie: een 3D-cel kost acht hoekpunten, een 2D-cel vier.
+ * Onder software-rendering (CI, container, geen GPU) is dat het verschil tussen
+ * wel en niet halen — de grond beslaat het hele scherm, dus elke hash telt
+ * mee per pixel. De hoogte wordt in de coördinaat meegemengd, zodat de wanden
+ * van een tegel niet dezelfde streep krijgen als de bovenkant.
  */
 const NOISE_GLSL = `
-float araHash(vec3 p) {
-  p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+float araHash(vec2 p) {
+  vec3 h = fract(vec3(p.xyx) * 0.1031);
+  h += dot(h, h.yzx + 33.33);
+  return fract((h.x + h.y) * h.z);
 }
-float araNoise(vec3 x) {
-  vec3 i = floor(x);
-  vec3 f = fract(x);
+float araNoise(vec2 x) {
+  vec2 i = floor(x);
+  vec2 f = fract(x);
   f = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(mix(araHash(i + vec3(0.0, 0.0, 0.0)), araHash(i + vec3(1.0, 0.0, 0.0)), f.x),
-        mix(araHash(i + vec3(0.0, 1.0, 0.0)), araHash(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
-    mix(mix(araHash(i + vec3(0.0, 0.0, 1.0)), araHash(i + vec3(1.0, 0.0, 1.0)), f.x),
-        mix(araHash(i + vec3(0.0, 1.0, 1.0)), araHash(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+  return mix(mix(araHash(i), araHash(i + vec2(1.0, 0.0)), f.x),
+             mix(araHash(i + vec2(0.0, 1.0)), araHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 `;
-
 /**
  * Monument-Valley-shading via shader-injectie op een MeshStandardMaterial:
  *  - schaduwkant krijgt een koele paarse tint (i.p.v. dof grijs),
@@ -68,37 +70,43 @@ export function stylize<T extends THREE.MeshStandardMaterial>(material: T, opts:
   const waveSpeed = (opts.waveSpeed ?? 1).toFixed(3);
 
   const parts: string[] = [];
-  if (opts.grain) {
+  // De ruwheidsvariatie leent de fijne octaaf van de korrel: waar het steen
+  // korrelig is, is het ook mat — één sample voor twee effecten.
+  const needsGrainSamples = !!opts.grain || !!opts.roughVary;
+  if (needsGrainSamples) {
     // Twee octaven: de grove geeft de steenslag, de fijne de korrel zelf. Eén
     // frequentie leest als ruis over een plaat, twee lezen als materiaal.
-    parts.push(`
-    float g1 = araNoise(araP * 6.5);
-    // De fijne octaaf bewust niet hoger: een tegel beslaat op de gebruikelijke
+    // De fijne bewust niet hoger dan ~17: een tegel beslaat op de gebruikelijke
     // zoom zo'n 60 px, en ruis fijner dan een paar pixels flikkert bij het
     // pannen in plaats van dat het steen wordt.
-    float g2 = araNoise(araP * 17.0);
-    diffuseColor.rgb *= 1.0 + ((g1 - 0.5) * 0.58 + (g2 - 0.5) * 0.42) * 2.0 * ${grain};
+    parts.push(`
+    float araG1 = araNoise(araP * 6.5);
+    float araG2 = araNoise(araP * 17.0);`);
+  }
+  if (opts.grain) {
+    parts.push(`
+    diffuseColor.rgb *= 1.0 + ((araG1 - 0.5) * 0.58 + (araG2 - 0.5) * 0.42) * 2.0 * ${grain};
     // Alleen de bovenkant van de ruis wordt een putje: poriën zijn donkere
     // gaatjes, geen lichte stippen — licht speckle leest meteen als vuil glas.
-    diffuseColor.rgb *= 1.0 - smoothstep(0.62, 0.98, g2) * ${grain} * 0.5;`);
+    diffuseColor.rgb *= 1.0 - smoothstep(0.62, 0.98, araG2) * ${grain} * 0.5;`);
   }
   if (opts.mottle) {
     parts.push(`
-    float m = araNoise(araP * 1.35) * 0.62 + araNoise(araP * 4.1) * 0.38;
-    diffuseColor.rgb *= 1.0 + (m - 0.5) * 2.0 * ${mottle};`);
+    float araM = araNoise(araP * 1.3);
+    diffuseColor.rgb *= 1.0 + (araM - 0.5) * 2.0 * ${mottle};`);
   }
   if (opts.strata) {
     // De banden worden met ruis verschoven; kaarsrechte lagen lezen als
     // behang, een golvende laag leest als afzetting.
     parts.push(`
-    float warp = araNoise(araP * vec3(0.5, 0.18, 0.5)) * 1.6;
-    float band = fract(araP.y * 0.8 + warp);
-    float seam = smoothstep(0.0, 0.09, band) * (1.0 - smoothstep(0.86, 1.0, band));
-    diffuseColor.rgb *= mix(1.0 - ${strata}, 1.0 + ${strata} * 0.4, seam);`);
+    float araWarp = araNoise(vSurfPos.xz * 0.45) * 1.6;
+    float araBand = fract(vSurfPos.y * 0.8 + araWarp);
+    float araSeam = smoothstep(0.0, 0.09, araBand) * (1.0 - smoothstep(0.86, 1.0, araBand));
+    diffuseColor.rgb *= mix(1.0 - ${strata}, 1.0 + ${strata} * 0.4, araSeam);`);
   }
   if (opts.roughVary) {
     parts.push(`
-    roughnessFactor = clamp(roughnessFactor + (araNoise(araP * 5.5) - 0.5) * 2.0 * ${roughVary}, 0.04, 1.0);`);
+    roughnessFactor = clamp(roughnessFactor + (araG2 - 0.5) * 2.0 * ${roughVary}, 0.04, 1.0);`);
   }
   if (opts.waves) {
     // Drie sinussen onder een hoek in plaats van ruis: de helling is analytisch
@@ -160,7 +168,7 @@ export function stylize<T extends THREE.MeshStandardMaterial>(material: T, opts:
           // hier alle drie in scope, en het licht wordt pas daarna berekend.
           '#include <normal_fragment_maps>',
           `#include <normal_fragment_maps>
-  ${hasSurface ? `{\n    vec3 araP = vSurfPos;${parts.join('')}\n  }` : ''}`,
+  ${hasSurface ? `{\n    vec2 araP = vSurfPos.xz + vSurfPos.y * 2.7;${parts.join('')}\n  }` : ''}`,
         )
         .replace(
           '#include <lights_fragment_end>',

@@ -35,6 +35,9 @@ import { Blocks } from './Blocks.tsx';
 import { Traffic } from './Traffic.tsx';
 import { Herd } from './Herd.tsx';
 import { Doves } from './Doves.tsx';
+import { Windows } from './Windows.tsx';
+import { StreetLights } from './StreetLights.tsx';
+import { Monuments } from './Monuments.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
 import { Drones } from './Drones.tsx';
@@ -309,6 +312,14 @@ export function Scene(): JSX.Element {
         {world && (
           <>
             <Blocks world={world} />
+            {/* Ramen en lantaarns regelen hun eigen zuinige stand; ze horen
+                juist zichtbaar te blijven als de sier-lagen uitgaan, want ze
+                dragen informatie in plaats van sfeer. */}
+            <Windows world={world} />
+            <StreetLights world={world} />
+            {/* Geheugen mag niet verdwijnen omdat de GPU traag is; Monuments
+                regelt zijn eigen zuinige stand. */}
+            <Monuments world={world} />
             {!perfLow && <Traffic world={world} />}
             {!perfLow && <Herd world={world} />}
             <Props world={world} />
