@@ -102,6 +102,26 @@ export interface ProjectPulse {
   measuredAt: number;
 }
 
+/**
+ * Waar iemand in de keten hangt: chief → supervisor → manager → de vloer,
+ * met de vaste ops-manager ernaast. `role` zegt wát iemand is (en blijft wat
+ * het was), `tier` zegt wáár hij staat — zonder dat laatste is de bezetting
+ * een rij poppetjes en geen organisatie, en kan het 3D-kantoor de keten niet
+ * tekenen. De keten die hier uit komt is die van org.json (plugins/ara):
+ * de chief is het enige aanspreekpunt, de supervisor zit ertussen, en pas
+ * daaronder hangt de manager van déze tak met zijn vaste rollen.
+ */
+export type StaffTier =
+  | 'chief'
+  | 'supervisor'
+  | 'manager'
+  /** Vaste ops-manager: storingen, staat naast de takken. */
+  | 'ops'
+  /** Vaste rol uit het playbook van deze tak. */
+  | 'specialist'
+  /** Draait nu in een sessie van dit project, buiten het playbook om. */
+  | 'floor';
+
 export interface StaffMember {
   id: string;
   name: string;
@@ -109,6 +129,16 @@ export interface StaffMember {
   status: string;
   busyWith?: string;
   sessionId?: string;
+  /** Plaats in de keten. */
+  tier?: StaffTier;
+  /**
+   * Id van de leidinggevende binnen dezelfde `staff`-lijst; leeg = de top.
+   * Elke verwijzing wijst naar een lid dat er ook echt staat, zodat een
+   * tekenaar de keten kan volgen zonder op een dood id te stuiten.
+   */
+  reportsTo?: string;
+  /** Diepte in de keten (0 = chief). Afgeleid van `reportsTo`, niet los bedacht. */
+  depth?: number;
   /**
    * false = vaste rol uit het playbook die nu niet draait. Een lege stoel is
    * eerlijker dan een rol die er actief uitziet zonder sessie erachter.
@@ -514,31 +544,86 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
   // het toeval van dit moment.
   const playbook = input.playbook;
   const liveNames = new Set(liveAgents.map((a) => a.name.toLowerCase()));
+  //
+  // De keten zelf staat er ook in, niet alleen de uiteinden: chief →
+  // supervisor → manager → vloer. De supervisor ontbrak, waardoor het kantoor
+  // een organisatie toonde die één schakel korter was dan de echte — en
+  // precies die schakel is degene die het werk verdeelt.
+  const CHIEF_ID = 'chief';
+  const SUPERVISOR_ID = 'supervisor';
+  const managerId = `manager:${venture.id}`;
+  const supervisorLive = liveNames.has('ara-supervisor');
+  // Ops staat naast de takken en wordt door de watchdog gewekt bij een
+  // storing. Een vaste stoel in elk kantoor zou suggereren dat hij overal
+  // meekijkt; hij komt er pas te staan als er hier echt een incident ligt.
+  const opsTasks = tasks.filter((t) => t.assignee === 'manager:ops' && t.status !== 'done');
   const staff: StaffMember[] = [
     {
-      id: 'chief',
+      id: CHIEF_ID,
       name: 'ARA Chief',
       role: 'supervisor',
+      tier: 'chief',
+      depth: 0,
       status: 'houdt de hele organisatie in de gaten',
+      does: 'enige aanspreekpunt van de gebruiker; zet werk uit via de supervisor',
       live: true,
     },
     {
-      id: `manager:${venture.id}`,
+      id: SUPERVISOR_ID,
+      name: 'ARA Supervisor',
+      role: 'supervisor',
+      tier: 'supervisor',
+      depth: 1,
+      reportsTo: CHIEF_ID,
+      // Meetbaar of niet: precies dezelfde regel als bij een vaste rol. Een
+      // draaiende supervisor-agent maakt hem bezet, anders staat de stoel leeg.
+      status: supervisorLive ? 'verdeelt het werk' : 'vaste rol · niet actief',
+      live: supervisorLive,
+      agent: 'ara-supervisor',
+      does: 'verdeelt het werk over de managers en bewaakt de keten — de enige weg van chief naar deze vloer',
+    },
+    {
+      id: managerId,
       name: playbook?.managerName ?? `Manager ${venture.label}`,
       role: 'manager',
+      tier: 'manager',
+      depth: 2,
+      reportsTo: SUPERVISOR_ID,
       status: activeSessions.length > 0 ? 'stuurt het team aan' : 'wacht op werk',
-      busyWith: tasks.find((t) => t.assignee === `manager:${venture.id}` && t.status !== 'done')?.title,
+      busyWith: tasks.find((t) => t.assignee === managerId && t.status !== 'done')?.title,
       live: activeSessions.length > 0,
+      does: `stuurt ${venture.label} aan: verdeelt de bordtaken van deze tak en bewaakt de grenzen uit het playbook`,
     },
-    ...(playbook?.specialists ?? []).map((spec) => ({
-      id: `rol:${spec.agent}:${spec.name}`,
-      name: spec.name,
-      role: (spec.agent === 'ara-web-scout' ? 'scout' : 'agent') as StaffMember['role'],
+    ...(opsTasks.length > 0
+      ? [
+          {
+            id: 'manager:ops',
+            name: 'Ops-manager',
+            role: 'ops' as StaffMember['role'],
+            tier: 'ops' as StaffTier,
+            depth: 2,
+            reportsTo: SUPERVISOR_ID,
+            // Geteld, niet geschat: dit zijn de ops-taken die op dít bord staan.
+            status: `${opsTasks.length} storing(en) op dit bord`,
+            busyWith: opsTasks[0]?.title,
+            live: liveNames.has('ara-ops-manager'),
+            agent: 'ara-ops-manager',
+            does: 'pakt storingen op deze vloer op — incidenten, niet het gewone werk',
+          },
+        ]
+      : []),
+    ...(playbook?.specialists ?? []).map((role) => ({
+      id: `rol:${role.agent}:${role.name}`,
+      name: role.name,
+      role: (role.agent === 'ara-web-scout' ? 'scout' : 'agent') as StaffMember['role'],
+      tier: 'specialist' as StaffTier,
+      depth: 3,
+      reportsTo: managerId,
       // Een vaste rol met een draaiende agent van hetzelfde type telt als bezet.
-      status: liveNames.has(spec.agent) ? 'aan het werk' : 'vaste rol · niet actief',
-      live: liveNames.has(spec.agent),
-      agent: spec.agent,
-      does: spec.does,
+      status: liveNames.has(role.agent) ? 'aan het werk' : 'vaste rol · niet actief',
+      live: liveNames.has(role.agent),
+      agent: role.agent,
+      does: role.does,
     })),
     ...liveAgents.slice(0, 12).map((a) => ({
       id: a.id,
@@ -547,6 +632,9 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       role: (a.name.toLowerCase().includes('scout') || a.name.toLowerCase().includes('explore')
         ? 'scout'
         : 'agent') as StaffMember['role'],
+      tier: 'floor' as StaffTier,
+      depth: 3,
+      reportsTo: managerId,
       status: a.busy ? 'aan het werk' : 'beschikbaar',
       busyWith: a.busy,
       sessionId: a.sessionId,
