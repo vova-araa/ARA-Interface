@@ -4,12 +4,226 @@ import { MapControls } from '@react-three/drei';
 import { Bloom, EffectComposer, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { ToneMappingMode } from 'postprocessing';
 import * as THREE from 'three';
-import { VENTURES, type Metric, type Station, type StaffMember } from '@ara/shared';
+import {
+  VENTURES,
+  type Metric,
+  type OfficeTask,
+  type OfficeWork,
+  type Station,
+  type StaffMember,
+} from '@ara/shared';
 import { useAra } from '../store.ts';
+import { ageString } from '../util.ts';
 import { OfficeScene } from './OfficeScene.tsx';
 import { recipientForOffice } from '../ui/ChatPanel.tsx';
 import { loadChat, loadOffice, sendChat } from './api.ts';
 import { TONE_COLORS } from './textures.ts';
+
+/**
+ * CSS die t.z.t. in theme.css hoort, in het blok
+ * "Kantoren: interieur per project" — hij staat hier omdat theme.css buiten
+ * deze wijziging valt. Alles is `.office-`-genaamd en gebruikt de bestaande
+ * variabelen (--tap, --safe-*), zodat verhuizen straks knippen en plakken is.
+ */
+const OFFICE_WORK_CSS = `
+/* Balk die op élk tabblad blijft staan zolang er iets op een mens wacht.
+   Een escalatie achter een tabblad is een escalatie die niemand ziet. */
+.office-esc-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 107, 107, 0.45);
+  background: rgba(255, 107, 107, 0.14);
+  color: #ffd5d5;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.office-esc-strip:hover { background: rgba(255, 107, 107, 0.22); }
+.office-esc-strip em { margin-left: auto; font-style: normal; opacity: 0.75; font-size: 12px; }
+
+/* Tellers van het bord. Alle drie geteld, geen ervan ingevuld. */
+.office-board-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.office-board-stat {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.office-board-stat span { font-size: 10px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.05em; }
+.office-board-stat strong { font-size: 17px; }
+.office-board-hot { color: #ff8b8b; }
+
+.office-tasks { display: flex; flex-direction: column; gap: 4px; }
+.office-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.office-task { cursor: pointer; }
+button.office-task:hover { background: rgba(150, 120, 255, 0.16); border-color: rgba(150, 120, 255, 0.35); }
+.office-task-esc { border-color: rgba(255, 107, 107, 0.4); background: rgba(255, 107, 107, 0.1); }
+button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-color: rgba(255, 107, 107, 0.6); }
+.office-task-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.office-task-title { font-size: 13px; line-height: 1.25; }
+.office-task-meta { font-size: 11px; opacity: 0.55; }
+/* Twee regels toelichting is genoeg om te weten waar het over gaat; daarna
+   duwt één lange regel de rest van het bord van het scherm. */
+.office-task-note {
+  font-style: normal;
+  font-size: 11.5px;
+  opacity: 0.75;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* De eigenaar van de taak is de knop: hem aanklikken zet de bezetting én het
+   gesprek op die rol, zodat "wie gaat hierover" geen tweede zoektocht is. */
+.office-task-owner {
+  flex: none;
+  max-width: 45%;
+  font-size: 11.5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(150, 120, 255, 0.2);
+  color: #ded5ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.office-person-tasks { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.office-sub-head-warn { color: #ff9b9b; opacity: 0.9; }
+.office-task-flag { color: #ff9b9b; font-weight: 600; opacity: 0.95; }
+
+/* Vier tabbladen passen alleen als ze niet afbreken. */
+.office-tabs button { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+.office-tab-badge {
+  display: inline-block;
+  margin-left: 5px;
+  min-width: 17px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ff6b6b;
+  color: #2a0d14;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+/* Kantoorwissel: de titel in de balk is de knop. */
+.office-switch-wrap { position: relative; display: flex; }
+.office-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 4px 8px;
+  border: 1px solid rgba(150, 120, 255, 0.25);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.office-switch:hover { background: rgba(150, 120, 255, 0.14); }
+.office-switch-caret { opacity: 0.6; font-size: 11px; }
+.office-pick-scrim { position: fixed; inset: 0; z-index: 1; }
+.office-pick {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 2;
+  width: max(220px, min(78vw, 300px));
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(150, 120, 255, 0.35);
+  background: rgba(26, 17, 56, 0.99);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.office-pick-group + .office-pick-group { margin-top: 6px; }
+.office-pick-group h5 {
+  margin: 6px 4px 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: 600;
+}
+.office-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.office-pick-row:hover { background: rgba(150, 120, 255, 0.16); }
+.office-pick-row.active { background: rgba(150, 120, 255, 0.22); border-color: rgba(150, 120, 255, 0.4); }
+.office-pick-row em { margin-left: auto; font-style: normal; font-size: 11px; opacity: 0.6; }
+.office-pick-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+/* Hoogte van de kopbalk, als getal dat de kiezer kan gebruiken. Op de telefoon
+   hangt hij namelijk niet onder de knop maar onder de héle balk: onder de knop
+   begint hij op ~100px van links en loopt hij het scherm uit. */
+.office-overlay { --office-pick-top: calc(var(--safe-t) + 62px); }
+
+@media (max-width: 900px) {
+  .office-overlay { --office-pick-top: calc(var(--safe-t) + 58px); }
+  /* Statisch: dan is de kiezer t.o.v. het hele kantoor geplaatst, niet t.o.v.
+     de titelknop — en past hij tussen de twee schermranden. */
+  .office-switch-wrap { position: static; }
+  .office-pick {
+    top: var(--office-pick-top);
+    left: calc(12px + var(--safe-l));
+    right: calc(12px + var(--safe-r));
+    width: auto;
+    max-height: 52vh;
+  }
+  .office-board-sum { gap: 6px; }
+  .office-board-stat { padding: 7px 8px; }
+  .office-board-stat strong { font-size: 15px; }
+  /* Op een telefoon houdt het kantoor (42vh) en het gesprek de zijkolom kort;
+     krap gezette regels zijn hier het verschil tussen één en drie taken in
+     beeld. De tikdoelen blijven var(--tap). */
+  .office-task { padding: 7px 9px; gap: 8px; }
+  .office-task-title { font-size: 12.5px; }
+  .office-task-owner { max-width: 42%; }
+}
+
+/* Liggend op een telefoon is de balk 46px hoog in plaats van 52. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+  .office-overlay { --office-pick-top: calc(var(--safe-t) + 52px); }
+}
+`;
 
 const ROLE_LABEL: Record<StaffMember['role'], string> = {
   supervisor: 'chief',
@@ -17,6 +231,14 @@ const ROLE_LABEL: Record<StaffMember['role'], string> = {
   agent: 'agent',
   scout: 'scout',
   ops: 'ops',
+};
+
+/** Hoe het bord zijn statussen noemt — zelfde woorden als het takenbord. */
+const TASK_STATUS_LABEL: Record<string, string> = {
+  open: 'open',
+  claimed: 'bezig',
+  done: 'af',
+  failed: 'mislukt',
 };
 
 function Sparkline({ values, color }: { values: number[]; color: string }): JSX.Element | null {
@@ -46,6 +268,192 @@ function MetricRow({ metric }: { metric: Metric }): JSX.Element {
         {metric.estimated ? '≈ ' : ''}
         {metric.value}
       </strong>
+    </div>
+  );
+}
+
+/**
+ * Eén bordtaak.
+ *
+ * Draagt de taak een rol die in dit kantoor zit, dan is de hele regel een
+ * knop naar die rol: één tik brengt je bij de bezetting én zet het gesprek
+ * onderin op diezelfde rol. Kent het kantoor de rol niet, dan blijft het een
+ * regel — een knop die nergens heen gaat is erger dan geen knop.
+ */
+function TaskRow({
+  task,
+  now,
+  ownerName,
+  onOwner,
+  flag,
+}: {
+  task: OfficeTask;
+  now: number;
+  ownerName?: string;
+  onOwner?: () => void;
+  /** Buiten de escalatiesectie draagt de regel zelf dat hij op een mens wacht. */
+  flag?: boolean;
+}): JSX.Element {
+  const className = `office-task ${task.escalated ? 'office-task-esc' : ''}`;
+  // Het markeerwoord waarmee de keten een weigering herkent hoeft niet ook nog
+  // de halve regel te vullen: de sectie of de vlag zegt al dat dit op jou
+  // wacht. Alleen het voorvoegsel gaat eraf — de reden blijft woordelijk staan.
+  const note = task.escalated ? task.note?.replace(/^ESCALATE[:\s—-]*/i, '') : task.note;
+  const body = (
+    <>
+      <span className="office-task-main">
+        <span className="office-task-title">{task.title}</span>
+        <span className="office-task-meta">
+          {task.escalated && flag && <b className="office-task-flag">⚠ wacht op jou · </b>}
+          {TASK_STATUS_LABEL[task.status] ?? task.status} · {task.assignee || '—'} ·{' '}
+          {ageString(task.updatedAt, now)}
+        </span>
+        {note && <em className="office-task-note">{note}</em>}
+      </span>
+      {ownerName && <span className="office-task-owner">→ {ownerName}</span>}
+    </>
+  );
+  if (!onOwner) return <div className={className}>{body}</div>;
+  return (
+    <button type="button" className={className} onClick={onOwner} title={`Naar ${ownerName ?? 'de rol'}`}>
+      {body}
+    </button>
+  );
+}
+
+/**
+ * Het bord van dit ene project.
+ *
+ * Alles hier is geteld, niets ingevuld: een leeg bord blijft leeg. Werd de
+ * uitvraag afgekapt, dan staat er "≥" — precies zoals de districtborden op de
+ * kaart, want een ondergrens die zich voordoet als een getal is een leugen met
+ * een cijfer erbij.
+ */
+function BoardTab({
+  work,
+  staff,
+  now,
+  onOwner,
+}: {
+  work: OfficeWork | undefined;
+  staff: StaffMember[];
+  now: number;
+  onOwner: (staffId: string) => void;
+}): JSX.Element {
+  const escalations = work?.escalations ?? [];
+  const open = work?.open ?? [];
+  const truncated = work?.truncated === true;
+  const doneToday = typeof work?.doneToday === 'number' ? work.doneToday : null;
+  const nameFor = (id: string | undefined): string | undefined =>
+    id ? staff.find((s) => s.id === id)?.name : undefined;
+
+  const row = (task: OfficeTask): JSX.Element => {
+    const owner = nameFor(task.staffId);
+    return (
+      <TaskRow
+        key={task.id}
+        task={task}
+        now={now}
+        ownerName={owner}
+        onOwner={task.staffId && owner ? () => onOwner(task.staffId!) : undefined}
+      />
+    );
+  };
+
+  return (
+    <div className="office-list">
+      <div className="office-board-sum">
+        <div className="office-board-stat">
+          <span>wacht op jou</span>
+          <strong className={escalations.length > 0 ? 'office-board-hot' : undefined}>
+            {escalations.length}
+          </strong>
+        </div>
+        <div className="office-board-stat">
+          <span>open</span>
+          <strong>
+            {truncated ? '≥' : ''}
+            {open.length}
+          </strong>
+        </div>
+        {doneToday !== null && (
+          <div className="office-board-stat">
+            <span>vandaag af</span>
+            <strong>{doneToday}</strong>
+          </div>
+        )}
+      </div>
+
+      {truncated && (
+        <p className="office-note">
+          De uitvraag zat aan zijn plafond — dit is een ondergrens, er kan meer openstaan.
+        </p>
+      )}
+
+      {escalations.length > 0 && (
+        <>
+          <h4 className="office-sub-head office-sub-head-warn">⚠ Wacht op jou</h4>
+          <div className="office-tasks">{escalations.map(row)}</div>
+        </>
+      )}
+
+      {open.length > 0 && (
+        <>
+          <h4 className="office-sub-head">Open werk</h4>
+          <div className="office-tasks">{open.map(row)}</div>
+        </>
+      )}
+
+      {escalations.length === 0 && open.length === 0 && (
+        <p className="office-note">
+          Niets open op het bord van dit project.
+          {doneToday !== null && doneToday > 0 ? ' Wat vandaag binnenkwam is af.' : ''}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Van kantoor naar kantoor zonder eerst de wereld te moeten terugvinden.
+ *
+ * De lijst is die van de kaart zelf (`world.districts`), per tak gegroepeerd en
+ * in de kleur van die tak — hetzelfde ordeningsprincipe als buiten, zodat je
+ * niet twee verschillende indelingen uit je hoofd hoeft te kennen.
+ */
+function OfficePicker({
+  current,
+  onPick,
+}: {
+  current: string;
+  onPick: (project: string) => void;
+}): JSX.Element {
+  const world = useAra((s) => s.world);
+  const districts = world?.districts ?? [];
+  const total = districts.reduce((n, d) => n + d.projects.length, 0);
+
+  return (
+    <div className="office-pick" role="menu">
+      {total === 0 && (
+        <p className="office-note">Geen kantoren bekend — de wereldkaart is nog niet geladen.</p>
+      )}
+      {districts.map((d) => (
+        <div key={d.venture.id} className="office-pick-group">
+          <h5 style={{ color: d.venture.color }}>{d.venture.label}</h5>
+          {d.projects.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              className={`office-pick-row ${p.name === current ? 'active' : ''}`}
+              onClick={() => onPick(p.name)}
+            >
+              <span className="office-pick-dot" style={{ background: d.venture.color }} />
+              {p.name}
+              {p.name === current && <em>hier</em>}
+            </button>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -227,8 +635,10 @@ export function OfficeOverlay(): JSX.Element | null {
   const setOffice = useAra((s) => s.setOffice);
   const selectStation = useAra((s) => s.selectStation);
   const closeOffice = useAra((s) => s.closeOffice);
+  const openOffice = useAra((s) => s.openOffice);
   const tasksVersion = useAra((s) => s.tasksVersion);
-  const [tab, setTab] = useState<'werk' | 'team' | 'meting'>('werk');
+  const [tab, setTab] = useState<'werk' | 'bord' | 'team' | 'meting'>('werk');
+  const [picking, setPicking] = useState(false);
 
   // Kantoor ophalen en live bijhouden zolang het open staat.
   useEffect(() => {
@@ -247,16 +657,26 @@ export function OfficeOverlay(): JSX.Element | null {
     };
   }, [project, setOffice, tasksVersion]);
 
+  // Van buiten gewisseld van kantoor (kaart, diep-link)? Dan hoort de kiezer
+  // dicht te zijn; hij hangt aan de titel van het kantoor waar je nú bent.
+  useEffect(() => {
+    setPicking(false);
+  }, [project]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && project) {
-        if (useAra.getState().officeSelected) selectStation(null);
+        // Van binnen naar buiten afpellen: eerst de kiezer, dan de selectie,
+        // dan pas het kantoor. Escape hoort nooit méér weg te halen dan de
+        // bovenste laag die openstaat.
+        if (picking) setPicking(false);
+        else if (useAra.getState().officeSelected) selectStation(null);
         else closeOffice();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [project, closeOffice, selectStation]);
+  }, [project, picking, closeOffice, selectStation]);
 
   if (!project) return null;
 
@@ -265,16 +685,65 @@ export function OfficeOverlay(): JSX.Element | null {
   const person = office?.staff.find((s) => s.id === selected) ?? null;
   const room = `office:${project}`;
 
+  const work = office?.work;
+  const escalations = work?.escalations ?? [];
+  const openTasks = work?.open ?? [];
+  const now = office?.now ?? Date.now();
+  // De taken van de aangeklikte rol: escalaties eerst, want die wachten op jou.
+  const personTasks = person
+    ? [...escalations, ...openTasks].filter((t) => t.staffId === person.id)
+    : [];
+
+  /** Van een taak naar de rol die hem draagt: bezetting én gesprek in één tik. */
+  const goToOwner = (staffId: string): void => {
+    selectStation(staffId);
+    setTab('team');
+  };
+
   return (
     <div className="office-overlay">
+      <style>{OFFICE_WORK_CSS}</style>
       <div className="office-topbar">
         <button type="button" className="btn" onClick={closeOffice}>
           ← Kaart
         </button>
-        <div className="office-title">
-          <strong>{project}</strong>
-          <span style={{ color: accent }}>{office?.ventureLabel ?? '…'}</span>
+        {/* De titel is de kantoorwissel. Voorheen was een ander kantoor drie
+            handelingen ver: terug naar de kaart, het district zoeken, klikken.
+            De lijst die je daar aanklikt staat gewoon in de store. */}
+        <div className="office-switch-wrap">
+          <button
+            type="button"
+            className="office-switch"
+            aria-haspopup="menu"
+            aria-expanded={picking}
+            title="Ander kantoor openen"
+            onClick={() => setPicking(!picking)}
+          >
+            <span className="office-title">
+              <strong>{project}</strong>
+              <span style={{ color: accent }}>{office?.ventureLabel ?? '…'}</span>
+            </span>
+            <span className="office-switch-caret">{picking ? '▴' : '▾'}</span>
+          </button>
+          {picking && (
+            <OfficePicker
+              current={project}
+              onPick={(next) => {
+                setPicking(false);
+                if (next !== project) openOffice(next);
+              }}
+            />
+          )}
         </div>
+        {picking && (
+          // Buiten de kiezer klikken sluit hem — anders blijft hij over het
+          // kantoor hangen zodra je van gedachten verandert.
+          <div
+            className="office-pick-scrim"
+            onClick={() => setPicking(false)}
+            onPointerDown={() => setPicking(false)}
+          />
+        )}
         {office && office.realStations < office.stations.length && (
           <span
             className="office-sim"
@@ -340,6 +809,14 @@ export function OfficeOverlay(): JSX.Element | null {
           <button type="button" className={tab === 'werk' ? 'active' : ''} onClick={() => setTab('werk')}>
             Werkvloer
           </button>
+          <button
+            type="button"
+            className={`office-tab-bord ${tab === 'bord' ? 'active' : ''}`}
+            onClick={() => setTab('bord')}
+          >
+            Bord
+            {escalations.length > 0 && <span className="office-tab-badge">{escalations.length}</span>}
+          </button>
           <button type="button" className={tab === 'team' ? 'active' : ''} onClick={() => setTab('team')}>
             Team
           </button>
@@ -349,6 +826,19 @@ export function OfficeOverlay(): JSX.Element | null {
         </div>
 
         <div className="office-side-body">
+          {/* Een escalatie wacht op een mens, niet op een agent. Hij blijft dus
+              op elk tabblad staan: verstopt achter een tab is hij er in de
+              praktijk niet. */}
+          {escalations.length > 0 && tab !== 'bord' && (
+            <button type="button" className="office-esc-strip" onClick={() => setTab('bord')}>
+              ⚠{' '}
+              {escalations.length === 1
+                ? '1 taak wacht op jou'
+                : `${escalations.length} taken wachten op jou`}
+              <em>bord →</em>
+            </button>
+          )}
+
           {tab === 'werk' && station && <StationDetail station={station} valueKind={office?.valueKind ?? 'count'} />}
           {tab === 'werk' && !station && (
             <div className="office-list">
@@ -376,6 +866,10 @@ export function OfficeOverlay(): JSX.Element | null {
             </div>
           )}
 
+          {tab === 'bord' && (
+            <BoardTab work={work} staff={office?.staff ?? []} now={now} onOwner={goToOwner} />
+          )}
+
           {tab === 'team' && (
             <div className="office-list">
               {person && (
@@ -386,6 +880,20 @@ export function OfficeOverlay(): JSX.Element | null {
                   </p>
                   {person.does && <p className="office-note">{person.does}</p>}
                   {person.busyWith && <p className="office-note">Bezig met: {person.busyWith}</p>}
+                  {/* Wat er voor deze rol op het bord staat, hier en niet op een
+                      ander tabblad: de vraag "wie gaat hierover" en de vraag
+                      "wat ligt er voor hem" zijn dezelfde vraag. */}
+                  {personTasks.length > 0 ? (
+                    <div className="office-person-tasks">
+                      {personTasks.map((t) => (
+                        <TaskRow key={t.id} task={t} now={now} flag />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="office-note">
+                      Geen open taken op het bord{work?.truncated ? ' (afgekapte lijst)' : ''}.
+                    </p>
+                  )}
                 </div>
               )}
               {office?.staff.map((s) => (
