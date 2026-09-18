@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { VENTURES, type Metric, type Station, type StaffMember } from '@ara/shared';
 import { useAra } from '../store.ts';
 import { OfficeScene } from './OfficeScene.tsx';
+import { recipientForOffice } from '../ui/ChatPanel.tsx';
 import { loadChat, loadOffice, sendChat } from './api.ts';
 import { TONE_COLORS } from './textures.ts';
 
@@ -127,8 +128,8 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
   );
 }
 
-/** Kantoorchat: praat direct met een agent, de manager of de chief. */
-function ChatPanel({ project, room }: { project: string; room: string }): JSX.Element {
+/** Kantoorchat: praat met de manager van deze tak (of de chief). */
+function OfficeChat({ project, room }: { project: string; room: string }): JSX.Element {
   const messages = useAra((s) => s.chatMessages);
   const office = useAra((s) => s.office);
   const setChatMessages = useAra((s) => s.setChatMessages);
@@ -144,13 +145,11 @@ function ChatPanel({ project, room }: { project: string; room: string }): JSX.El
   const [open, setOpen] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Wie spreek je aan: de gekozen persoon, anders de manager van deze tak.
-  const target = useMemo(() => {
-    const person = office?.staff.find((s) => s.id === selected);
-    if (person) return { id: person.id, name: person.name };
-    const manager = office?.staff.find((s) => s.role === 'manager');
-    return { id: manager?.id ?? 'supervisor', name: manager?.name ?? 'supervisor' };
-  }, [office, selected]);
+  // Wie spreek je aan. Dit ging vroeger naar wie je ook maar aanklikte — ook
+  // een worker of een scout, en dan stond er een opdracht op het bord met de
+  // manager overgeslagen. De keten is geen suggestie: de vraag gaat naar de
+  // manager (of de chief), mét de naam van de rol waar hij over gaat.
+  const target = useMemo(() => recipientForOffice(office?.staff, selected), [office, selected]);
 
   useEffect(() => {
     void loadChat(room).then(setChatMessages);
@@ -165,7 +164,10 @@ function ChatPanel({ project, room }: { project: string; room: string }): JSX.El
     if (!value || sending) return;
     setSending(true);
     setText('');
-    const saved = await sendChat({ room, text: value, to: target.id, project });
+    // Klikte je een specialist aan, dan blijft dát in de vraag staan — de
+    // manager moet weten waar het over gaat, ook al is hij de ontvanger.
+    const body = target.about ? `Over ${target.about}: ${value}` : value;
+    const saved = await sendChat({ room, text: body, to: target.id, project });
     // Het opgeslagen bericht (met server-id) toevoegen; de SSE-echo van
     // hetzelfde bericht valt daarna weg tegen de id-dedupe.
     if (saved) addChatMessage(saved);
@@ -182,6 +184,9 @@ function ChatPanel({ project, room }: { project: string; room: string }): JSX.El
       <button type="button" className="office-chat-head" onClick={() => setOpen(!open)}>
         <span>
           Gesprek met <strong>{target.name}</strong>
+          {/* Zichtbaar maken dat de vraag via de manager loopt — anders lijkt
+              het alsof je de specialist zelf te pakken hebt. */}
+          {target.about && <em className="office-note"> · over {target.about}</em>}
         </span>
         <span className="office-chat-count">
           {messages.length > 0 && <em>{messages.length}</em>}
@@ -471,7 +476,7 @@ export function OfficeOverlay(): JSX.Element | null {
           )}
         </div>
 
-        <ChatPanel project={project} room={room} />
+        <OfficeChat project={project} room={room} />
       </aside>
     </div>
   );

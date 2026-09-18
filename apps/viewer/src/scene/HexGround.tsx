@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { axialToWorld, axialKey, hexDisc, stableHash, WORLD_HEX_RADIUS, type WorldConfig } from '@ara/shared';
+import { useAra } from '../store.ts';
 import { HEX_SPACING } from '../placements.ts';
 import { buildRoads } from './roads.ts';
 import { stylize, tickSurface } from './stylize.ts';
@@ -54,12 +55,28 @@ const BASALT = new THREE.Color('#8a7268'); // kale rots
 const SEVAN_BLUE = new THREE.Color('#2e9cc7');
 const SEVAN_SHALLOW = new THREE.Color('#57c6d8');
 const ROAD = new THREE.Color('#d8cdbd'); // aangestampt grind
+const HOVER = new THREE.Color('#fff6e8'); // waar de tegel naartoe kleurt onder de muis
+
+// Hoe hard een aangewezen platform oplicht en hoeveel het uitzet. Het zwelt in
+// het vlak en niet omhoog: pods en figuren staan op een vaste hoogte op deze
+// tegel, dus een tegel die omhoog komt slokt ze half op.
+const HOVER_TINT = 0.42;
+const HOVER_RIM_TINT = 0.6;
+const HOVER_SWELL = 1.035;
+const DISTRICT_Y = -0.11; // basishoogte van het districtplatform
+const RIM_Y = 0.315; // de gloeiende rand ligt net op de bovenkant
 
 
 interface Tiles {
   /** `lift` is de hoogte van deze tegel; zonder dat is de grond een badmat. */
   base: { pos: [number, number, number]; color: THREE.Color; lift: number }[];
-  district: { pos: [number, number, number]; color: THREE.Color; borderColor: THREE.Color }[];
+  /** `project` maakt de tegel een knop: hij weet welk kantoor hij opent. */
+  district: {
+    pos: [number, number, number];
+    color: THREE.Color;
+    borderColor: THREE.Color;
+    project: string;
+  }[];
   water: { pos: [number, number, number]; color: THREE.Color }[];
   /** Hoe ver de buitenste tegel van het midden ligt, in wereldeenheden. */
   extent: number;
@@ -111,12 +128,18 @@ function computeTiles(world: WorldConfig | null): Tiles {
       for (const project of district.projects) {
         for (const hex of project.hexes) {
           if (lake.has(axialKey(hex))) continue;
+          // Eén tegel hoort bij één project. De layout garandeert dat, maar een
+          // world.config.json van vóór die garantie ligt nog op schijf tot er
+          // opnieuw gemapt is — en twee tegels op dezelfde plek betekent hier:
+          // twee kantoren achter dezelfde klik.
+          if (claimed.has(axialKey(hex))) continue;
           claimed.add(axialKey(hex));
           const { x, z } = axialToWorld(hex);
           tiles.district.push({
             pos: [x * HEX_SPACING, 0, z * HEX_SPACING],
             color: tileColor,
             borderColor: color,
+            project: project.name,
           });
         }
       }
@@ -190,6 +213,69 @@ function useInstances(
 
 export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element {
   const tiles = useMemo(() => computeTiles(world), [world]);
+  const openOffice = useAra((s) => s.openOffice);
+  const districtRef = useRef<THREE.InstancedMesh>(null);
+  const rimRef = useRef<THREE.InstancedMesh>(null);
+  // Het aangewezen project staat in een ref en niet in state: een hover die
+  // door de React-boom loopt hertekent de hele wereld bij elke muisbeweging,
+  // terwijl er maar twee instance-buffers hoeven te veranderen.
+  const hovered = useRef<string | null>(null);
+
+  /** Zet matrices en kleuren van platform + rand; `hover` licht dat project op. */
+  const paint = useCallback(
+    (hover: string | null) => {
+      const platform = districtRef.current;
+      const rim = rimRef.current;
+      const matrix = new THREE.Matrix4();
+      // De rand ligt plat en met zijn punten in lijn met de tegel eronder.
+      const rimRotation = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(Math.PI / 2, 0, Math.PI / 6, 'YXZ'),
+      );
+      const position = new THREE.Vector3();
+      const scale = new THREE.Vector3();
+      const color = new THREE.Color();
+      tiles.district.forEach((tile, i) => {
+        const lit = hover !== null && tile.project === hover;
+        const swell = lit ? HOVER_SWELL : 1;
+        if (platform) {
+          matrix.makeScale(swell, 1, swell);
+          matrix.setPosition(tile.pos[0], DISTRICT_Y + tile.pos[1], tile.pos[2]);
+          platform.setMatrixAt(i, matrix);
+          platform.setColorAt(i, color.copy(tile.color).lerp(HOVER, lit ? HOVER_TINT : 0));
+        }
+        if (rim) {
+          position.set(tile.pos[0], RIM_Y, tile.pos[2]);
+          scale.set(swell, swell, 1);
+          matrix.compose(position, rimRotation, scale);
+          rim.setMatrixAt(i, matrix);
+          rim.setColorAt(i, color.copy(tile.borderColor).lerp(HOVER, lit ? HOVER_RIM_TINT : 0));
+        }
+      });
+      for (const mesh of [platform, rim]) {
+        if (!mesh) continue;
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        mesh.computeBoundingSphere();
+      }
+    },
+    [tiles],
+  );
+
+  // Eerste opbouw én elke keer dat de wereld verandert: dezelfde functie, zodat
+  // er geen tweede plek is waar de stand van deze tegels wordt bepaald.
+  useEffect(() => paint(hovered.current), [paint]);
+
+  const projectAt = (event: ThreeEvent<PointerEvent | MouseEvent>): string | null =>
+    event.instanceId === undefined ? null : (tiles.district[event.instanceId]?.project ?? null);
+
+  const setHover = (project: string | null): void => {
+    if (hovered.current === project) return;
+    hovered.current = project;
+    // De cursor is de helft van de terugkoppeling: hij zegt "hier kun je op
+    // drukken" vóórdat je drukt. De kleur zegt waarop precies.
+    document.body.style.cursor = project ? 'pointer' : 'default';
+    paint(project);
+  };
 
   useFrame(({ clock }) => {
     const t = clock.elapsedTime;
@@ -218,40 +304,41 @@ export function HexGround({ world }: { world: WorldConfig | null }): JSX.Element
         <cylinderGeometry args={[0.98, 0.98, 2.4, 6]} />
       </instancedMesh>
 
-      {/* Districten als dikke verhoogde platforms (referentie-look) */}
+      {/* Districten als dikke verhoogde platforms (referentie-look).
+
+          Het platform is óók de knop naar het kantoor. Het projectlabel erboven
+          is 20 pixels hoog en op een telefoon niet te raken; de tegel eronder
+          is het doel dat je met een duim haalt. Pods en figuren staan hier
+          bovenop en stoppen hun eigen klik (Pods.tsx), dus een pod selecteert
+          nog steeds zijn sessie en bereikt deze tegel nooit. */}
       <instancedMesh
         key={`district-${tiles.district.length}`}
         args={[undefined, undefined, Math.max(1, tiles.district.length)]}
-        ref={useInstances(tiles.district, -0.11)}
+        ref={districtRef}
         receiveShadow
         material={DISTRICT_MAT}
+        onPointerMove={(e) => setHover(projectAt(e))}
+        onPointerOut={() => setHover(null)}
+        onClick={(e) => {
+          const project = projectAt(e);
+          if (!project) return;
+          // Verder naar achteren ligt alleen nog grond; wie wél een tegel raakt
+          // heeft niets gemist (en `onPointerMissed` mag niet deselecteren).
+          e.stopPropagation();
+          setHover(null); // het kantoor dekt de wereld af: laat geen gloed achter
+          openOffice(project);
+        }}
       >
         <cylinderGeometry args={[0.99, 0.9, 0.84, 6]} />
       </instancedMesh>
 
-      {/* Glowing district borders: thin emissive rims */}
+      {/* Glowing district borders: thin emissive rims. Geen eigen muisafhandeling:
+          de rand hoort bij het platform en zou als los doel alleen maar de klik
+          van de tegel eronder afvangen. */}
       <instancedMesh
         key={`rim-${tiles.district.length}`}
         args={[undefined, undefined, Math.max(1, tiles.district.length)]}
-        ref={(mesh) => {
-          if (!mesh) return;
-          const matrix = new THREE.Matrix4();
-          // Lay the hex ring flat and align its vertices with the pointy-top tiles.
-          const rotation = new THREE.Quaternion().setFromEuler(
-            new THREE.Euler(Math.PI / 2, 0, Math.PI / 6, 'YXZ'),
-          );
-          const scale = new THREE.Vector3(1, 1, 1);
-          const position = new THREE.Vector3();
-          tiles.district.forEach((tile, i) => {
-            position.set(tile.pos[0], 0.315, tile.pos[2]);
-            matrix.compose(position, rotation, scale);
-            mesh.setMatrixAt(i, matrix);
-            mesh.setColorAt(i, tile.borderColor);
-          });
-          mesh.instanceMatrix.needsUpdate = true;
-          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-          mesh.computeBoundingSphere();
-        }}
+        ref={rimRef}
       >
         <torusGeometry args={[0.92, 0.085, 6, 6]} />
         <meshStandardMaterial

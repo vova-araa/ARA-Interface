@@ -111,63 +111,213 @@ html, body, #root { height: 100dvh; }
   border: 1px solid var(--border);
   border-radius: 14px;
   backdrop-filter: blur(12px);
+  /* Een paneel dat de hele dag open staat hoort los van de wereld te liggen,
+     niet erop geplakt: de schaduw doet dat werk, niet een dikkere rand. */
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
   z-index: 15;
   overflow: hidden;
 }
 .panel-header { padding: 10px; border-bottom: 1px solid var(--border); }
+
+.search-wrap { position: relative; display: flex; align-items: center; }
+.search-icon {
+  position: absolute;
+  left: 10px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--text-dim);
+  pointer-events: none;
+}
 .search {
   width: 100%;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 9px;
   color: var(--text);
-  padding: 8px 10px;
+  padding: 8px 30px 8px 28px;
   outline: none;
 }
-.search:focus { border-color: var(--accent); }
+.search::placeholder { color: var(--text-dim); }
+.search:focus { border-color: var(--accent); background: var(--surface); }
+.search-clear {
+  position: absolute;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+.search-clear:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .chip {
-  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
   border: 1px solid var(--border);
   color: var(--text-dim);
   border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 12px;
+  padding: 3px 9px;
+  font-size: 11.5px;
   cursor: pointer;
   white-space: nowrap;
 }
-.chip-active { color: var(--text); background: var(--surface); border-color: var(--accent) !important; }
+/* Negen chips met elk een gekleurde rand is negen accenten, en dus geen enkel
+   accent. De takkleur zit nu in een stipje; de rand kleurt pas als de chip aan
+   staat — dan zegt de kleur iets. */
+.chip-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--venture, var(--text-dim)); flex: none; }
+.chip:hover { color: var(--text); background: rgba(255, 255, 255, 0.04); }
+.chip-active { color: var(--text); background: rgba(255, 255, 255, 0.07); border-color: var(--venture, var(--accent)); }
 .chip-demo { background: var(--accent); color: #fff; border: none; margin-left: 6px; }
 
-.thread-list { flex: 1; overflow-y: auto; padding: 6px; }
-.thread-group { margin-bottom: 10px; }
+.thread-list { flex: 1; overflow-y: auto; padding: 4px 8px 10px; }
+.thread-group { margin-bottom: 12px; }
+/* Projectkop: de kop van de groep, niet een grijs bijschrift. Hij blijft
+   plakken tijdens het scrollen — in een lijst van tien projecten weet je
+   anders halverwege niet meer bij wie je zit. */
 .thread-project {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-dim);
-  padding: 6px 8px 2px;
-}
-.thread {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 4px 5px;
+  background: linear-gradient(to bottom, rgba(22, 25, 31, 0.98) 72%, rgba(22, 25, 31, 0));
+}
+.thread-project::before {
+  content: '';
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--venture, var(--border));
+  flex: none;
+}
+.thread-project-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-project-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.thread-live {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+/* Rail in de takkleur onder de kop: je ziet waar een groep begint zonder de
+   kop te hoeven lezen. */
+.thread-rows { position: relative; margin-left: 9px; padding-left: 9px; display: flex; flex-direction: column; gap: 2px; }
+.thread-rows::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--venture, var(--border));
+  opacity: 0.28;
+}
+.thread {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
   width: 100%;
   text-align: left;
   background: none;
   border: 1px solid transparent;
   border-radius: 10px;
-  padding: 8px;
+  padding: 7px 9px;
   color: var(--text);
   cursor: pointer;
+  font: inherit;
 }
 .thread:hover { background: var(--surface-2); }
 .thread-selected { border-color: var(--accent); background: var(--surface-2); }
-.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.thread-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.thread-meta { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
-.empty { color: var(--text-dim); padding: 18px; text-align: center; }
+/* Wat aandacht vraagt draagt zijn eigen kleur aan de linkerkant. inset-schaduw
+   en geen border: een rand van 2px zou de regel 2px verschuiven en dan
+   wiebelt de lijst zodra er iets gebeurt. */
+.thread-needs { background: rgba(255, 176, 32, 0.07); box-shadow: inset 2px 0 0 var(--amber); }
+.thread-error { background: rgba(255, 82, 82, 0.08); box-shadow: inset 2px 0 0 #ff5252; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+/* Bezig = het ademt. Een stilstaande stip en een draaiende sessie zien er
+   anders hetzelfde uit. */
+.dot-live { animation: dot-breathe 2.4s ease-in-out infinite; }
+@keyframes dot-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(77, 163, 255, 0.5); }
+  55% { box-shadow: 0 0 0 4px rgba(77, 163, 255, 0); }
+}
+.thread-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.thread-title {
+  font-size: 13.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Tweede regel: status in woorden + wat het nú doet. Stond eerst naast de
+   titel en werd daar als eerste afgekapt. */
+.thread-sub { display: flex; align-items: baseline; gap: 7px; min-width: 0; font-size: 11.5px; color: var(--text-dim); }
+.thread-status { flex: none; font-weight: 500; }
+.thread-status-idle, .thread-status-done { opacity: 0.75; }
+.thread-tool { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.85; }
+.thread-meta {
+  color: var(--text-dim);
+  font-size: 11.5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+  flex: none;
+}
+
+/* Lege staat: een reden en een vervolgstap, geen kale regel tekst. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-dim);
+  padding: 30px 22px;
+  text-align: center;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 19px;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}
+.empty-title { color: var(--text); font-size: 13.5px; font-weight: 600; }
+.empty-hint { max-width: 250px; }
+.empty-btn { margin-top: 4px; }
 
 /* ── Detail drawer ───────────────────────── */
 .drawer {
@@ -338,15 +488,20 @@ html, body, #root { height: 100dvh; }
   left: 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgba(22, 25, 31, 0.85);
+  /* Donkerder dan de panelen: de kaart tekent zelf licht (grond, districten,
+     uitsnede) en heeft een rustige ondergrond nodig om leesbaar te blijven. */
+  background: rgba(11, 13, 17, 0.82);
   backdrop-filter: blur(8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
   cursor: pointer;
+  transition: border-color 0.15s ease;
   z-index: 13;
   /* Maat staat hier en niet als inline-style in de component, zodat de
      telefoon hem kleiner kan zetten. */
   width: 148px;
   height: 148px;
 }
+.minimap:hover { border-color: rgba(255, 255, 255, 0.24); }
 
 /* ── Time scrubber ───────────────────────── */
 .scrubber {
@@ -655,7 +810,7 @@ html, body, #root { height: 100dvh; }
   padding: 1px 7px; font-size: 12px; margin-left: 6px;
 }
 .actions-error { margin: 8px 12px 0; font-size: 12px; color: var(--amber); }
-.actions-empty { color: var(--text-dim); padding: 18px; text-align: center; font-size: 13px; }
+.actions-empty { color: var(--text-dim); padding: 26px 22px; text-align: center; font-size: 12.5px; line-height: 1.5; }
 .actions-list { flex: 1; overflow-y: auto; padding: 8px 10px 12px; }
 .action {
   background: var(--surface-2); border: 1px solid var(--border);
@@ -690,15 +845,19 @@ html, body, #root { height: 100dvh; }
   border: 1px solid var(--border);
   border-radius: 10px;
   backdrop-filter: blur(12px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.34);
 }
 .sidetab {
+  position: relative;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
+  padding: 0 5px;
   font: inherit;
   font-size: 12px;
+  letter-spacing: 0.01em;
   color: var(--muted, #9aa3b2);
   background: transparent;
   border: 0;
@@ -706,14 +865,33 @@ html, body, #root { height: 100dvh; }
   cursor: pointer;
   white-space: nowrap;
   min-width: 0;
+  transition: color 0.12s ease, background 0.12s ease;
 }
+.sidetab-label { overflow: hidden; text-overflow: ellipsis; }
 .sidetab:hover { color: #e8eaf0; background: rgba(255, 255, 255, 0.05); }
-.sidetab-on { color: #f4f6fa; background: rgba(255, 255, 255, 0.11); font-weight: 600; }
+.sidetab-on { color: #f4f6fa; background: rgba(255, 255, 255, 0.11); }
+/* Streepje onder de actieve tab: de achtergrond alleen is bij vier tabs naast
+   elkaar te zwak om te zien wélke aan staat, zeker vanuit een ooghoek. */
+.sidetab-on::after {
+  content: '';
+  position: absolute;
+  left: 28%;
+  right: 28%;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
 .sidetab-close { flex: 0 0 30px; font-size: 13px; }
+.sidetab-close::after { content: none; }
 .sidetab-badge {
+  flex: none;
+  min-width: 15px;
+  text-align: center;
   font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
-  padding: 2px 5px;
+  padding: 3px 4px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.13);
 }
@@ -992,4 +1170,12 @@ html, body, #root { height: 100dvh; }
   .office-side { border-left: 1px solid rgba(150, 120, 255, 0.22); border-top: none; }
   .office-chat { max-height: 46vh; }
   .office-tabs button { min-height: 40px; }
+}
+
+/* Wie beweging heeft uitgezet, bedoelt het ook in een paneel dat de hele dag
+   open staat: de ademende statusstip is versiering, geen informatie — de kleur
+   zegt hetzelfde. */
+@media (prefers-reduced-motion: reduce) {
+  .dot-live { animation: none; }
+  .sidetab { transition: none; }
 }
