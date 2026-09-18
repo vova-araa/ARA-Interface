@@ -631,23 +631,23 @@ function buildField(world: WorldConfig | null, perfLow: boolean): Field {
   }
   field.fountains.push(hubPiece('fnt-big', 0, PLAZA_LZ, { on: 'plein', scale: 1.4 }));
 
-  // Tuff-gevels als halve ring om het plein: elke gevel kijkt naar het midden,
-  // dus de bogen staan altijd naar de kijker toe in plaats van op hun kant.
-  const ring = perfLow ? [-40, 0, 40] : [-75, -40, 0, 40, 75];
-  for (const deg of ring) {
-    const theta = (deg * Math.PI) / 180;
-    field.arcades.push(
-      hubPiece(
-        `arc-${deg}`,
-        Math.sin(theta) * 2.35,
-        PLAZA_LZ + Math.cos(theta) * 2.35,
-        { yaw: theta + Math.PI },
-      ),
-    );
+  // Tuff-gevels flankeren het plein in plaats van het te omringen. Een ring
+  // lijkt logischer, maar onder deze camera keert de helft daarvan zijn rug
+  // naar je toe: je ziet dan een muur waar de bogen horen te zitten. Deze vier
+  // staan schuin naar binnen, dus hun bogen blijven allemaal in beeld.
+  const flanks: [number, number, number][] = [
+    [-2.75, 0.8, 0.7],
+    [2.75, 0.8, -0.7],
+    [-3.0, 2.2, 0.42],
+    [3.0, 2.2, -0.42],
+  ];
+  for (const [i, [lx, lz, yaw]] of flanks.entries()) {
+    if (perfLow && i >= 2) continue;
+    field.arcades.push(hubPiece(`arc-${i}`, lx, lz, { yaw }));
   }
 
-  field.churches.push(hubPiece('church', -3.3, -1.2, { yaw: 0.55, scale: 1.2 }));
-  field.churches.push(hubPiece('chapel', 3.3, -1.7, { yaw: -0.7, scale: 0.72 }));
+  field.churches.push(hubPiece('church', -3.5, -1.3, { yaw: 0.5, scale: 1.4 }));
+  field.churches.push(hubPiece('chapel', 3.45, -1.8, { yaw: -0.7, scale: 0.85 }));
 
   for (const [i, tree] of HUB_TREES.entries()) {
     if (perfLow && tree.pome) continue;

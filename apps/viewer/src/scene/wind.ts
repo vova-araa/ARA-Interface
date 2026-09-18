@@ -32,9 +32,3 @@ export function applyWind<T extends THREE.Material>(material: T, strength = 0.06
   return material;
 }
 
-/** Gedeeld bladerdak-materiaal met wind: alle boomkruinen zwaaien in één stijl. */
-export const FOLIAGE_MATERIAL = applyWind(
-  new THREE.MeshStandardMaterial({ color: '#6aa84f', flatShading: true }),
-  0.09,
-  0.55,
-);
