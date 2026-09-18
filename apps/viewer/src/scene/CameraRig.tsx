@@ -4,7 +4,7 @@ import { MapControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { damp, damp3 } from 'maath/easing';
 import type { MapControls as MapControlsImpl } from 'three-stdlib';
-import { useAra } from '../store.ts';
+import { useAra, type CameraView, type GroundPoint } from '../store.ts';
 import { HEX_SPACING, projectPlacement, sessionPosition } from '../placements.ts';
 import { WORLD_HEX_RADIUS, axialToWorld, type WorldConfig, type WorldSnapshot } from '@ara/shared';
 import { director } from './Tour.tsx';
@@ -139,6 +139,33 @@ interface Shot {
   t: number;
 }
 
+/**
+ * De voetafdruk van de camera op de grond: de vier schermhoeken en het
+ * middelpunt, geprojecteerd op het nulvlak. De minimap tekent daarmee welk
+ * stuk wereld je ziet — en dus ook welk stuk je niet ziet.
+ *
+ * Hier, niet in de minimap: de camera hoort bij dit bestand. De kaart haalde
+ * hem eerst uit `_roots` van react-three-fiber, en dat is een interne API.
+ */
+const _viewDir = new THREE.Vector3();
+const _viewCorner = new THREE.Vector3();
+
+function groundFootprint(camera: THREE.Camera): CameraView | null {
+  _viewDir.set(0, 0, -1).applyQuaternion(camera.quaternion);
+  // Kijkt de camera langs de grond, dan snijdt hij het nulvlak niet (of pas in
+  // de oneindigheid): dan is er geen uitsnede om te tekenen.
+  if (Math.abs(_viewDir.y) < 1e-4) return null;
+  const hit = (nx: number, ny: number): GroundPoint => {
+    _viewCorner.set(nx, ny, -1).unproject(camera);
+    const t = -_viewCorner.y / _viewDir.y;
+    return [_viewCorner.x + _viewDir.x * t, _viewCorner.z + _viewDir.z * t];
+  };
+  return {
+    corners: [hit(-1, 1), hit(1, 1), hit(1, -1), hit(-1, -1)],
+    target: hit(0, 0),
+  };
+}
+
 export function CameraRig(): JSX.Element {
   const controlsRef = useRef<MapControlsImpl>(null);
   const camera = useThree((s) => s.camera);
@@ -182,6 +209,8 @@ export function CameraRig(): JSX.Element {
   // Draaisnelheid om het doelpunt (rondje, rondleiding, tijdlapse).
   const orbitSpeed = useRef(0);
   const orbitTheta = useRef(Math.PI / 4);
+  // Wanneer de minimap voor het laatst een verse cameravoetafdruk kreeg.
+  const lastViewPublish = useRef(0);
 
   useEffect(() => {
     const { world, snapshot } = useAra.getState();
@@ -397,6 +426,13 @@ export function CameraRig(): JSX.Element {
       shakeOffset.current.set(0, 0, 0);
     }
     camera.position.add(shakeOffset.current);
+
+    // De kaart bijwerken is geen animatie: ~7x/s is ruim genoeg om mee te
+    // bewegen, en het scheelt de minimap 53 van de 60 hertekeningen.
+    if (now - lastViewPublish.current > 140) {
+      lastViewPublish.current = now;
+      useAra.getState().setCameraView(groundFootprint(camera));
+    }
   });
 
   return (

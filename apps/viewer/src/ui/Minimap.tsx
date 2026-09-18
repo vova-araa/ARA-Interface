@@ -1,6 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { _roots } from '@react-three/fiber';
-import * as THREE from 'three';
 import {
   WORLD_HEX_RADIUS,
   axialToWorld,
@@ -11,7 +9,7 @@ import {
   type WorldSnapshot,
 } from '@ara/shared';
 import { useAra, useViewSnapshot } from '../store.ts';
-import { HEX_SPACING, projectPlacement, sessionPosition } from '../placements.ts';
+import { HEX_SPACING, sessionPosition } from '../placements.ts';
 import { STATUS_COLORS } from '../util.ts';
 
 /** Halve breedte van de wereld in wereldeenheden; de hexschijf past hier net in. */
@@ -103,47 +101,6 @@ function buildPaths(world: WorldConfig, size: number, dpr: number): WorldPaths {
   return { key: `${world.generatedAt}:${size}:${dpr}`, base };
 }
 
-/**
- * De vier hoeken van het beeld, geprojecteerd op de grond (y=0), plus het punt
- * waar de camera naar kijkt.
- *
- * De camera leeft in de R3F-boom en de minimap is een DOM-buur daarvan, dus we
- * lezen hem uit de root-store van react-three-fiber. Dat is de enige verbinding
- * die er is zonder de scene zelf aan te passen — en zonder die verbinding weet
- * de kaart niet waar je staat, wat precies het onderdeel is dat hem van een
- * plaatje een navigatiemiddel maakt. Mislukt het lezen, dan tekenen we gewoon
- * geen uitsnede.
- */
-const _dir = new THREE.Vector3();
-const _corner = new THREE.Vector3();
-
-function readView(): { corners: Pt[]; target: Pt } | null {
-  try {
-    let camera: THREE.Camera | null = null;
-    for (const [canvas, root] of _roots) {
-      if (!(canvas instanceof HTMLCanvasElement) || !canvas.isConnected) continue;
-      // Het kantoor heeft zijn eigen canvas; die camera gaat niet over de wereld.
-      if (canvas.closest('.office-overlay')) continue;
-      camera = root.store.getState().camera;
-      break;
-    }
-    if (!camera) return null;
-    _dir.set(0, 0, -1).applyQuaternion(camera.quaternion);
-    if (Math.abs(_dir.y) < 1e-4) return null;
-    const hit = (nx: number, ny: number): Pt => {
-      _corner.set(nx, ny, -1).unproject(camera as THREE.Camera);
-      const t = -_corner.y / _dir.y;
-      return [_corner.x + _dir.x * t, _corner.z + _dir.z * t];
-    };
-    return {
-      corners: [hit(-1, 1), hit(1, 1), hit(1, -1), hit(-1, -1)],
-      target: hit(0, 0),
-    };
-  } catch {
-    return null;
-  }
-}
-
 /** Sessies per project, in dezelfde volgorde als de wereld ze neerzet. */
 function sessionDots(
   world: WorldConfig,
@@ -220,20 +177,20 @@ export function Minimap(): JSX.Element | null {
       const current = worldRef.current;
       if (!current) return;
 
+      // Onzichtbaar (tabblad weg, kaart verborgen): niets te tekenen.
+      if (document.hidden) return;
       // De CSS bepaalt de maat (148px, 104px op de telefoon). Meten in plaats
       // van aannemen: anders tekent het kaartje op de telefoon een uitsnede
       // van zichzelf.
-      // Onzichtbaar (tabblad weg, kaart verborgen) is er niets te tekenen.
-      if (document.hidden) return;
       const size = Math.round(canvas.getBoundingClientRect().width);
       if (!size) return;
       const dpr = window.devicePixelRatio || 1;
       const snap = snapRef.current;
-      const view = readView();
-      // Alleen opnieuw tekenen als er iets ánders te zien is. Deze machine
-      // rendert de wereld al zonder GPU; een kaartje dat zestien keer per
-      // seconde hetzelfde plaatje opnieuw zet, haalt fps weg bij de wereld.
-      // Klopt er iets (wacht-op-jou, storing), dán moet de lus wél doorlopen.
+      const view = useAra.getState().cameraView;
+      // Alleen opnieuw tekenen als er iets ánders te zien is: hetzelfde
+      // plaatje nog eens neerzetten kost frames en levert niets op. Klopt er
+      // iets (wacht-op-jou, storing), dán moet de lus wél blijven lopen —
+      // daar zit de ring die aandacht vraagt.
       const alert = snap.counters.needsHuman > 0 ||
         Object.values(snap.sessions).some((s) => s.status === 'error' && !s.endedAt);
       const sig = [

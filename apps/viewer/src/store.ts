@@ -78,6 +78,15 @@ export interface SpeechBubble {
   ts: number;
 }
 
+/** Een punt op de grond (x, z) in wereldeenheden. */
+export type GroundPoint = [number, number];
+
+/** De voetafdruk van de camera op de grond: schermhoeken + middelpunt. */
+export interface CameraView {
+  corners: [GroundPoint, GroundPoint, GroundPoint, GroundPoint];
+  target: GroundPoint;
+}
+
 interface AraStore {
   connected: boolean;
   demo: boolean;
@@ -102,6 +111,17 @@ interface AraStore {
   tradeVersion: number;
   /** LOD: true wanneer ver uitgezoomd — icons/bubbles verbergen (perf). */
   lodFar: boolean;
+  /**
+   * Waar de camera op de grond kijkt: de vier schermhoeken en het middelpunt,
+   * geprojecteerd op het nulvlak. De minimap tekent daarmee de uitsnede.
+   *
+   * CameraRig schrijft, de minimap leest — dezelfde afspraak als met Tour.
+   * Het alternatief was dat de minimap de camera uit `_roots` van
+   * react-three-fiber viste: dat werkt, maar het is een interne API die bij
+   * de volgende upgrade stil kan verdwijnen, en dan tekent de kaart geen
+   * uitsnede meer zonder dat iets stukgaat waar een test op let.
+   */
+  cameraView: CameraView | null;
   /** Cinematic postprocessing (tilt-shift/bloom); governor zet uit bij lage fps. */
   postFxOn: boolean;
   /** Zwak device: zware sier-lagen (crowd/districtlife/weer) uit. */
@@ -141,6 +161,7 @@ interface AraStore {
   setActionsOpen(open: boolean): void;
   bumpTrade(): void;
   setLodFar(far: boolean): void;
+  setCameraView(view: CameraView | null): void;
   setOverviewOpen(open: boolean): void;
   setPostFxOn(on: boolean): void;
   setPerfLow(low: boolean): void;
@@ -269,6 +290,7 @@ export const useAra = create<AraStore>((set, get) => ({
   actionsOpen: false,
   tradeVersion: 0,
   lodFar: false,
+  cameraView: null,
   postFxOn: true,
   perfLow: false,
   tasksVersion: 0,
@@ -402,6 +424,7 @@ export const useAra = create<AraStore>((set, get) => ({
     set(open ? { actionsOpen: true, panelOpen: false, boardOpen: false, overviewOpen: false } : { actionsOpen: false }),
   bumpTrade: () => set((s) => ({ tradeVersion: s.tradeVersion + 1 })),
   setLodFar: (far) => set({ lodFar: far }),
+  setCameraView: (view) => set({ cameraView: view }),
   setOverviewOpen: (open) =>
     set(open ? { overviewOpen: true, panelOpen: false, boardOpen: false, actionsOpen: false } : { overviewOpen: false }),
   setPostFxOn: (on) => set({ postFxOn: on }),
