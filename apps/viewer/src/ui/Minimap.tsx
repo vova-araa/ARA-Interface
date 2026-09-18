@@ -16,8 +16,12 @@ import { STATUS_COLORS } from '../util.ts';
 
 /** Halve breedte van de wereld in wereldeenheden; de hexschijf past hier net in. */
 const EXTENT = 16;
-/** Hoogstens tien keer per seconde tekenen: dit is een kaartje, geen animatie. */
-const FRAME_MS = 100;
+/**
+ * Hoogstens zeven keer per seconde tekenen. Dit is een kaartje, geen animatie,
+ * en het draait naast een wereld die hier zonder GPU gerenderd wordt: elk
+ * frame dat de kaart pakt, pakt hij van het beeld dat hij samenvat.
+ */
+const FRAME_MS = 140;
 
 type Pt = [number, number];
 
@@ -219,7 +223,10 @@ export function Minimap(): JSX.Element | null {
       // De CSS bepaalt de maat (148px, 104px op de telefoon). Meten in plaats
       // van aannemen: anders tekent het kaartje op de telefoon een uitsnede
       // van zichzelf.
-      const size = Math.round(canvas.getBoundingClientRect().width) || 148;
+      // Onzichtbaar (tabblad weg, kaart verborgen) is er niets te tekenen.
+      if (document.hidden) return;
+      const size = Math.round(canvas.getBoundingClientRect().width);
+      if (!size) return;
       const dpr = window.devicePixelRatio || 1;
       const snap = snapRef.current;
       const view = readView();
@@ -233,7 +240,9 @@ export function Minimap(): JSX.Element | null {
         size,
         current.generatedAt,
         selectedRef.current,
-        view ? view.corners.map(([x, z]) => `${x.toFixed(1)},${z.toFixed(1)}`).join('|') : 'x',
+        // Grof afgerond: de camera zweeft in rust een traag achtje, en een
+        // hertekening per honderdste wereldeenheid zie je niet.
+        view ? view.corners.map(([x, z]) => `${(x * 4) | 0},${(z * 4) | 0}`).join('|') : 'x',
       ].join('~');
       if (!alert && sig === lastSig && snap === lastSnap) return;
       lastSig = sig;
