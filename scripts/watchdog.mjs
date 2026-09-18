@@ -232,6 +232,41 @@ function acquireSpawnLock(name) {
   return null;
 }
 
+/**
+ * De omgeving voor een gespawnde agent — met onze stempel, en zónder de
+ * identiteit van de sessie die hem start.
+ *
+ * Dit was een stille maar grondige fout. `claude -p` erft de omgeving van zijn
+ * ouder, en daar staat `CLAUDE_CODE_SESSION_ID` in. De gespawnde agent nam
+ * daarmee de sessie-identiteit van de eigenaar over: zijn hooks meldden het
+ * sessie-id van de éígenaar, dus het tokenverbruik van de agent werd op diens
+ * regel geschreven — en die regel kreeg vervolgens het stempel van de agent.
+ * Precies omgekeerd aan wat het dagbudget moet doen. Gemeten: een audit van
+ * vier minuten zette 17,7 miljoen tokens op naam van de eigenaar-sessie en
+ * blokkeerde daarmee elke volgende agent.
+ *
+ * In de wereld had het hetzelfde effect: de agent kreeg geen eigen pod maar
+ * verdween in de sessie van de eigenaar.
+ *
+ * De berichtenkanalen gaan om een tweede reden weg: een gespawnde agent hoort
+ * via het takenbord te praten, niet rechtstreeks tegen de sessie die hem
+ * startte.
+ */
+const INHERITED_IDENTITY = [
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_REMOTE_SESSION_ID',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_PID',
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+];
+
+function childEnv(role) {
+  const env = { ...process.env, ARA_SPAWNED_ROLE: role };
+  for (const key of INHERITED_IDENTITY) delete env[key];
+  return env;
+}
+
 function spawnClaude(name, prompt, { agent, tools } = {}) {
   if (NO_SPAWN) {
     log(`SPAWN onderdrukt (test): ${name}`);
@@ -284,7 +319,7 @@ function spawnClaude(name, prompt, { agent, tools } = {}) {
     // de collector, en daarmee weet het dagbudget het verschil tussen wat ARA
     // zelf uitgeeft en wat de eigenaar achter zijn eigen Mac verstookt. Zonder
     // dat telde alles mee en zette een dag handwerk de hele organisatie stil.
-    env: { ...process.env, ARA_SPAWNED_ROLE: agent ?? name },
+    env: childEnv(agent ?? name),
   });
   // Een sessie die meteen omvalt (niet ingelogd, limiet, onbekende agent) mag
   // niet stil blijven: dat is precies het geval waarin niemand iets merkt.
