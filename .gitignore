@@ -4,14 +4,14 @@ dist/
 *.tsbuildinfo
 .DS_Store
 *.log
-data/*.db
-data/*.db-journal
-data/*.db-wal
-data/*.db-shm
 .env
 .env.*
 test-results/
 playwright-report/
-data/inbox-seen.json
-data/rhythm.json
+# Alles onder data/ is looptijd: de SQLite-db en zijn WAL, de logs, de
+# sloten en tellers van de watchdog, de kopieën van world.config.json.
+# Als losse regels per bestandssoort, en dan valt er altijd iets buiten —
+# de beveiligingsaudit wees op data/locks/, dat door geen enkele regel
+# gedekt werd. Eén map negeren kan niet half.
+data/
 dist-artifact/
