@@ -46,6 +46,7 @@ float araNoise(vec2 x) {
              mix(araHash(i + vec2(0.0, 1.0)), araHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
 `;
+
 /**
  * Monument-Valley-shading via shader-injectie op een MeshStandardMaterial:
  *  - schaduwkant krijgt een koele paarse tint (i.p.v. dof grijs),

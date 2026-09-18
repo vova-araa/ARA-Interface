@@ -38,6 +38,7 @@ import { Doves } from './Doves.tsx';
 import { Windows } from './Windows.tsx';
 import { StreetLights } from './StreetLights.tsx';
 import { Monuments } from './Monuments.tsx';
+import { Tour } from './Tour.tsx';
 import { Crowd } from './Crowd.tsx';
 import { Weather } from './Weather.tsx';
 import { Drones } from './Drones.tsx';
@@ -335,6 +336,9 @@ export function Scene(): JSX.Element {
         )}
       </Suspense>
       <CameraRig />
+      {/* Rondleiding staat uit tenzij ?tour=1; zonder Tour in de boom
+          verandert er niets aan de camera. */}
+      <Tour />
       <QualityGovernor />
 
       {postFxOn && !perfLow && (

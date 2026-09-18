@@ -55,11 +55,18 @@ const TILT_FULL = 0.8;
 const SHOT_PULL_SEC = 0.55;
 const SHOT_PUSH_SEC = 2.8;
 const SHOT_PULL_ZOOM = 0.78;
-const SHOT_PUSH_ZOOM = 2.8;
+const SHOT_PUSH_ZOOM = 2.2;
 /** Rondje om het district na een afgeronde taak. */
 const CIRCLE_SEC = 7;
 const CIRCLE_SPEED = 0.22; // rad/s — een kwartslag in zeven tellen
 const CIRCLE_ZOOM = 1.25;
+/**
+ * Hoe vaak een shot hoogstens mag beginnen. Op een drukke dag komen er tien
+ * meldingen per minuut, en een camera die bij elke melding opnieuw wegzwenkt
+ * is geen film maar een zwabber — dan kun je niks meer volgen. Een afgeronde
+ * taak mag langer wachten dan een mens die klaarstaat.
+ */
+const SHOT_COOLDOWN_MS = { push: 8000, circle: 20_000 };
 /** Tijdlapse: het terugkijken draait langzaam om het midden van de wereld. */
 const REPLAY_SPEED = 0.07;
 /** De tijdlapse pakt de camera pas terug na deze rust — zie de reden hieronder. */
@@ -167,6 +174,7 @@ export function CameraRig(): JSX.Element {
   // Filmische shots (zwenk/rondje) en het effect dat ze startte.
   const shot = useRef<Shot | null>(null);
   const lastShotEffect = useRef<string | null>(null);
+  const lastShotAt = useRef(0);
   // Kanteling: tiltPhi is de hoek die wij sturen, userTilted onthoudt of de
   // gebruiker zelf heeft gedraaid — daarna blijven we van de hoek af.
   const tiltPhi = useRef(ISO_PHI);
@@ -214,6 +222,8 @@ export function CameraRig(): JSX.Element {
       [...fresh].reverse().find((e) => e.type === 'nudge') ??
       [...fresh].reverse().find((e) => e.type === 'flag');
     if (!pick || pick.id === lastShotEffect.current) return;
+    const kind = pick.type === 'nudge' ? 'push' : 'circle';
+    if (now - lastShotAt.current < SHOT_COOLDOWN_MS[kind]) return;
     const { world, snapshot } = useAra.getState();
     const center =
       pick.type === 'nudge'
@@ -221,7 +231,8 @@ export function CameraRig(): JSX.Element {
         : districtWorldPos(world, snapshot, pick.sessionId);
     if (!center) return;
     lastShotEffect.current = pick.id;
-    shot.current = { kind: pick.type === 'nudge' ? 'push' : 'circle', center, t: 0 };
+    lastShotAt.current = now;
+    shot.current = { kind, center, t: 0 };
   }, [effects]);
 
   useFrame(({ clock }, delta) => {
