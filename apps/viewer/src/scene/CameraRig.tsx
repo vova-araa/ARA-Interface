@@ -37,6 +37,17 @@ export function CameraRig(): JSX.Element {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const restZoom = fitZoom(size.width, size.height);
+  // Het zijpaneel dekt de rechterkant af, maar de camera centreert op het hele
+  // canvas — dus verdwijnt het rechtse district erachter. De wereld schuift
+  // daarom naar links, langs de rechtervector van de camera zelf. Dat is
+  // voorspelbaar; setViewOffset leek eerst goed maar schaalt het beeld mee, en
+  // dan is de wereld wél verschoven maar ook ingezoomd.
+  //
+  // Alleen op een breed scherm: op een telefoon ligt het paneel als bottom
+  // sheet over de wereld en is er niets om voor uit te wijken.
+  const sideOpen = useAra((s) => s.panelOpen || s.boardOpen || s.actionsOpen);
+  const panelCover = sideOpen && size.width > 860 ? 364 : 0;
+  const panelOffset = useRef(new THREE.Vector3());
   const flyTarget = useAra((s) => s.flyTarget);
   const goal = useRef<THREE.Vector3 | null>(null);
   const focusZoom = useRef<number | null>(null);
@@ -91,6 +102,8 @@ export function CameraRig(): JSX.Element {
     // (anders accumuleert de shake/drift en vecht hij met gebruikersinput).
     camera.position.sub(shakeOffset.current);
     controls.target.sub(driftOffset.current);
+    controls.target.sub(panelOffset.current);
+    camera.position.sub(panelOffset.current);
 
     // Intro: van ver uitgezoomd zachtjes de wereld in (~2s).
     if (intro.current < 1) {
@@ -129,7 +142,17 @@ export function CameraRig(): JSX.Element {
       driftOffset.current.set(0, 0, 0);
     }
 
+    // Paneelverschuiving: een halve paneelbreedte in wereldeenheden, langs de
+    // rechtervector van de camera. Gedempt, zodat openen en sluiten een
+    // beweging is en geen sprong.
+    const wanted = panelCover / 2 / cam.zoom;
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize();
+    const goalOffset = right.multiplyScalar(wanted);
+    damp3(panelOffset.current, goalOffset, 0.25, delta);
+
     controls.update();
+    controls.target.add(panelOffset.current);
+    camera.position.add(panelOffset.current);
 
     // Shake ná controls.update() als additieve offset.
     if (trauma.current > 0.005) {

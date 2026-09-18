@@ -389,12 +389,21 @@ export const useAra = create<AraStore>((set, get) => ({
       savePref('ara.soundOn', !s.soundOn);
       return { soundOn: !s.soundOn };
     }),
-  setPanelOpen: (open) => set({ panelOpen: open }),
-  setBoardOpen: (open) => set({ boardOpen: open }),
-  setActionsOpen: (open) => set({ actionsOpen: open }),
+  // Eén paneel tegelijk. Ze deelden dezelfde rechterkolom en konden alle vier
+  // tegelijk open staan; dan vecht alles om dezelfde ruimte en weet je niet
+  // meer waar je naar kijkt. Openen sluit de rest — dat is wat een tabstrook
+  // betekent, en het hoort in de state te zitten en niet in de opmaak, anders
+  // kan een sneltoets of een diep-link er alsnog twee openzetten.
+  setPanelOpen: (open) =>
+    set(open ? { panelOpen: true, boardOpen: false, actionsOpen: false, overviewOpen: false } : { panelOpen: false }),
+  setBoardOpen: (open) =>
+    set(open ? { boardOpen: true, panelOpen: false, actionsOpen: false, overviewOpen: false } : { boardOpen: false }),
+  setActionsOpen: (open) =>
+    set(open ? { actionsOpen: true, panelOpen: false, boardOpen: false, overviewOpen: false } : { actionsOpen: false }),
   bumpTrade: () => set((s) => ({ tradeVersion: s.tradeVersion + 1 })),
   setLodFar: (far) => set({ lodFar: far }),
-  setOverviewOpen: (open) => set({ overviewOpen: open }),
+  setOverviewOpen: (open) =>
+    set(open ? { overviewOpen: true, panelOpen: false, boardOpen: false, actionsOpen: false } : { overviewOpen: false }),
   setPostFxOn: (on) => set({ postFxOn: on }),
   setPerfLow: (low) => set({ perfLow: low }),
   bumpTasks: () => set((s) => ({ tasksVersion: s.tasksVersion + 1 })),

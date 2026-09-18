@@ -136,6 +136,12 @@ function ChatPanel({ project, room }: { project: string; room: string }): JSX.El
   const selected = useAra((s) => s.officeSelected);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // Standaard open. Dichtklappen was eerst de standaard bij een leeg gesprek,
+  // maar dan moet je eerst een balk aanklikken voor je iets kunt vragen — en
+  // vragen is precies waar dit voor is. Het probleem was nooit dat het open
+  // stond; het was dat het 46vh pakte en meegroeide. Het plafond lost dat op,
+  // de knop is er voor wie de cijfers even helemaal wil zien.
+  const [open, setOpen] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Wie spreek je aan: de gekozen persoon, anders de manager van deze tak.
@@ -167,10 +173,21 @@ function ChatPanel({ project, room }: { project: string; room: string }): JSX.El
   };
 
   return (
-    <div className="office-chat">
-      <div className="office-chat-head">
-        Gesprek met <strong>{target.name}</strong>
-      </div>
+    <div className={`office-chat ${open ? '' : 'office-chat-shut'}`}>
+      {/* Het gesprek stond permanent onderin en groeide mee met het aantal
+          berichten, dus het duwde de stationlijst en de cijfers weg — twee
+          dingen die om dezelfde kolom vochten. Nu is het inklapbaar en heeft
+          het een plafond: je ziet dat er een gesprek is, en je kiest zelf of
+          het ruimte krijgt. */}
+      <button type="button" className="office-chat-head" onClick={() => setOpen(!open)}>
+        <span>
+          Gesprek met <strong>{target.name}</strong>
+        </span>
+        <span className="office-chat-count">
+          {messages.length > 0 && <em>{messages.length}</em>}
+          {open ? '▾' : '▴'}
+        </span>
+      </button>
       <div className="office-chat-list" ref={listRef}>
         {messages.length === 0 && <p className="office-note">Nog geen berichten. Stel een vraag.</p>}
         {messages.map((m) => (

@@ -13,7 +13,7 @@ test.describe('desktop 1280×800', () => {
 
     await page.goto('/?demo=1');
     await expect(page.locator('canvas').first()).toBeVisible();
-    await expect(page.locator('.topbar')).toContainText('Needs you');
+    await expect(page.locator('.topbar')).toContainText('Wacht');
     await expect(page.locator('.scrubber')).toHaveCount(0); // hidden in demo mode
 
     // Fixture story starts within seconds: threads appear grouped by project.

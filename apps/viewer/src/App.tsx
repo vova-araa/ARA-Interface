@@ -10,6 +10,7 @@ import { BoardPanel } from './ui/BoardPanel.tsx';
 import { ActionPanel } from './ui/ActionPanel.tsx';
 import { OverviewPanel } from './ui/OverviewPanel.tsx';
 import { Ticker } from './ui/Ticker.tsx';
+import { SideTabs } from './ui/SideTabs.tsx';
 import { SoundPlayer } from './ui/Sound.tsx';
 import { OfficeOverlay } from './office/OfficeOverlay.tsx';
 import { useAra } from './store.ts';
@@ -69,6 +70,7 @@ export function App(): JSX.Element {
     <div className="app">
       <Scene />
       <TopBar />
+      <SideTabs />
       <ThreadPanel />
       <DetailDrawer />
       <Minimap />
