@@ -44,8 +44,8 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 64 unit tests (shared 23 + collector 41) + de viewer-smoke
-pnpm --filter @ara/viewer exec playwright test   # 5 smoke-flows (desktop, iPhone, kantoor, acties)
+pnpm test                    # 68 unit tests (shared 23 + collector 45) + de viewer-smoke
+pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
 #   collector op :4757 met een wegwerp-ARA_DATA_DIR; :4747 blijft onaangeroerd.

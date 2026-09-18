@@ -90,6 +90,40 @@ test.describe('iPhone 390×844', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth).toBeLessThanOrEqual(390);
   });
+
+  test('de balk schuift niet opzij, en de tabs zijn met een duim te raken', async ({ page }) => {
+    await page.goto('/?demo=1');
+    await expect(page.locator('canvas').first()).toBeVisible();
+
+    // Dit is de bug die maanden ongezien bleef: zes knoppen plus de titel
+    // pasten niet in 390px, #root had scrollWidth 445, en overflow:hidden is
+    // wél programmatisch scrollbaar — dus de browser scrolde de aangetikte
+    // knop in beeld en de hele app stond 55px scheef. De assertie hierboven
+    // keek naar documentElement en zag het daarom nooit; de scroller was #root.
+    await page.locator('.topbar-actions .btn').last().click();
+    await expect(page.locator('.panel')).toBeVisible();
+    const drift = await page.evaluate(() => {
+      const root = document.getElementById('root');
+      return {
+        scrollLeft: root?.scrollLeft ?? -1,
+        overflow: (root?.scrollWidth ?? 0) - (root?.clientWidth ?? 0),
+      };
+    });
+    expect(drift.scrollLeft).toBe(0);
+    expect(drift.overflow).toBeLessThanOrEqual(0);
+
+    // Tikdoelen. 36px is een muisaanwijzer-maat; een duim heeft 44 nodig, en
+    // de tabstrook is het enige waarmee je tussen de panelen wisselt.
+    const tab = page.locator('.sidetab').first();
+    const tabBox = (await tab.boundingBox())!;
+    expect(tabBox.height).toBeGreaterThanOrEqual(44);
+
+    // De tabs horen bij de sheet die ze bedienen: ze stonden 700px erboven,
+    // bovenaan het scherm, terwijl het paneel onderaan opende.
+    const sheet = (await page.locator('.panel').boundingBox())!;
+    const strip = (await page.locator('.sidetabs').boundingBox())!;
+    expect(Math.abs(strip.y + strip.height - sheet.y)).toBeLessThanOrEqual(8);
+  });
 });
 
 test.describe('kantoren 1400×900', () => {
