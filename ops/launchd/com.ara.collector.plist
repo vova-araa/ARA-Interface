@@ -24,6 +24,8 @@
     <string>__PATH__</string>
     <key>ARA_TOKEN</key>
     <string>__ARA_TOKEN__</string>
+    <key>ARA_QA_SAMPLE</key>
+    <string>__QA_SAMPLE__</string>
   </dict>
   <key>RunAtLoad</key>
   <true/>

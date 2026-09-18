@@ -35,6 +35,10 @@
     <string>__DISPATCH__</string>
     <key>ARA_DISPATCH_MAX</key>
     <string>__DISPATCH_MAX__</string>
+    <key>ARA_IMPROVE</key>
+    <string>__IMPROVE__</string>
+    <key>ARA_IMPROVE_DAYS</key>
+    <string>__IMPROVE_DAYS__</string>
   </dict>
   <key>StartInterval</key>
   <integer>300</integer>

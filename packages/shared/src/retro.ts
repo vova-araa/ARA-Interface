@@ -168,6 +168,95 @@ function titleKey(title: string): string {
     .trim();
 }
 
+/**
+ * Kruiscontrole: laat een tweede rol nakijken wat een eerste heeft afgeleverd.
+ *
+ * Dit is de andere helft van "agents versterken elkaar". Een agent die zijn
+ * eigen werk goedkeurt is geen controle, en de qa-verifier bestond al maar werd
+ * nooit vanzelf ingeschakeld — dus gebeurde het nooit.
+ *
+ * De regels staan hier en niet in een prompt, want een instructie is een
+ * suggestie en een pure functie is een grens. De belangrijkste is de eerste.
+ */
+export const QA_VERIFY_PREFIX = 'CONTROLE:';
+
+/** Assignee waar een controletaak naartoe gaat. */
+export const QA_VERIFIER = 'ara-qa-verifier';
+
+export interface VerifiableTask {
+  id: string;
+  title: string;
+  status: string;
+  assignee: string;
+  result?: string;
+  detail?: string;
+}
+
+/**
+ * Moet deze afgeronde taak nagekeken worden?
+ *
+ * @param samplePct 0 = uit, 100 = alles. Steekproef en niet alles, want elke
+ *   controle kost een sessie: een organisatie die zichzelf volledig controleert
+ *   doet niets anders meer.
+ */
+export function shouldVerify(
+  task: VerifiableTask,
+  samplePct: number,
+  hash: (input: string) => number,
+): boolean {
+  // Strikt genomen overbodig: `hash % 100` is nooit negatief, dus 0 laat er
+  // hieronder al niets door. Het staat er als uitspraak — "uit is uit" hoort
+  // leesbaar te zijn en niet af te hangen van een eigenschap van modulo
+  // verderop. Een mutatietest vangt deze regel dan ook niet, en dat is geen
+  // gat in de dekking maar de regel die niets doet.
+  if (samplePct <= 0) return false;
+  // Alleen afgerond werk valt na te kijken. Een mislukte taak heeft al een
+  // uitkomst, en open werk is nog niemands oordeel waard.
+  if (task.status !== 'done') return false;
+
+  // DE regel: een controletaak wordt nooit zelf gecontroleerd. Zonder dit maakt
+  // elke controle een nieuwe controle en loopt het bord in een dag vol met een
+  // keten die nergens over gaat — en betaal je voor elke schakel.
+  if (task.title.startsWith(QA_VERIFY_PREFIX)) return false;
+  if (task.assignee === QA_VERIFIER) return false;
+
+  // Een escalatie wacht op een mens. Daar een agent overheen laten oordelen
+  // verbergt precies het ding dat zichtbaar moest blijven.
+  if (isEscalated(task)) return false;
+
+  // Een gesprek met de gebruiker is geen werkstuk.
+  if (task.title.startsWith('CHAT:')) return false;
+
+  // Afgerond zonder te zeggen wát eruit kwam: daar valt niets aan na te kijken.
+  // De terugblik meldt dit apart als 'geen-resultaat'; dat is het juiste
+  // kanaal, niet een controleur die naar een leeg vakje staat te kijken.
+  if ((task.result ?? '').trim() === '') return false;
+
+  // Deterministisch: dezelfde taak leidt altijd tot dezelfde keuze. Met
+  // Math.random zou dezelfde db na een herstart een ander oordeel geven en was
+  // een steekproef niet na te rekenen.
+  return hash(`qa:${task.id}`) % 100 < samplePct;
+}
+
+/** De controletaak die bij een afgeronde taak hoort. */
+export function verificationTask(task: VerifiableTask): { title: string; detail: string } {
+  return {
+    title: `${QA_VERIFY_PREFIX} ${task.title}`.slice(0, 200),
+    detail: [
+      `Controleer het werk van ${task.assignee} aan taak ${task.id}.`,
+      '',
+      'Wat hij afleverde:',
+      (task.result ?? '').slice(0, 1500),
+      '',
+      'Kijk na of het resultaat klopt met wat er gevraagd werd, of de cijfers erin',
+      'gemeten zijn en niet ingevuld, en of er iets ontbreekt dat wél te doen was.',
+      'Klopt het: sluit af met "akkoord" en één zin waarom. Klopt het niet: zeg',
+      'precies wat er mis is en wat er moet gebeuren — niet dat het "beter kan".',
+      'Je beoordeelt het werk, niet de persoon, en je doet het werk niet over.',
+    ].join('\n'),
+  };
+}
+
 export function buildRetro(tasks: RetroTask[], from: number, to: number, now: number): Retro {
   const considered = tasks.filter((t) => t.updatedAt >= from && t.updatedAt <= to);
   const findings: Finding[] = [];

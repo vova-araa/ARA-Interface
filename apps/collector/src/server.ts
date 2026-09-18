@@ -16,6 +16,10 @@ import {
   buildTradeReview,
   formatReviewMessage,
   buildRetro,
+  shouldVerify,
+  verificationTask,
+  QA_VERIFIER,
+  stableHash,
   startOfToday,
   VENTURES,
   WorldState,
@@ -317,6 +321,31 @@ export function createCollector(store: EventStore): CollectorApp {
     if (!task) {
       res.status(404).json({ ok: false, error: 'not found' });
       return;
+    }
+    // Kruiscontrole: laat een tweede rol nakijken wat hier is afgeleverd.
+    // Standaard uit (ARA_QA_SAMPLE=0) want elke controle kost een sessie; de
+    // regels — en vooral: een controle wordt nooit zelf gecontroleerd — staan
+    // in shouldVerify() en niet in een prompt.
+    if (patch.status === 'done') {
+      const sample = Number(process.env.ARA_QA_SAMPLE ?? 0);
+      if (shouldVerify(task, sample, stableHash)) {
+        const made = verificationTask(task);
+        store.createTask({
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          title: made.title,
+          detail: made.detail,
+          project: task.project,
+          assignee: QA_VERIFIER,
+          createdBy: 'collector',
+          // De controle hangt aan het werk dat hij beoordeelt, zodat het bord
+          // laat zien waar hij vandaan komt in plaats van een losse taak.
+          parentId: task.id,
+          status: 'open',
+          result: '',
+        });
+      }
     }
     notifyTasks();
     res.json({ ok: true, task });

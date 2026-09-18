@@ -32,7 +32,10 @@
  *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan),
  *      ARA_RHYTHM=1 (sectie 10 aan), ARA_RHYTHM_VENTURES=blex,traject (leeg = alle),
  *      ARA_DISPATCH=1 (sectie 11 aan: rollen wekken voor hun eigen bordwerk),
- *      ARA_DISPATCH_MAX=2 (hoeveel rollen per ronde).
+ *      ARA_DISPATCH_MAX=2 (hoeveel rollen per ronde),
+ *      ARA_IMPROVE=1 (sectie 12: dagelijkse verbeterronde op het gemeten spoor),
+ *      ARA_IMPROVE_DAYS=7 (venster), ARA_QA_SAMPLE=0 (kruiscontrole, % van
+ *      afgerond werk dat de qa-verifier nakijkt — staat in de collector).
  *
  * Ritme en uitvoering horen bij elkaar: ARA_RHYTHM zet het werk op het bord,
  * ARA_DISPATCH haalt het eraf. Alleen het eerste aanzetten geeft een bord dat
@@ -50,6 +53,17 @@ const REPO = process.env.ARA_REPO ?? path.resolve(__dirname, '..');
 const COLLECTOR = process.env.ARA_COLLECTOR_URL ?? 'http://127.0.0.1:4747';
 const NO_SPAWN = process.env.ARA_WATCHDOG_NO_SPAWN === '1';
 const LOCK_DIR = process.env.ARA_LOCK_DIR ?? os.tmpdir();
+// Aanmaken als hij nog niet bestaat. Alle remmen van dit bestand leven hier:
+// de eenmalige alarmen, de pogingenteller die na twee keer stopt met spawnen,
+// en het slot dat voorkomt dat dezelfde agent twee keer tegelijk draait. Elke
+// schrijfactie daarvan zit in een lege catch, dus een map die niet bestaat zet
+// ze alle drie stil zónder één foutmelding: dan alarmeert hij eindeloos en
+// spawnt hij door tot het budget op is. Eén mkdir scheelt dat.
+try {
+  fs.mkdirSync(LOCK_DIR, { recursive: true });
+} catch (error) {
+  console.error(`[watchdog] kan lock-map ${LOCK_DIR} niet maken: ${String(error).slice(0, 80)}`);
+}
 const LOCK_TTL_MS = 30 * 60 * 1000;
 
 const log = (msg) => console.log(`[watchdog ${new Date().toISOString()}] ${msg}`);
@@ -1174,6 +1188,63 @@ if (process.env.ARA_DISPATCH === '1') {
     if (woken === 0 && queue.length === 0) log('bord: niets open dat op een rol wacht');
   } catch (error) {
     log(`bord-uitvoering fout: ${String(error).slice(0, 120)}`);
+  }
+}
+
+// ── 12. Verbeterronde: de organisatie kijkt naar zichzelf ────────────────
+//
+// Dit is het stuk waar "agents zoeken zelf verbeterpunten" op neerkomt, en de
+// reden dat het pas hier staat: eerst moest er iets meetbaars zijn om naar te
+// wijzen. GET /retro leest het bord — puur, nul tokens — en levert bevindingen
+// die elk hun eigen taak-ids meedragen. Een voorstel zonder bewijs is een
+// mening, en een agent die elke week plausibel klinkende verbeteringen schrijft
+// is erger dan geen verbeterronde.
+//
+// Standaard uit. ARA_IMPROVE=1 zet hem aan; ARA_IMPROVE_DAYS zet het venster.
+if (process.env.ARA_IMPROVE === '1') {
+  try {
+    const days = Math.max(1, Number(process.env.ARA_IMPROVE_DAYS ?? 7));
+    const retro = await api(`/retro?days=${days}`);
+
+    if (retro.tooQuiet) {
+      // Niet stilzwijgend overslaan: "te stil" is zelf de uitkomst, en zonder
+      // dit regeltje lijkt een uitgeschakelde ronde op een kapotte.
+      log(`verbeterronde: te weinig gebeurd (${retro.considered} taken) — niets te lezen`);
+    } else if (retro.findings.length === 0) {
+      log(`verbeterronde: ${retro.considered} taken bekeken, geen patronen`);
+    } else {
+      // Eén ronde per dag. Vaker heeft geen zin — het bord verandert niet zo
+      // snel dat er 's middags andere patronen in staan dan 's ochtends, en
+      // elke ronde kost een sessie.
+      const stamp = new Date().toISOString().slice(0, 10);
+      const signature = `verbeterronde-${stamp}`;
+      if (spawnAttempts(signature) >= 1) {
+        log('verbeterronde: vandaag al gedraaid');
+      } else if (!(await budgetExceeded())) {
+        spawnAttempts(signature, { increment: true });
+        const summary = retro.findings
+          .map((f) => {
+            const ids = f.evidence.map((e) => e.id).join(', ');
+            return `• [${f.kind}] ${f.text}\n  taken: ${ids}${f.evidenceTotal > f.evidence.length ? ` (+${f.evidenceTotal - f.evidence.length} meer)` : ''}`;
+          })
+          .join('\n');
+        spawnClaude(
+          'verbeterronde',
+          `Je bent ara-org-auditor. Dit is de gemeten terugblik over ${days} dagen (GET ${COLLECTOR}/retro?days=${days} geeft hem volledig, inclusief de cijfers per rol):\n\n${summary}\n\n` +
+            `Schrijf per bevinding die het waard is één concreet voorstel op het bord ` +
+            `(POST ${COLLECTOR}/tasks met title, detail, assignee). Regels:\n` +
+            `1) Elk voorstel noemt de taak-ids waarop het rust. Kun je die niet noemen, dan is het geen voorstel maar een mening — laat het weg.\n` +
+            `2) Eén concrete verandering per voorstel, met wie hem uitvoert. "Beter communiceren" is geen voorstel; "duty X verhuizen van rol Y naar rol Z omdat die drie keer escaleerde" wel.\n` +
+            `3) Niet alles hoeft een voorstel te worden. Een bevinding die je niet kunt terugvoeren op een oorzaak laat je staan en benoem je als zodanig.\n` +
+            `4) Je wijzigt zelf niets aan code, org.json of het ritme. Je schrijft voorstellen; de eigenaar beslist.\n` +
+            `Sluit af met een bordtaak voor 'supervisor' met je samenvatting, en zeg daarin ook wat je bewust hebt laten liggen.`,
+          { agent: 'ara-org-auditor', tools: 'Bash,Read,Grep,Glob' },
+        );
+        log(`verbeterronde: gestart op ${retro.findings.length} bevinding(en)`);
+      }
+    }
+  } catch (error) {
+    log(`verbeterronde fout: ${String(error).slice(0, 120)}`);
   }
 }
 

@@ -193,3 +193,78 @@ test('terugblik: tweemaal dezelfde invoer geeft hetzelfde rapport', () => {
     'dit rapport mag nooit van de klok of van toeval afhangen',
   );
 });
+
+// ── Kruiscontrole ────────────────────────────────────────────────────────
+
+import { shouldVerify, verificationTask, QA_VERIFY_PREFIX, QA_VERIFIER } from './retro.ts';
+import { stableHash } from './hex.ts';
+
+const verifiable = (patch: Partial<Parameters<typeof shouldVerify>[0]> = {}) => ({
+  id: 'taak-1',
+  title: 'Kosten per kilometer nagelopen',
+  status: 'done',
+  assignee: 'ara-fleet-cost',
+  result: 'drie uitschieters gevonden',
+  detail: '',
+  ...patch,
+});
+
+test('kruiscontrole: uit tenzij je hem aanzet', () => {
+  assert.equal(shouldVerify(verifiable(), 0, stableHash), false);
+  assert.equal(shouldVerify(verifiable(), 100, stableHash), true);
+});
+
+test('kruiscontrole: een controletaak wordt nooit zelf gecontroleerd', () => {
+  // Zonder deze regel maakt elke controle een nieuwe controle. Het bord loopt
+  // in een dag vol met een keten die nergens over gaat, en elke schakel kost
+  // een sessie.
+  assert.equal(
+    shouldVerify(verifiable({ title: `${QA_VERIFY_PREFIX} iets` }), 100, stableHash),
+    false,
+    'op titel',
+  );
+  assert.equal(
+    shouldVerify(verifiable({ assignee: QA_VERIFIER }), 100, stableHash),
+    false,
+    'op assignee — de controleur controleert zichzelf niet',
+  );
+});
+
+test('kruiscontrole: een escalatie blijft van de mens', () => {
+  assert.equal(
+    shouldVerify(verifiable({ result: 'ESCALATE: hier mag ik niet bij' }), 100, stableHash),
+    false,
+  );
+});
+
+test('kruiscontrole: alleen afgerond werk, en alleen met een resultaat', () => {
+  assert.equal(shouldVerify(verifiable({ status: 'open' }), 100, stableHash), false);
+  assert.equal(shouldVerify(verifiable({ status: 'failed' }), 100, stableHash), false);
+  assert.equal(shouldVerify(verifiable({ result: '   ' }), 100, stableHash), false);
+});
+
+test('kruiscontrole: een gesprek is geen werkstuk', () => {
+  assert.equal(shouldVerify(verifiable({ title: 'CHAT: hoe staat het ervoor' }), 100, stableHash), false);
+});
+
+test('kruiscontrole: dezelfde taak levert altijd dezelfde keuze', () => {
+  const task = verifiable({ id: 'stabiel-42' });
+  const once = shouldVerify(task, 30, stableHash);
+  for (let i = 0; i < 20; i++) {
+    assert.equal(shouldVerify(task, 30, stableHash), once, 'een steekproef moet na te rekenen zijn');
+  }
+});
+
+test('kruiscontrole: de steekproef zit rond het opgegeven percentage', () => {
+  const picked = Array.from({ length: 1000 }, (_, i) =>
+    shouldVerify(verifiable({ id: `taak-${i}` }), 25, stableHash),
+  ).filter(Boolean).length;
+  assert.ok(picked > 150 && picked < 350, `25% van 1000 gaf er ${picked}`);
+});
+
+test('kruiscontrole: de opdracht vraagt om een oordeel, niet om het werk over te doen', () => {
+  const made = verificationTask(verifiable());
+  assert.ok(made.title.startsWith(QA_VERIFY_PREFIX));
+  assert.ok(made.detail.includes('drie uitschieters gevonden'), 'het werk zelf hoort erbij');
+  assert.match(made.detail, /je doet het werk niet over/);
+});
