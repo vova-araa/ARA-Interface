@@ -42,6 +42,16 @@ export type Cadence = 'dag' | 'week' | 'maand';
 export interface Duty {
   every: Cadence;
   text: string;
+  /**
+   * De rol die dit werk doet, als agent-id (`ara-planner`, `ara-qa-verifier`, …).
+   *
+   * Leeg = de manager van de tak. Dat was tot nu toe de enige mogelijkheid, en
+   * daardoor had één rol per tak werk en de andere tien niets: een vloer vol
+   * functieomschrijvingen zonder een taak op het bord. Wie hier staat moet als
+   * `agent` in de specialistenlijst van dezelfde tak voorkomen — anders wijst
+   * het werk naar een stoel die er niet is, en een test bewaakt dat.
+   */
+  who?: string;
 }
 
 export interface Playbook {

@@ -43,6 +43,8 @@ install_agent() {
       -e "s|__INBOX__|${ARA_INBOX:-}|g" \
       -e "s|__RHYTHM__|${ARA_RHYTHM:-}|g" \
       -e "s|__RHYTHM_VENTURES__|${ARA_RHYTHM_VENTURES:-}|g" \
+      -e "s|__DISPATCH__|${ARA_DISPATCH:-}|g" \
+      -e "s|__DISPATCH_MAX__|${ARA_DISPATCH_MAX:-2}|g" \
       "$REPO/ops/launchd/$name.plist" > "$plist"
   # De plist bevat ARA_TOKEN en de Telegram-sleutel. Standaard schrijft sed 'm
   # als 0644 weg — leesbaar voor elke andere gebruiker en elk proces op de Mac.

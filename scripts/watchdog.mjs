@@ -30,7 +30,14 @@
  *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
  *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen),
  *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan),
- *      ARA_RHYTHM=1 (sectie 10 aan), ARA_RHYTHM_VENTURES=blex,traject (leeg = alle).
+ *      ARA_RHYTHM=1 (sectie 10 aan), ARA_RHYTHM_VENTURES=blex,traject (leeg = alle),
+ *      ARA_DISPATCH=1 (sectie 11 aan: rollen wekken voor hun eigen bordwerk),
+ *      ARA_DISPATCH_MAX=2 (hoeveel rollen per ronde).
+ *
+ * Ritme en uitvoering horen bij elkaar: ARA_RHYTHM zet het werk op het bord,
+ * ARA_DISPATCH haalt het eraf. Alleen het eerste aanzetten geeft een bord dat
+ * volloopt zonder dat er iemand komt — precies de stand die de gebruiker zijn
+ * eigen manager hoorde beschrijven.
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -1049,6 +1056,124 @@ if (process.env.ARA_RHYTHM === '1') {
     }
   } catch (error) {
     log(`ritme fout: ${String(error).slice(0, 120)}`);
+  }
+}
+
+// ── 11. Uitvoering: de rol wakker maken die zijn eigen werk heeft ────────
+//
+// Dit was het ontbrekende stuk. Er stonden drie spawn-plekken in dit bestand —
+// ops bij incidenten, de supervisor bij escalaties en gebruikerstaken, de chief
+// bij vragen aan hem — en dus werd er nooit iemand gewekt voor gewoon werk.
+// Het ritme zette taken op het bord bij `manager:blex` en daar bleven ze staan.
+// De gebruiker kreeg dat van zijn eigen manager teruggemeld: niemand pakt uit
+// zichzelf routineklussen op.
+//
+// Standaard uit, net als het ritme: dit geeft uit zichzelf tokens uit terwijl
+// er niemand meekijkt. ARA_DISPATCH=1 zet het aan.
+if (process.env.ARA_DISPATCH === '1') {
+  try {
+    // Hoeveel rollen we per ronde wakker maken. De watchdog draait elke vijf
+    // minuten; zonder deze grens start één volle bordronde tien sessies naast
+    // elkaar en is het dagbudget voor de middag op.
+    const maxPerTick = Math.max(1, Number(process.env.ARA_DISPATCH_MAX ?? 2));
+
+    const [board, org] = await Promise.all([api('/tasks?status=open&limit=200'), api('/org')]);
+
+    // Rollen die elders in dit bestand al hun eigen spawn hebben. Twee keer
+    // dezelfde rol wekken voor dezelfde taak is niet dubbel werk maar dubbel
+    // geld, en twee sessies die dezelfde taak claimen leveren tegenstrijdige
+    // resultaten op.
+    const alreadyHandled = new Set(['manager:ops', 'supervisor', 'chief', '']);
+
+    // Agent-id per bord-rol. Managers draaien allemaal op ara-manager; een
+    // specialist draait op zijn eigen rol-bestand.
+    const agentFor = new Map();
+    const labelFor = new Map();
+    for (const venture of org.ventures ?? []) {
+      const manager = venture.manager ?? `manager:${venture.id}`;
+      agentFor.set(manager, 'ara-manager');
+      labelFor.set(manager, venture.playbook?.managerName ?? `Manager ${venture.label ?? venture.id}`);
+      for (const spec of venture.playbook?.specialists ?? []) {
+        if (!spec.agent) continue;
+        agentFor.set(spec.agent, spec.agent);
+        labelFor.set(spec.agent, spec.name ?? spec.agent);
+      }
+    }
+    for (const spec of org.ops?.specialists ?? []) {
+      if (spec.agent) {
+        agentFor.set(spec.agent, spec.agent);
+        labelFor.set(spec.agent, spec.name ?? spec.agent);
+      }
+    }
+
+    const byRole = new Map();
+    for (const task of board.tasks ?? []) {
+      const who = task.assignee ?? '';
+      if (alreadyHandled.has(who)) continue;
+      // CHAT-taken worden door sectie 5 afgehandeld; die wachten op een mens
+      // in een gesprek en niet op een routineronde.
+      if (task.title.startsWith('CHAT:')) continue;
+      if (!agentFor.has(who)) {
+        // Werk voor een rol die niet in de organisatie staat. Stilzwijgend
+        // overslaan zou betekenen dat die taak nooit opgepakt wordt zonder dat
+        // iemand het merkt — dus zeggen we het.
+        log(`bord: "${task.title.slice(0, 40)}" staat bij onbekende rol "${who}"`);
+        continue;
+      }
+      const list = byRole.get(who) ?? [];
+      list.push(task);
+      byRole.set(who, list);
+    }
+
+    // Wie het langst wacht, gaat eerst. Zonder die volgorde krijgt dezelfde
+    // drukke rol elke ronde de beurt en komt de rest nooit aan bod.
+    const queue = [...byRole.entries()]
+      .map(([who, tasks]) => ({
+        who,
+        tasks,
+        oldest: Math.min(...tasks.map((t) => t.updatedAt ?? t.createdAt ?? Date.now())),
+      }))
+      .sort((a, b) => a.oldest - b.oldest);
+
+    let woken = 0;
+    for (const { who, tasks } of queue) {
+      if (woken >= maxPerTick) {
+        log(`bord: ${queue.length - woken} rol(len) wachten tot de volgende ronde`);
+        break;
+      }
+      if (await budgetExceeded()) break;
+
+      const signature = `bord-${who}-${tasks.map((t) => t.id).sort().join('-')}`;
+      const tries = spawnAttempts(signature);
+      if (tries >= 2) {
+        log(`${who} kwam er ${tries}× niet uit — niet opnieuw spawnen`);
+        await alertOnce(
+          signature,
+          6 * 60 * 60 * 1000,
+          `🟠 ARA World — ${labelFor.get(who) ?? who} komt er niet uit\n${tasks.length} taak/taken blijven open na ${tries} pogingen. Kijk even mee op het bord.`,
+        );
+        continue;
+      }
+
+      spawnAttempts(signature, { increment: true });
+      const agent = agentFor.get(who);
+      const titles = tasks.slice(0, 5).map((t) => `• ${t.title}`).join('\n');
+      spawnClaude(
+        `bord-${who.replace(/[^a-z0-9]+/gi, '-')}`,
+        `Je bent ${agent}. Op het bord staan ${tasks.length} open taak/taken voor jou (GET ${COLLECTOR}/tasks?assignee=${encodeURIComponent(who)}&status=open):\n${titles}\n\n` +
+          `Claim er één tegelijk (PATCH ${COLLECTOR}/tasks/<id> met {"status":"claimed"}), doe het werk, en sluit af met een resultaat: ` +
+          `PATCH ${COLLECTOR}/tasks/<id> met {"status":"done","result":"<wat je nagelopen hebt, wat eruit sprong, en wat er niet te meten viel>"}. ` +
+          `Een lege ronde is ook een uitkomst — zeg dán dat er niets te melden was, in plaats van iets te verzinnen. ` +
+          `Ontbreekt de databron die je nodig hebt, sluit de taak dan af met precies welke koppeling ontbreekt. ` +
+          `Gaat iets boven je grens, begin je resultaat met ESCALATE:.`,
+        { agent, tools: OPS_TOOLS },
+      );
+      woken += 1;
+      log(`bord: ${who} gewekt voor ${tasks.length} taak/taken`);
+    }
+    if (woken === 0 && queue.length === 0) log('bord: niets open dat op een rol wacht');
+  } catch (error) {
+    log(`bord-uitvoering fout: ${String(error).slice(0, 120)}`);
   }
 }
 
