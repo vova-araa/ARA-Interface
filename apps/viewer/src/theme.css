@@ -740,7 +740,7 @@ html, body, #root { height: 100dvh; }
     /* Hoogte van de balk: twee regels (knoppen + cijfers). Panelen en minimap
        hangen eraan, dus staat hij hier als getal in plaats van drie keer
        overgeschreven te worden. */
-    --topbar-h: 78px;
+    --topbar-h: 80px;
     --tabbar-h: 52px;
     /* dvh, niet vh: met vh steekt de sheet op iOS Safari onder de adresbalk. */
     --sheet-h: 56dvh;
@@ -764,7 +764,10 @@ html, body, #root { height: 100dvh; }
      zetten hun eigen font-size en blijven dus zichtbaar. */
   .topbar-title { font-size: 0; display: flex; align-items: center; }
   .topbar-title::before { content: '⬡'; font-size: 17px; }
-  .topbar-stats { order: 3; flex: 0 0 100%; gap: 12px; font-size: 12.5px; }
+  /* Vaste regelhoogte: de emoji's bepaalden anders de hoogte van de balk, en
+     die verschilt per toestel — terwijl --topbar-h er wél op moet kloppen
+     (de minimap en het overzicht hangen eraan). */
+  .topbar-stats { order: 3; flex: 0 0 100%; gap: 12px; font-size: 12.5px; height: 20px; align-items: center; overflow-y: hidden; }
   .topbar-actions { gap: 6px; margin-left: auto; }
 
   .btn {
@@ -916,7 +919,7 @@ html, body, #root { height: 100dvh; }
   }
 
   .sidetabs {
-    top: calc(var(--topbar-h) + var(--safe-t));
+    top: calc(var(--topbar-h) + var(--safe-t) + 4px);
     right: calc(8px + var(--safe-r));
     left: auto;
     bottom: auto;
@@ -929,8 +932,15 @@ html, body, #root { height: 100dvh; }
   .sidetab { min-height: var(--tap); font-size: 12.5px; }
   .sidetab-close { flex: 0 0 38px; font-size: 15px; }
 
+  /* Vier regels filterchips in een kolom van 274px hoog: dan is het filter
+     groter dan de lijst. Eén rij, opzij vegen. */
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips .chip { min-height: 36px; display: inline-flex; align-items: center; padding: 4px 12px; }
+  .thread { min-height: 40px; }
+
   .panel, .board, .actions, .drawer {
-    top: calc(var(--topbar-h) + var(--safe-t) + 58px);
+    top: calc(var(--topbar-h) + var(--safe-t) + 62px);
     right: calc(8px + var(--safe-r));
     left: auto;
     bottom: calc(8px + var(--safe-b));
@@ -947,7 +957,7 @@ html, body, #root { height: 100dvh; }
   .sheet-opener { display: none; }
 
   .overview {
-    inset: calc(var(--topbar-h) + var(--safe-t) + 58px) calc(8px + var(--safe-r))
+    inset: calc(var(--topbar-h) + var(--safe-t) + 62px) calc(8px + var(--safe-r))
            calc(8px + var(--safe-b)) calc(8px + var(--safe-l));
     border-radius: 14px;
     padding-top: 0;

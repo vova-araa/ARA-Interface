@@ -224,7 +224,6 @@ export function Seasons({ world: worldProp, daylight: daylightProp }: SeasonsPro
   // matrices per frame herschrijven is werk voor niets.
   const lastCover = useRef(-1);
   const lastWet = useRef(-1);
-  const lastTint = useRef('');
   const lastCrownKey = useRef('');
   const blossomColor = useMemo(() => new THREE.Color('#ffd7e6'), []);
   const colored = useRef(false);

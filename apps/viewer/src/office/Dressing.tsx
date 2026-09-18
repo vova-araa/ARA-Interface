@@ -114,13 +114,14 @@ function TmsMap({ x, z }: { x: number; z: number }): JSX.Element {
           </mesh>
         </group>
       ))}
-      {/* strokenbord ernaast: de planning van vandaag */}
-      <Box position={[3.6, 1.5, 0]} size={[0.16, 2.6, 3]} color="#3f3968" rotation={[0, 0, 0]} />
-      {[0.8, 0.35, -0.1, -0.55, -1].map((sy, i) => (
+      {/* Strokenbord ernaast: de planning van vandaag. Laag gehouden — als
+          staand paneel sneed het de kaartwand erachter doormidden. */}
+      <Box position={[4.2, 0.95, 0]} size={[0.16, 1.9, 2.8]} color="#3f3968" />
+      {[0.6, 0.25, -0.1, -0.45, -0.8].map((sy, i) => (
         <Box
           key={sy}
-          position={[3.5, 1.5 + sy, -0.2 + (i % 3) * 0.5]}
-          size={[0.06, 0.24, 1.7]}
+          position={[4.1, 0.95 + sy, -0.2 + (i % 3) * 0.5]}
+          size={[0.06, 0.2, 1.6]}
           color={['#6fd3a0', '#ffd75e', '#8fb9ff', '#ff9b7a', '#c9a7ff'][i]!}
         />
       ))}
@@ -234,8 +235,10 @@ function StudioBooth({ x, z }: { x: number; z: number }): JSX.Element {
 function Stage({ x, z, accent }: { x: number; z: number; accent: string }): JSX.Element {
   return (
     <group position={[x, 0, z]}>
-      <Box position={[0, 0.25, 0]} size={[6, 0.5, 3.6]} color="#3a3260" />
-      <Box position={[0, 0.54, 0]} size={[5.6, 0.08, 3.3]} color="#584d8c" />
+      {/* Het dek is het lichtste vlak in de zaal: een podium dat net zo donker
+          is als de vloer eromheen is geen podium maar een vlek. */}
+      <Box position={[0, 0.25, 0]} size={[6.4, 0.5, 3.8]} color="#453c72" />
+      <Box position={[0, 0.54, 0]} size={[6, 0.1, 3.5]} color="#8e83c4" />
       {[-2.2, 2.2].map((sx) => (
         <group key={sx} position={[sx, 0, -0.9]}>
           <Box position={[0, 1.2, 0]} size={[1, 1.4, 0.9]} color="#221d3c" />

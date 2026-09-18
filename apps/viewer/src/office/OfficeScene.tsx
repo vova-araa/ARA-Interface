@@ -97,7 +97,7 @@ export interface OfficeLayout {
   door: { x: number; w: number; h: number } | null;
   /** Ankerpunt voor het vakmeubilair uit Dressing. */
   dress: { x: number; z: number };
-  meeting: { x: number; y: number; z: number; w: number; d: number };
+  meeting: { x: number; y: number; z: number; w: number; d: number; h: number };
   manager: [number, number, number];
   chief: [number, number, number];
   /** Muurschermen: positie en maat hangen af van de wandhoogte. */
@@ -189,12 +189,14 @@ function islandSlots(total: number): DeskSlot[] {
   return Array.from({ length: total }, (_, i) => {
     const round = Math.floor(i / (ISLANDS.length * 3));
     const [cx, cz, yaw] = ISLANDS[Math.floor(i / 3) % ISLANDS.length]!;
-    const off = ((i % 3) - 1) * 3.2;
+    // Drie bureaus als molenwiek om één punt: op een rij worden het alsnog
+    // rijen, en dan heb je een kantoortuin met een ander behang.
+    const a = yaw + ((i % 3) * Math.PI * 2) / 3;
     return {
-      x: cx + Math.cos(yaw) * off,
+      x: cx + Math.sin(a) * 1.95,
       y: 0,
-      z: cz + Math.sin(yaw) * off + round * 3.4,
-      yaw,
+      z: cz + Math.cos(a) * 1.95 + round * 3.4,
+      yaw: a,
       wall: false,
     };
   });
@@ -297,8 +299,8 @@ const DESIGN_PALETTE: OfficePalette = {
 };
 
 const STUDIO_PALETTE: OfficePalette = {
-  floor: '#6b6084',
-  mark: '#7a6f95',
+  floor: '#756991',
+  mark: '#85799f',
   wall: '#453c5e',
   wallSide: '#3d3554',
   plint: '#7b6f9e',
@@ -306,7 +308,7 @@ const STUDIO_PALETTE: OfficePalette = {
   lamp: '#ffd9a8',
   desk: '#cdc4e4',
   deskLeg: '#5b5080',
-  ambient: 0.8,
+  ambient: 0.88,
 };
 
 const MUSIC_PALETTE: OfficePalette = {
@@ -343,7 +345,7 @@ function openPlan(total: number): OfficeLayout {
     dividers: true,
     door: null,
     dress: { x: width / 2 - 7.8, z: -depth / 2 + 5.6 },
-    meeting: { x: -width / 2 + 3.6, y: 0, z: -depth / 2 + depth * 0.62, w: 6.4, d: 5.6 },
+    meeting: { x: -width / 2 + 3.6, y: 0, z: -depth / 2 + depth * 0.62, w: 6.4, d: 5.6, h: 3.4 },
     manager: [width / 2 - 3.4, 0, depth / 2 - 3.2],
     chief: [-width / 2 + 3.4, 0, depth / 2 - 3.2],
     screen: { x: -0.6, y: 5.2, w: 14, factsX: width / 2 - 4.4, factsY: 4.9, factsW: 6.2 },
@@ -374,23 +376,23 @@ function tradingFloor(kind: OfficeKind, total: number): OfficeLayout {
     wallH: 11,
     palette: TRADE_PALETTE,
     desks: rowSlots(counts, 3.4, dz, z0, 1.6, rise, true),
-    lamps: counts.map((_, r) => ({
-      x: 1.6,
-      y: 7.2 + r * rise,
-      z: rowZ(r) - 1.1,
-      len: 17,
-      axis: 'x' as const,
-      power: 6,
-    })),
+    // Eén balk per twee rijen: boven een tribune met neuzen werden vier
+    // evenwijdige strepen één streepjespatroon in plaats van verlichting.
+    lamps: counts
+      .map((_, r) => r)
+      .filter((r) => r % 2 === 0)
+      .map((r) => ({ x: 1.6, y: 7.2 + r * rise, z: rowZ(r) - 1.1, len: 17, axis: 'x' as const, power: 9 })),
     steps: counts.slice(1).map((_, i) => ({ z: rowZ(i + 1) - dz / 2 - 0.2, h: (i + 1) * rise })),
     podium: null,
     dividers: false,
     door: null,
     dress: { x: 1.6, z: -depth / 2 + 0.9 },
-    meeting: { x: -width / 2 + 3.4, y: top, z: depth / 2 - 3.0, w: 5.8, d: 5.0 },
+    meeting: { x: -width / 2 + 3.4, y: top, z: depth / 2 - 3.0, w: 5.8, d: 5.0, h: 3.4 },
     manager: [width / 2 - 3.6, top, depth / 2 - 2.6],
     chief: [width / 2 - 8.2, top, depth / 2 - 2.6],
-    screen: { x: 1.6, y: 8.5, w: 12.5, factsX: -width / 2 + 4.2, factsY: 8.2, factsW: 5.6 },
+    // Het feitenpaneel hangt rechts: links op de achterwand ligt in isometrie
+    // het hoogste punt van het beeld, en daar valt het buiten de kadrering.
+    screen: { x: 1.6, y: 8.5, w: 12.5, factsX: width / 2 - 3, factsY: 6.9, factsW: 5.4 },
   };
 }
 
@@ -416,7 +418,7 @@ function controlRoom(total: number): OfficeLayout {
     dividers: false,
     door: null,
     dress: { x: 0, z: -depth / 2 + 3.6 },
-    meeting: { x: -width / 2 + 3.4, y: 0.5, z: depth / 2 - 2.6, w: 5.6, d: 4.4 },
+    meeting: { x: -width / 2 + 3.4, y: 0.5, z: depth / 2 - 2.6, w: 5.6, d: 4.4, h: 3.4 },
     manager: [width / 2 - 4.5, 0.5, depth / 2 - 2.6],
     chief: [width / 2 - 9, 0.5, depth / 2 - 2.6],
     screen: { x: 0, y: 4.7, w: 12, factsX: width / 2 - 4, factsY: 4.5, factsW: 5 },
@@ -445,7 +447,7 @@ function workshop(total: number): OfficeLayout {
     dividers: true,
     door: { x: -6.5, w: 8.5, h: 5.6 },
     dress: { x: -6.5, z: -2 },
-    meeting: { x: -width / 2 + 4, y: 0, z: depth / 2 - 3, w: 6, d: 5 },
+    meeting: { x: -width / 2 + 4, y: 0, z: depth / 2 - 3, w: 6, d: 5, h: 3.4 },
     manager: [1.6, 0, depth / 2 - 2.8],
     chief: [-2.8, 0, depth / 2 - 2.8],
     screen: { x: 4.6, y: 6.6, w: 11, factsX: -6.5, factsY: 7.8, factsW: 5 },
@@ -473,7 +475,7 @@ function atelier(total: number): OfficeLayout {
     dividers: false,
     door: null,
     dress: { x: 9, z: -depth / 2 + 4.4 },
-    meeting: { x: -width / 2 + 3.6, y: 0, z: depth / 2 - 3.2, w: 6, d: 5 },
+    meeting: { x: -width / 2 + 3.6, y: 0, z: depth / 2 - 3.2, w: 6, d: 5, h: 3.4 },
     manager: [width / 2 - 3.4, 0, depth / 2 - 2.6],
     chief: [width / 2 - 8.6, 0, depth / 2 - 2.6],
     screen: { x: -1, y: 6.9, w: 11, factsX: width / 2 - 4, factsY: 6.8, factsW: 5 },
@@ -501,7 +503,7 @@ function studio(total: number): OfficeLayout {
     dividers: false,
     door: null,
     dress: { x: -7, z: -depth / 2 + 4.4 },
-    meeting: { x: width / 2 - 3.4, y: 0, z: depth / 2 - 3, w: 5.4, d: 4.4 },
+    meeting: { x: width / 2 - 3.4, y: 0, z: depth / 2 - 3, w: 5.4, d: 4.4, h: 2.6 },
     manager: [2.6, 0, depth / 2 - 2.6],
     chief: [-2.6, 0, depth / 2 - 2.6],
     screen: { x: 1.5, y: 3.5, w: 9.5, factsX: width / 2 - 3, factsY: 3.4, factsW: 4.4 },
@@ -520,16 +522,18 @@ function venue(total: number): OfficeLayout {
     wallH: 11,
     palette: MUSIC_PALETTE,
     desks: flankSlots(total, 10.2, 3.3, 3, 2),
+    // De zaal hangt aan het podiumlicht; boven de werkblokken alleen genoeg om
+    // een toetsenbord te zien.
     lamps: [
-      { x: -8.6, y: 6.6, z: 2, len: 9, axis: 'z', power: 5 },
-      { x: 8.6, y: 6.6, z: 2, len: 9, axis: 'z', power: 5 },
+      { x: -8.6, y: 5.6, z: 2, len: 7, axis: 'z', power: 6 },
+      { x: 8.6, y: 5.6, z: 2, len: 7, axis: 'z', power: 6 },
     ],
     steps: [],
     podium: null,
     dividers: false,
     door: null,
     dress: { x: 0, z: -depth / 2 + 4.8 },
-    meeting: { x: -width / 2 + 3.8, y: 0, z: -depth / 2 + 3.4, w: 6, d: 4.8 },
+    meeting: { x: -width / 2 + 3.8, y: 0, z: -depth / 2 + 3.4, w: 6, d: 4.8, h: 3.4 },
     manager: [2.6, 0, depth / 2 - 2.6],
     chief: [-2.6, 0, depth / 2 - 2.6],
     screen: { x: 0, y: 7.6, w: 12, factsX: width / 2 - 4, factsY: 7.4, factsW: 5 },
@@ -886,14 +890,17 @@ function WallFace({
           hoogte, want een dichte poort vertelt niets over wat erachter gebeurt. */}
       {door && (
         <group position={[door.x, 0, 0.2]}>
+          {/* De opening zelf is donker (daarachter is buiten), de lamellen van
+              de half opgerolde poort vangen het hallicht — zonder die lamellen
+              is het een zwart gat in plaats van een deur. */}
           <mesh position={[0, door.h / 2, 0]}>
             <boxGeometry args={[door.w, door.h, 0.16]} />
-            <meshStandardMaterial color="#2c2a36" roughness={0.9} />
+            <meshStandardMaterial color="#232130" roughness={0.9} />
           </mesh>
           {Array.from({ length: 7 }, (_, i) => (
-            <mesh key={i} position={[0, door.h * (0.52 + i * 0.07), 0.1]}>
-              <boxGeometry args={[door.w - 0.2, door.h * 0.055, 0.14]} />
-              <meshStandardMaterial color={p.trim} roughness={0.75} />
+            <mesh key={i} position={[0, door.h * (0.5 + i * 0.075), 0.1]}>
+              <boxGeometry args={[door.w - 0.2, door.h * 0.06, 0.16]} />
+              <meshStandardMaterial color={i % 2 ? p.plint : p.floor} roughness={0.7} />
             </mesh>
           ))}
           <mesh position={[0, door.h + 0.35, 0.12]}>
@@ -914,7 +921,7 @@ function WallFace({
         Array.from({ length: pads }, (_, i) => (
           <mesh key={i} position={[(-len / 2) + (len / pads) * (i + 0.5), h * 0.55, 0.22]}>
             <boxGeometry args={[len / pads - 0.28, h * 0.62, 0.16]} />
-            <meshStandardMaterial color={p.trim} roughness={1} />
+            <meshStandardMaterial color={i % 2 ? p.trim : p.wallSide} roughness={1} />
           </mesh>
         ))}
 
@@ -947,7 +954,7 @@ function Room({
   // Elke trede iets lichter dan de vorige: zo lees je de tribune van bovenaf
   // als treden en niet als één blok.
   const stepColor = (i: number): string =>
-    new THREE.Color(p.floor).lerp(new THREE.Color('#ffffff'), 0.05 * (i + 1)).getStyle();
+    new THREE.Color(p.floor).lerp(new THREE.Color('#ffffff'), 0.085 * (i + 1)).getStyle();
 
   return (
     <group>
@@ -1031,9 +1038,12 @@ function Room({
             <boxGeometry args={[width, s.h, depth / 2 - s.z]} />
             <meshStandardMaterial color={stepColor(i)} roughness={0.9} />
           </mesh>
-          <mesh position={[0, s.h - 0.03, s.z + 0.08]}>
-            <boxGeometry args={[width, 0.08, 0.2]} />
-            <meshStandardMaterial color={p.lamp} emissive={p.lamp} emissiveIntensity={0.7} />
+          {/* Tredeneus: een randje, geen lichtbalk. Oplichtende neuzen werden
+              zes witte strepen over de zaal en die trokken meer aandacht dan de
+              handelaars erachter. */}
+          <mesh position={[0, s.h - 0.02, s.z + 0.08]}>
+            <boxGeometry args={[width, 0.06, 0.16]} />
+            <meshStandardMaterial color={p.plint} roughness={0.7} />
           </mesh>
         </group>
       ))}
@@ -1049,9 +1059,9 @@ function Room({
             <boxGeometry args={[width, layout.podium.h, depth / 2 - layout.podium.z]} />
             <meshStandardMaterial color={stepColor(0)} roughness={0.9} />
           </mesh>
-          <mesh position={[0, layout.podium.h - 0.03, layout.podium.z + 0.08]}>
-            <boxGeometry args={[width, 0.08, 0.2]} />
-            <meshStandardMaterial color={p.lamp} emissive={p.lamp} emissiveIntensity={0.6} />
+          <mesh position={[0, layout.podium.h - 0.02, layout.podium.z + 0.08]}>
+            <boxGeometry args={[width, 0.06, 0.16]} />
+            <meshStandardMaterial color={p.plint} roughness={0.7} />
           </mesh>
         </group>
       )}
@@ -1081,21 +1091,26 @@ function Room({
       {/* Spanten: een hal en een zaal zijn hoog omdat je de constructie ziet. */}
       {(layout.shell === 'hal' || layout.shell === 'venue') && (
         <group>
-          {[-depth / 3, 0, depth / 3].map((tz) => (
-            <mesh key={tz} position={[0, wallH - 1.8, tz]}>
-              <boxGeometry args={[width, 0.22, 0.3]} />
-              <meshStandardMaterial color={p.trim} roughness={0.8} />
+          {/* Dun en licht: dikke donkere liggers werden balken die dwars door
+              het beeld sneden — dezelfde fout als de TL-balken van weleer. */}
+          {[-depth / 4, depth / 4].map((tz) => (
+            <mesh key={tz} position={[0, wallH - 1.6, tz]}>
+              <boxGeometry args={[width, 0.14, 0.2]} />
+              <meshStandardMaterial color={p.plint} roughness={0.8} />
             </mesh>
           ))}
-          {[-width / 4, width / 4].map((tx) => (
-            <mesh key={tx} position={[tx, wallH - 2.05, 0]}>
-              <boxGeometry args={[0.26, 0.2, depth]} />
-              <meshStandardMaterial color={p.trim} roughness={0.8} />
-            </mesh>
-          ))}
+          {/* Langsliggers alleen in de hal: in de zaal kruisten ze de dwarsbalken
+              tot een ruitpatroon over het halve beeld. */}
+          {layout.shell === 'hal' &&
+            [-width / 4, width / 4].map((tx) => (
+              <mesh key={tx} position={[tx, wallH - 1.85, 0]}>
+                <boxGeometry args={[0.16, 0.12, depth]} />
+                <meshStandardMaterial color={p.plint} roughness={0.8} />
+              </mesh>
+            ))}
           {/* Stalen kolommen langs de achterwand. */}
           {layout.shell === 'hal' &&
-            [-width / 2 + 2, 0, width / 2 - 2].map((cx) => (
+            [-width / 2 + 2, width / 2 - 2].map((cx) => (
               <mesh key={cx} position={[cx, wallH / 2, backZ + 0.6]} castShadow>
                 <boxGeometry args={[0.55, wallH, 0.55]} />
                 <meshStandardMaterial color={p.trim} roughness={0.85} />
@@ -1107,11 +1122,14 @@ function Room({
       {/* Baffles: een laag plafond dat je nog nét doorkijkt. Een dicht plafond
           zou onder deze camera de hele ruimte afdekken — dit dempt hem zonder
           hem te sluiten. */}
+      {/* Baffles boven de regie — niet over de hele zaal. Een veld van bar na
+          bar dekte onder deze camera de halve ruimte af; boven de console
+          alleen zegt hetzelfde (laag, gedempt) zonder iets te verbergen. */}
       {layout.shell === 'booth' &&
-        Array.from({ length: Math.round((depth - 3) / 1.8) }, (_, i) => (
-          <mesh key={i} position={[0, wallH - 0.5, -depth / 2 + 2 + i * 1.8]}>
-            <boxGeometry args={[width - 1.4, 0.3, 0.24]} />
-            <meshStandardMaterial color={p.trim} roughness={1} />
+        Array.from({ length: 5 }, (_, i) => (
+          <mesh key={i} position={[-1, wallH - 0.35, -0.6 + i * 2.2]}>
+            <boxGeometry args={[width - 7, 0.22, 0.2]} />
+            <meshStandardMaterial color={p.mark} roughness={1} />
           </mesh>
         ))}
 
@@ -1119,7 +1137,7 @@ function Room({
       {layout.lamps.map((l, i) => (
         <group key={i} position={[l.x, l.y, l.z]}>
           <mesh>
-            <boxGeometry args={l.axis === 'x' ? [l.len, 0.07, 0.18] : [0.18, 0.07, l.len]} />
+            <boxGeometry args={l.axis === 'x' ? [l.len, 0.06, 0.13] : [0.13, 0.06, l.len]} />
             <meshBasicMaterial color={p.lamp} toneMapped={false} />
           </mesh>
           <pointLight
@@ -1134,11 +1152,11 @@ function Room({
       {/* Muurschermen: het grote hoofdscherm en het feitenpaneel. Deze twee
           dragen de kop met ≈ als de cijfers ingevuld zijn; ze schalen mee met de
           wandhoogte maar worden nooit kleiner dan leesbaar. */}
-      <mesh position={[layout.screen.x, layout.screen.y, backZ + 0.1]}>
+      <mesh position={[layout.screen.x, layout.screen.y, backZ + 0.42]}>
         <planeGeometry args={[layout.screen.w, layout.screen.w * HEAD_RATIO]} />
         <meshBasicMaterial map={head.texture} transparent toneMapped={false} />
       </mesh>
-      <mesh position={[layout.screen.factsX, layout.screen.factsY, backZ + 0.1]}>
+      <mesh position={[layout.screen.factsX, layout.screen.factsY, backZ + 0.42]}>
         <planeGeometry args={[layout.screen.factsW, layout.screen.factsW * FACTS_RATIO]} />
         <meshBasicMaterial map={facts.texture} transparent toneMapped={false} />
       </mesh>
@@ -1150,23 +1168,23 @@ function Room({
           <planeGeometry args={[layout.meeting.w, layout.meeting.d]} />
           <meshStandardMaterial color={p.mark} roughness={0.8} />
         </mesh>
-        <mesh position={[layout.meeting.w / 2, 1.7, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <planeGeometry args={[layout.meeting.d, 3.4]} />
+        <mesh position={[layout.meeting.w / 2, layout.meeting.h / 2, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <planeGeometry args={[layout.meeting.d, layout.meeting.h]} />
           <meshPhysicalMaterial color="#9fd8ff" transparent opacity={0.13} roughness={0.05} side={THREE.DoubleSide} />
         </mesh>
-        <mesh position={[0, 1.7, layout.meeting.d / 2]}>
-          <planeGeometry args={[layout.meeting.w, 3.4]} />
+        <mesh position={[0, layout.meeting.h / 2, layout.meeting.d / 2]}>
+          <planeGeometry args={[layout.meeting.w, layout.meeting.h]} />
           <meshPhysicalMaterial color="#9fd8ff" transparent opacity={0.11} roughness={0.05} side={THREE.DoubleSide} />
         </mesh>
-        <mesh position={[-layout.meeting.w / 2, 1.75, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <boxGeometry args={[layout.meeting.d, 3.5, 0.16]} />
+        <mesh position={[-layout.meeting.w / 2, layout.meeting.h / 2 + 0.05, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <boxGeometry args={[layout.meeting.d, layout.meeting.h + 0.1, 0.16]} />
           <meshStandardMaterial color={p.wallSide} roughness={0.95} />
         </mesh>
-        <mesh position={[0, 1.75, -layout.meeting.d / 2]}>
-          <boxGeometry args={[layout.meeting.w, 3.5, 0.16]} />
+        <mesh position={[0, layout.meeting.h / 2 + 0.05, -layout.meeting.d / 2]}>
+          <boxGeometry args={[layout.meeting.w, layout.meeting.h + 0.1, 0.16]} />
           <meshStandardMaterial color={p.wallSide} roughness={0.95} />
         </mesh>
-        <mesh position={[0, 2.35, -layout.meeting.d / 2 + 0.12]}>
+        <mesh position={[0, layout.meeting.h * 0.66, -layout.meeting.d / 2 + 0.12]}>
           <planeGeometry args={[layout.meeting.w - 1.1, (layout.meeting.w - 1.1) * 0.62]} />
           <meshBasicMaterial map={room.texture} transparent toneMapped={false} />
         </mesh>
