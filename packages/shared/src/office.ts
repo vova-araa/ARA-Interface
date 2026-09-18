@@ -220,9 +220,35 @@ interface KindSpec {
   entityWord: string;
   /** Labels voor de vier muur-KPI's. */
   kpiLabels: [string, string, string, string];
-  stationSub: (index: number, seed: number) => string;
+  /**
+   * Regel onder het bureau. Krijgt het label van de werkplek mee: een munt
+   * hoort bij een sector en een aandeel bij een tak, en dat zegt meer dan een
+   * getal dat bij elk bureau hetzelfde betekent.
+   */
+  stationSub: (index: number, seed: number, label: string) => string;
   metricLabels: string[];
   planLabels: string[];
+}
+
+/**
+ * Sectoren voor de takken die er in hun eigen woorden over praten. Zolang
+ * niemand ze aanlevert zijn ze deterministisch afgeleid van de naam — dezelfde
+ * munt krijgt dus altijd dezelfde sector, en ze staan (net als de rest van een
+ * onbevoorraad kantoor) als voorbeeldcijfer gemarkeerd.
+ */
+const CRYPTO_SECTORS = ['L1', 'L2', 'DeFi', 'AI', 'RWA', 'infra', 'privacy', 'meme'];
+const EQUITY_SECTORS = [
+  'halfgeleiders',
+  'financials',
+  'consument',
+  'industrie',
+  'software',
+  'gezondheid',
+  'energie',
+  'vastgoed',
+];
+function sectorFor(pool: string[], label: string): string {
+  return pool[stableHash(`sector-${label}`) % pool.length]!;
 }
 
 const KIND_SPECS: Record<OfficeKind, KindSpec> = {
@@ -248,7 +274,8 @@ const KIND_SPECS: Record<OfficeKind, KindSpec> = {
     // Aandelen zijn geen trades maar bezit: de kolommen gaan over de these en
     // de kostprijs, niet over een setup die vandaag geldt.
     kpiLabels: ['Posities', 'Winnaars', 'Grootste weging', 'Cijfers deze week'],
-    stationSub: (i: number, seed: number) => `${1 + ((seed + i) % 4)}e jaar in bezit`,
+    stationSub: (i: number, seed: number, label: string) =>
+      `${sectorFor(EQUITY_SECTORS, label)} · ${1 + ((seed + i) % 4)}e jaar in bezit`,
     metricLabels: ['These', 'Sector', 'Aantal', 'Kostprijs', 'Koers', 'Weging', 'Rendement', 'Dividend', 'Cijfers', 'Stop'],
     planLabels: ['Rendement', 'Weging', 'Sinds aankoop'],
   },
@@ -260,9 +287,12 @@ const KIND_SPECS: Record<OfficeKind, KindSpec> = {
     entities: ['BTC', 'ETH', 'SOL', 'ADA', 'XRP', 'DOT', 'LINK', 'UNI', 'AAVE', 'DOGE', 'XLM', 'INJ', 'PAXG', 'SUI', 'TAO', 'NEAR', 'ZEC', 'HYPE'],
     entityWord: 'setups',
     kpiLabels: ['Setups in de lucht', 'Aanhechting', 'Live trefkans', 'Blootstelling'],
-    stationSub: (i, seed) => `${1 + ((seed + i) % 5)} setups`,
-    metricLabels: ['Situatie', 'Nominaal', 'Aantal', 'Ingang', 'Stop', 'Doel', 'Open', 'P&L vandaag', 'Trades', 'Trefkans'],
-    planLabels: ['Trades', 'Trefkans', 'Winstfactor'],
+    stationSub: (i, seed, label) => `${sectorFor(CRYPTO_SECTORS, label)} · ${1 + ((seed + i) % 5)} setups`,
+    // Een munt is geen valutapaar. Naast de setup tellen hier de dingen waar
+    // de allocatiebewaker, de veiligheidscheck en de eventscout op zitten:
+    // weging, liquiditeit en wat eraan komt (unlock, listing, upgrade).
+    metricLabels: ['Situatie', 'Inzet', 'Aantal', 'Ingang', 'Stop', 'Doel', 'Open', 'Weging', 'Liquiditeit', 'Volgende unlock'],
+    planLabels: ['Voorstellen', 'Trefkans', 'Concentratie'],
   },
   tms: {
     title: 'PLANNING — RITTEN VANDAAG',
@@ -329,10 +359,26 @@ const KIND_SPECS: Record<OfficeKind, KindSpec> = {
     roomName: 'Zaal OVERLEG',
     headlineLabel: 'OPEN WERK',
     valueKind: 'count',
-    entities: ['Werkpakket 1', 'Werkpakket 2', 'Werkpakket 3', 'Werkpakket 4', 'Werkpakket 5', 'Werkpakket 6', 'Werkpakket 7', 'Werkpakket 8'],
+    // "Werkpakket 1 t/m 8" zei niets: acht bureaus met een volgnummer. Een tak
+    // zonder eigen branche heeft wél vast werk — dit zijn de stromen die elk
+    // project heeft, en ze komen terug in de vaste rollen uit het playbook
+    // (controle, afhankelijkheden, documentatie, beveiliging).
+    entities: [
+      'Backlog',
+      'Inkomende vragen',
+      'Bugs',
+      'Onderhoud',
+      'Documentatie',
+      'Beveiliging',
+      'Afhankelijkheden',
+      'Infrastructuur',
+      'Onderzoek',
+      'Releases',
+    ],
     entityWord: 'taken',
     kpiLabels: ['Taken open', 'In behandeling', 'Afgerond', 'Geblokkeerd'],
-    stationSub: (i, seed) => `${1 + ((seed + i) % 3)} taken`,
+    stationSub: (i, seed) =>
+      `${1 + ((seed + i) % 3)} taken · ${(seed + i) % 4 === 0 ? '1 geblokkeerd' : 'loopt'}`,
     metricLabels: ['Status', 'Eigenaar', 'Fase', 'Voortgang', 'Sinds', 'Prioriteit', 'Blokkades', 'Resultaat', 'Review', 'Uren'],
     planLabels: ['Taken', 'Afgerond', 'Op tijd'],
   },
@@ -440,7 +486,7 @@ export interface OfficeInput {
 
 /** Deterministische pseudo-waarde in [0,1) voor een sleutel. */
 /** Middernacht van de dag waar `now` in valt, in lokale tijd. */
-function startOfToday(now: number): number {
+export function startOfToday(now: number): number {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
   return d.getTime();
@@ -518,13 +564,13 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
     const raw = (rnd(`${key}-v`) - 0.42) * magnitude;
     const value = override?.value ?? Number(raw.toFixed(2));
     const agent = liveAgents[i];
-    const baseMetrics: Metric[] = override?.metrics ?? buildMetrics(kind, spec, key, value, status);
+    const baseMetrics: Metric[] = override?.metrics ?? buildMetrics(kind, spec, key, label, value, status);
     // Zonder echte bron is élk cijfer op deze werkplek een invulling.
     const metrics = isReal ? baseMetrics : baseMetrics.map((m) => ({ ...m, estimated: true }));
     return {
       id: label,
       label,
-      sub: override?.sub ?? spec.stationSub(i, seed),
+      sub: override?.sub ?? spec.stationSub(i, seed, label),
       status,
       value,
       metrics,
@@ -534,7 +580,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       simulated: !isReal,
       stale,
       updatedAt: override?.updatedAt,
-      detail: buildDetail(kind, spec, label, project, key, value, metrics, !isReal),
+      detail: buildDetail(kind, spec, label, project, key, value, metrics, !isReal, stale),
     };
   });
 
@@ -672,7 +718,11 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
   };
 
   // ── Feitenfeed: echte bordtaken + echte sessie-gebeurtenissen ──────────
-  const facts: OfficeFact[] = tasks
+  // Op volgorde van wanneer er iets gebeurde, niet op volgorde van aanlevering:
+  // de feed werd afgekapt vóór het sorteren, zodat acht willekeurige taken de
+  // plek innamen van de acht meest recente gebeurtenissen.
+  const facts: OfficeFact[] = [...tasks]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, 8)
     .map((t) => ({
       ts: t.updatedAt,
@@ -821,16 +871,31 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
   };
 }
 
+/**
+ * De cijfers op één werkplek, in de woorden van de branche.
+ *
+ * Elke tak heeft hier zijn eigen tak van de boom: de kolomnamen komen uit
+ * `KIND_SPECS` en de waarden horen daar één-op-één bij. Dat klonk
+ * vanzelfsprekend maar was het niet — aandelen, muziek en studio deelden tot
+ * nu toe het werkstroom-blok van een ontwerpbureau, zodat de kolom "These"
+ * "schets" kon zeggen en "Mix" een aantal dagen. Een kolomnaam die iets anders
+ * belooft dan wat eronder staat is erger dan een lege kolom.
+ *
+ * Alles hier is een deterministische invulling; de aanroeper markeert het als
+ * zodanig zodra er geen echte bron voor deze werkplek is.
+ */
 function buildMetrics(
   kind: OfficeKind,
   spec: KindSpec,
   key: string,
+  label: string,
   value: number,
   status: StationStatus,
 ): Metric[] {
   const L = spec.metricLabels;
   const pick = (i: number, ...opts: string[]): string => opts[stableHash(`${key}-${i}`) % opts.length]!;
-  if (kind === 'trading' || kind === 'crypto') {
+  const hash = (salt: string): number => stableHash(`${key}-${salt}`);
+  if (kind === 'trading') {
     const entry = 100 + rnd(`${key}-e`) * 1200;
     return [
       { label: L[0]!, value: status === 'working' ? 'gekocht' : status === 'alert' ? 'stop geraakt' : 'wacht' },
@@ -845,17 +910,72 @@ function buildMetrics(
       { label: L[9]!, value: `${20 + Math.round(rnd(`${key}-h`) * 50)}%` },
     ];
   }
+  if (kind === 'crypto') {
+    // Een munt draagt meer dan een setup: hoe zwaar hij weegt, hoe diep de
+    // markt is en wat er aan komt. Dat zijn de drie dingen waar de
+    // allocatiebewaker, de veiligheidscheck en de eventscout op zitten.
+    const entry = 0.35 + rnd(`${key}-e`) * 2400;
+    const dp = entry < 10 ? 4 : 2;
+    const weight = 1 + Math.round(rnd(`${key}-w`) * 24);
+    const depth = pick(8, 'diep', 'voldoende', 'ondiep', 'zeer ondiep');
+    return [
+      {
+        label: L[0]!,
+        value:
+          status === 'working'
+            ? 'in positie'
+            : status === 'alert'
+              ? 'stop geraakt'
+              : status === 'done'
+                ? 'gesloten'
+                : 'op de volglijst',
+      },
+      { label: L[1]!, value: `$${(150 + rnd(`${key}-n`) * 1200).toFixed(2)}` },
+      { label: L[2]!, value: (rnd(`${key}-q`) * 40).toFixed(4) },
+      { label: L[3]!, value: entry.toFixed(dp) },
+      { label: L[4]!, value: (entry * 0.92).toFixed(dp), tone: 'bad' },
+      { label: L[5]!, value: (entry * 1.24).toFixed(dp), tone: 'good' },
+      { label: L[6]!, value: money(value), tone: value >= 0 ? 'good' : 'bad' },
+      // Concentratie is hier het echte risico, niet de losse trade.
+      { label: L[7]!, value: `${weight}%`, tone: weight > 20 ? 'warn' : undefined },
+      { label: L[8]!, value: depth, tone: depth.includes('ondiep') ? 'warn' : undefined },
+      { label: L[9]!, value: `over ${3 + (hash('ul') % 90)} d` },
+    ];
+  }
+  if (kind === 'equities') {
+    // Bezit, geen setup: kostprijs tegen koers, weging in de portefeuille, en
+    // een breekpunt in plaats van een stop — een aandeel verkoop je omdat de
+    // these breekt, niet omdat een niveau geraakt wordt.
+    const cost = 8 + rnd(`${key}-c`) * 340;
+    const price = cost * (0.7 + rnd(`${key}-p`) * 0.8);
+    const ret = ((price - cost) / cost) * 100;
+    const thesis = pick(0, 'intact', 'intact', 'onder druk', 'breekpunt nabij');
+    const weight = 2 + Math.round(rnd(`${key}-w`) * 18);
+    const div = rnd(`${key}-d`);
+    return [
+      { label: L[0]!, value: thesis, tone: thesis === 'intact' ? 'good' : 'warn' },
+      { label: L[1]!, value: sectorFor(EQUITY_SECTORS, label) },
+      { label: L[2]!, value: `${10 + (hash('q') % 400)}` },
+      { label: L[3]!, value: `€${cost.toFixed(2)}` },
+      { label: L[4]!, value: `€${price.toFixed(2)}` },
+      { label: L[5]!, value: `${weight}%`, tone: weight > 15 ? 'warn' : undefined },
+      { label: L[6]!, value: `${ret >= 0 ? '+' : ''}${ret.toFixed(1)}%`, tone: ret >= 0 ? 'good' : 'bad' },
+      { label: L[7]!, value: div > 0.35 ? `${(div * 5).toFixed(1)}%` : 'geen' },
+      { label: L[8]!, value: `over ${4 + (hash('ea') % 80)} d` },
+      { label: L[9]!, value: `breekpunt €${(cost * 0.78).toFixed(2)}`, tone: 'muted' },
+    ];
+  }
   if (kind === 'tms') {
     return [
       { label: L[0]!, value: status === 'working' ? 'onderweg' : status === 'alert' ? 'vertraagd' : 'gepland', tone: status === 'alert' ? 'warn' : undefined },
       { label: L[1]!, value: pick(1, 'Ali', 'Jeroen', 'Marek', 'Sanne', 'Youssef', 'Dave') },
-      { label: L[2]!, value: `Truck ${41 + (stableHash(`${key}-v`) % 32)}` },
-      { label: L[3]!, value: `${6 + (stableHash(`${key}-d`) % 10)}:00` },
-      { label: L[4]!, value: `${12 + (stableHash(`${key}-a`) % 9)}:${(stableHash(`${key}-m`) % 6)}0` },
+      { label: L[2]!, value: `Truck ${41 + (hash('v') % 32)}` },
+      { label: L[3]!, value: `${6 + (hash('d') % 10)}:00` },
+      { label: L[4]!, value: `${12 + (hash('a') % 9)}:${hash('m') % 6}0` },
       { label: L[5]!, value: `${120 + Math.round(rnd(`${key}-km`) * 800)} km` },
       { label: L[6]!, value: pick(6, 'pallets', 'koelvracht', 'stukgoed', 'bulk') },
       { label: L[7]!, value: `${55 + Math.round(rnd(`${key}-b`) * 45)}%` },
-      { label: L[8]!, value: `${1 + (stableHash(`${key}-s`) % 5)}` },
+      { label: L[8]!, value: `${1 + (hash('s') % 5)}` },
       { label: L[9]!, value: `${8 + Math.round(rnd(`${key}-mg`) * 22)}%`, tone: 'good' },
     ];
   }
@@ -863,28 +983,82 @@ function buildMetrics(
     const inGarage = status === 'alert' || status === 'done';
     return [
       { label: L[0]!, value: inGarage ? 'in de garage' : 'rijdend', tone: inGarage ? 'warn' : 'good' },
-      { label: L[1]!, value: `${pick(1, 'BX', 'VD', 'RJ', 'HT')}-${10 + (stableHash(`${key}-p`) % 89)}-${pick(2, 'NL', 'BN', 'ZK')}` },
+      { label: L[1]!, value: `${pick(1, 'BX', 'VD', 'RJ', 'HT')}-${10 + (hash('p') % 89)}-${pick(2, 'NL', 'BN', 'ZK')}` },
       { label: L[2]!, value: `${(120 + Math.round(rnd(`${key}-km`) * 600)) * 1000} km` },
-      { label: L[3]!, value: `${1 + (stableHash(`${key}-apk`) % 28)}-${1 + (stableHash(`${key}-apm`) % 12)}-2027` },
-      { label: L[4]!, value: inGarage ? 'bezig' : `over ${1 + (stableHash(`${key}-oh`) % 90)} d` },
-      { label: L[5]!, value: `${4 + (stableHash(`${key}-b`) % 6)} mm`, tone: stableHash(`${key}-b`) % 6 < 2 ? 'warn' : undefined },
-      { label: L[6]!, value: `${stableHash(`${key}-st`) % 3}`, tone: stableHash(`${key}-st`) % 3 > 0 ? 'warn' : 'good' },
+      { label: L[3]!, value: `${1 + (hash('apk') % 28)}-${1 + (hash('apm') % 12)}-2027` },
+      { label: L[4]!, value: inGarage ? 'bezig' : `over ${1 + (hash('oh') % 90)} d` },
+      { label: L[5]!, value: `${4 + (hash('b') % 6)} mm`, tone: hash('b') % 6 < 2 ? 'warn' : undefined },
+      { label: L[6]!, value: `${hash('st') % 3}`, tone: hash('st') % 3 > 0 ? 'warn' : 'good' },
       { label: L[7]!, value: pick(7, 'Ali', 'Jeroen', 'Marek', 'Sanne', '—') },
       { label: L[8]!, value: `${26 + Math.round(rnd(`${key}-v`) * 12)} l/100` },
       { label: L[9]!, value: inGarage ? 'nee' : 'ja', tone: inGarage ? 'bad' : 'good' },
     ];
   }
-  // design / studio / music / generic delen een werkstroom-vorm
+  if (kind === 'design') {
+    // Klantwerk: het gaat om revisierondes, formaten en wie er akkoord moet geven.
+    const feedback = pick(6, 'verwerkt', 'open', 'wacht op klant');
+    const approval = pick(8, 'wacht', 'akkoord', 'wijzigingen');
+    return [
+      { label: L[0]!, value: status === 'working' ? 'in bewerking' : status === 'done' ? 'klaar' : status === 'alert' ? 'geblokkeerd' : 'wacht', tone: status === 'alert' ? 'warn' : undefined },
+      { label: L[1]!, value: pick(1, 'Klant A', 'Klant B', 'Klant C', 'Intern', 'Pitch') },
+      { label: L[2]!, value: pick(2, 'briefing', 'schets', 'uitwerking', 'review', 'oplevering') },
+      { label: L[3]!, value: `${hash('r') % 5}` },
+      { label: L[4]!, value: `over ${1 + (hash('d') % 21)} d` },
+      { label: L[5]!, value: `${2 + (hash('f') % 6)} formaten` },
+      { label: L[6]!, value: feedback, tone: feedback === 'verwerkt' ? 'good' : 'warn' },
+      { label: L[7]!, value: `${3 + (hash('as') % 40)}` },
+      { label: L[8]!, value: approval, tone: approval === 'akkoord' ? 'good' : 'warn' },
+      { label: L[9]!, value: `${2 + Math.round(rnd(`${key}-u`) * 30)} u` },
+    ];
+  }
+  if (kind === 'studio') {
+    // Productie: takes, mixversies en de agenda — en de boekingsflow die
+    // nadrukkelijk niet zomaar naar productie mag.
+    const master = pick(6, 'wacht', 'klaar', 'revisie');
+    return [
+      { label: L[0]!, value: status === 'working' ? 'opname' : status === 'done' ? 'opgeleverd' : status === 'alert' ? 'geblokkeerd' : 'wacht', tone: status === 'alert' ? 'warn' : undefined },
+      { label: L[1]!, value: pick(1, 'Intern', 'Boeking', 'Gastartiest', 'Label', 'Podcast-gast') },
+      { label: L[2]!, value: pick(2, 'opname', 'editing', 'mix', 'master', 'oplevering') },
+      { label: L[3]!, value: `${1 + (hash('tk') % 12)}` },
+      { label: L[4]!, value: `${2 + (hash('len') % 6)}:${10 + (hash('sec') % 50)}` },
+      { label: L[5]!, value: `v${1 + (hash('mix') % 4)}` },
+      { label: L[6]!, value: master, tone: master === 'klaar' ? 'good' : undefined },
+      { label: L[7]!, value: status === 'done' ? 'opgeleverd' : `over ${2 + (hash('rel') % 30)} d` },
+      { label: L[8]!, value: pick(8, 'eigen site', 'distributeur', 'podcast', 'live-set') },
+      { label: L[9]!, value: `${2 + Math.round(rnd(`${key}-u`) * 30)} u` },
+    ];
+  }
+  if (kind === 'music') {
+    // Releases: de titel is de werkplek zelf, en de kolommen lopen mee met het
+    // pad naar buiten — mix, master, datum, kanalen, promo.
+    const master = pick(5, 'wacht', 'klaar');
+    return [
+      { label: L[0]!, value: status === 'working' ? 'in productie' : status === 'done' ? 'uit' : status === 'alert' ? 'geblokkeerd' : 'gepland', tone: status === 'alert' ? 'warn' : undefined },
+      { label: L[1]!, value: label },
+      { label: L[2]!, value: pick(2, 'demo', 'opname', 'mix', 'master', 'distributie') },
+      { label: L[3]!, value: `${2 + (hash('len') % 4)}:${10 + (hash('sec') % 50)}` },
+      { label: L[4]!, value: `v${1 + (hash('mix') % 4)}` },
+      { label: L[5]!, value: master, tone: master === 'klaar' ? 'good' : undefined },
+      { label: L[6]!, value: `${1 + (hash('dd') % 28)}-${1 + (hash('mm') % 12)}` },
+      { label: L[7]!, value: `${2 + (hash('ch') % 6)}` },
+      { label: L[8]!, value: (120 + hash('str') % 40_000).toLocaleString('nl-NL') },
+      { label: L[9]!, value: pick(9, 'concept klaar', 'niets klaar', 'loopt'), tone: 'info' },
+    ];
+  }
+  // generic: elk project heeft werk, ook zonder branche — en dan gaat het over
+  // eigenaar, voortgang en wat er in de weg staat.
+  const review = pick(8, 'wacht', 'akkoord', 'wijzigingen');
+  const blocked = hash('bl') % 3;
   return [
-    { label: L[0]!, value: status === 'working' ? 'in bewerking' : status === 'done' ? 'klaar' : status === 'alert' ? 'geblokkeerd' : 'wacht' },
-    { label: L[1]!, value: pick(1, 'Intern', 'Klant A', 'Klant B', 'Label', 'Partner') },
-    { label: L[2]!, value: pick(2, 'schets', 'uitwerking', 'review', 'oplevering') },
-    { label: L[3]!, value: `${stableHash(`${key}-r`) % 5}` },
-    { label: L[4]!, value: `${1 + (stableHash(`${key}-d`) % 21)} d` },
+    { label: L[0]!, value: status === 'working' ? 'in uitvoering' : status === 'done' ? 'klaar' : status === 'alert' ? 'geblokkeerd' : 'wacht', tone: status === 'alert' ? 'warn' : undefined },
+    { label: L[1]!, value: pick(1, 'Uitvoerder', 'Scout', 'Controle', 'Documentatie', 'Beveiliging', '—') },
+    { label: L[2]!, value: pick(2, 'opgepakt', 'in uitvoering', 'in review', 'afgerond') },
+    { label: L[3]!, value: `${10 * (hash('vg') % 11)}%` },
+    { label: L[4]!, value: `${1 + (hash('d') % 21)} d` },
     { label: L[5]!, value: pick(5, 'laag', 'normaal', 'hoog') },
-    { label: L[6]!, value: `${stableHash(`${key}-bl`) % 2}` },
+    { label: L[6]!, value: `${blocked}`, tone: blocked > 0 ? 'warn' : 'good' },
     { label: L[7]!, value: status === 'done' ? 'opgeleverd' : 'onderweg' },
-    { label: L[8]!, value: pick(8, 'wacht', 'akkoord', 'wijzigingen') },
+    { label: L[8]!, value: review, tone: review === 'akkoord' ? 'good' : undefined },
     { label: L[9]!, value: `${2 + Math.round(rnd(`${key}-u`) * 30)} u` },
   ];
 }
@@ -898,6 +1072,8 @@ function buildDetail(
   value: number,
   metrics: Metric[],
   estimated: boolean,
+  /** true = er is wél een bron, maar die stuurt al te lang niets meer. */
+  stale: boolean,
 ): StationDetail {
   const curve: number[] = [];
   let walk = 0;
@@ -924,9 +1100,12 @@ function buildDetail(
       },
       { label: 'Aanhechting', value: rnd(`${key}-ad`) > 0.5 ? 'opwarmend' : 'stabiel', tone: 'info', estimated: true },
       {
+        // Een stilgevallen koppeling stond hier "live" — precies de fout die
+        // het hele kantoor onbetrouwbaar maakt: oude cijfers die er vers
+        // uitzien. De werkplek weet dat hij stil is, dit paneel zegt het nu ook.
         label: 'Laatste update',
-        value: estimated ? 'geen bron' : 'live',
-        tone: 'muted',
+        value: estimated ? 'geen bron' : stale ? 'stilgevallen' : 'live',
+        tone: stale ? 'warn' : 'muted',
       },
     ],
     // Plan-versus-echt is nog nergens op gebaseerd; altijd als invulling tonen.

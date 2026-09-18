@@ -15,6 +15,7 @@ import {
   autoHaltReason,
   buildTradeReview,
   formatReviewMessage,
+  startOfToday,
   VENTURES,
   WorldState,
   type AraEvent,
@@ -623,12 +624,12 @@ export function createCollector(store: EventStore): CollectorApp {
     // Meetlaag: de enige cijfers in een kantoor die nergens op geraden zijn.
     // Sessies leveren tool-calls en fouten van vandaag, het bord de taken,
     // de usage-tabel de tokens; git doet de rest in pulse.ts.
-    const dayStart = new Date();
-    dayStart.setHours(0, 0, 0, 0);
-    const todaySessions = sessions.filter((s) => s.lastSeenAt >= dayStart.getTime());
-    const tokensRow = store
-      .usageSummary(dayStart.getTime())
-      .find((row) => row.project === project);
+    // Dezelfde daggrens als buildOffice: het antwoord bevat allebei, en twee
+    // lezingen van "vandaag" in één antwoord levert vroeg of laat twee
+    // verschillende aantallen op voor dezelfde dag.
+    const dayStart = startOfToday(Date.now());
+    const todaySessions = sessions.filter((s) => s.lastSeenAt >= dayStart);
+    const tokensRow = store.usageSummary(dayStart).find((row) => row.project === project);
     const pulse = await projectPulse(project, {
       toolCallsToday: todaySessions.reduce((sum, s) => sum + s.toolCount, 0),
       errorsToday: todaySessions.reduce((sum, s) => sum + s.errorCount, 0),
@@ -636,8 +637,7 @@ export function createCollector(store: EventStore): CollectorApp {
         ? tokensRow.inputTokens + tokensRow.outputTokens + tokensRow.cacheCreateTokens
         : undefined,
       openTasks: tasks.filter((t) => t.status !== 'done' && t.status !== 'failed').length,
-      doneTasksToday: tasks.filter((t) => t.status === 'done' && t.updatedAt >= dayStart.getTime())
-        .length,
+      doneTasksToday: tasks.filter((t) => t.status === 'done' && t.updatedAt >= dayStart).length,
     });
     res.json(
       buildOffice({
