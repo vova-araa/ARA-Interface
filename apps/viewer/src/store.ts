@@ -268,6 +268,30 @@ function effectsFor(event: AraEvent): Effect[] {
   }
 }
 
+/**
+ * Houdt ?office=<project> gelijk aan welk kantoor er open staat.
+ *
+ * Zonder dit is de diep-link eenrichtingsverkeer: hij werkt bij het laden, maar
+ * zodra je binnen de wereld van kantoor wisselt staat er nog het oude project in
+ * de adresbalk. Dan stuurt een herlaadactie — of een link die je naar jezelf
+ * stuurt — je terug naar het kantoor waar je begon, en dat lijkt op een bug in
+ * het wisselen terwijl het de URL is die achterloopt.
+ *
+ * replaceState en geen pushState: van kantoor wisselen is geen navigatie, en
+ * anders moet je twintig keer terug voor je de wereld weer ziet.
+ */
+function syncOfficeParam(project: string | null): void {
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.get('office') === (project ?? null)) return;
+    if (project) url.searchParams.set('office', project);
+    else url.searchParams.delete('office');
+    history.replaceState(history.state, '', url);
+  } catch {
+    /* geen history-API (test-omgeving): de wereld werkt verder gewoon */
+  }
+}
+
 export const useAra = create<AraStore>((set, get) => ({
   connected: false,
   demo: new URLSearchParams(location.search).has('demo'),
@@ -453,10 +477,14 @@ export const useAra = create<AraStore>((set, get) => ({
     set((s) => ({ liveStatus: { ...s.liveStatus, [status.sessionId]: status } })),
   setAllLiveStatus: (list) =>
     set({ liveStatus: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),
-  openOffice: (project) =>
-    set({ officeProject: project, officeLoading: true, officeSelected: null, office: null }),
-  closeOffice: () =>
-    set({ officeProject: null, office: null, officeSelected: null, chatRoom: null, chatMessages: [] }),
+  openOffice: (project) => {
+    syncOfficeParam(project);
+    set({ officeProject: project, officeLoading: true, officeSelected: null, office: null });
+  },
+  closeOffice: () => {
+    syncOfficeParam(null);
+    set({ officeProject: null, office: null, officeSelected: null, chatRoom: null, chatMessages: [] });
+  },
   setOffice: (office) => set({ office, officeLoading: false }),
   selectStation: (id) => set({ officeSelected: id }),
   setChatRoom: (room) => set({ chatRoom: room, chatMessages: [] }),

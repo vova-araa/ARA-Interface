@@ -15,6 +15,7 @@ import {
   autoHaltReason,
   buildTradeReview,
   formatReviewMessage,
+  buildRetro,
   startOfToday,
   VENTURES,
   WorldState,
@@ -920,6 +921,37 @@ export function createCollector(store: EventStore): CollectorApp {
    * rapport dat door een model geteld is, kun je niet naast dat van vorige week
    * leggen.
    */
+  /**
+   * De organisatie die naar zichzelf kijkt — nul tokens.
+   *
+   * Dit is de meetlaag onder de verbeterronde: welke rollen lopen vast, welk
+   * werk blijft liggen, wat keert steeds terug. Een agent die hierop een
+   * voorstel schrijft heeft dus cijfers en taak-ids om naar te wijzen. Zonder
+   * deze stap krijg je een agent die elke week plausibel klinkende
+   * verbeteringen verzint, en dat is erger dan geen verbeterronde.
+   */
+  app.get('/retro', (req, res) => {
+    allowOrigin(req, res);
+    const days = Math.min(Math.max(Number(req.query.days ?? 7), 1), 365);
+    const now = Date.now();
+    // Ruim ophalen: vastgelopen werk is juist ouder dan het venster, en dat is
+    // precies het werk dat niemand meer ziet.
+    const tasks = store.listTasks({ limit: 2000 }).map((t) => ({
+      id: t.id,
+      title: t.title,
+      detail: t.detail,
+      project: t.project,
+      assignee: t.assignee,
+      createdBy: t.createdBy,
+      status: t.status,
+      result: t.result,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+    }));
+    const retro = buildRetro(tasks, now - days * 24 * 60 * 60 * 1000, now, now);
+    res.json(retro);
+  });
+
   app.get('/trade/review', (req, res) => {
     allowOrigin(req, res);
     const days = Math.min(Math.max(Number(req.query.days ?? 7), 1), 365);

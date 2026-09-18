@@ -1004,6 +1004,10 @@ if (process.env.ARA_RHYTHM === '1') {
 
           // Staat dezelfde taak nog open, dan is hij niet af — en dan is een
           // tweede exemplaar geen ritme maar een stapel.
+          // Deze drie voorvoegsels staan óók in CADENCE_PREFIXES in
+          // packages/shared/src/retro.ts: de terugblik herkent er terugkerend
+          // werk aan en meldt dat niet als een probleem dat blijft terugkomen.
+          // Wijzig je ze hier, wijzig ze daar mee.
           const title = `${duty.every === 'dag' ? 'Dagelijks' : duty.every === 'week' ? 'Wekelijks' : 'Maandelijks'}: ${duty.text}`;
           if (openTitles.has(title)) {
             log(`ritme: "${title.slice(0, 50)}…" staat nog open, niet opnieuw`);
