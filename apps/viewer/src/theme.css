@@ -747,10 +747,11 @@ html, body, #root { height: 100dvh; }
   }
 
   /* ── Balk: twee regels ───────────────────────────────────────────────
-     Op één regel paste de knoppenrij niet naast de cijfers; de cijfers
-     schoven dan buiten beeld in een scroller die niemand ziet. En juist die
-     cijfers (wacht / bezig / fout / klaar) zijn waarvoor je je telefoon
-     pakt. Dus: knoppen boven, cijfers eronder over de volle breedte. */
+     Op één regel paste de knoppenrij (zes knoppen, 330px) niet naast de
+     cijfers; die schoven dan buiten beeld in een zijwaartse scroller die
+     niemand ziet — terwijl wacht / bezig / fout / klaar is waarvóór je je
+     telefoon pakt. Dus: cijfers boven naast het merkteken, knoppen eronder
+     over de volle breedte. */
   .topbar {
     flex-wrap: wrap;
     gap: 8px;
