@@ -636,6 +636,7 @@ try {
 let opsEscalations = [];
 let userTasks = [];
 let chatTasks = [];
+let chiefChats = [];
 try {
   const escalated = await api('/tasks?assignee=supervisor&status=open&limit=50');
   opsEscalations = escalated.tasks.filter((t) => t.createdBy === 'manager:ops');
@@ -645,9 +646,38 @@ try {
   // opgepakt: je praatte tegen een muur. Ze horen hier óók opgehaald te worden.
   const all = await api('/tasks?status=open&limit=100');
   chatTasks = all.tasks.filter((t) => t.createdBy === 'user' && t.title.startsWith('CHAT:'));
+  // Een vraag die aan de chief gericht is, hoort ook bij de chief te landen.
+  // Die ging hier altijd naar de supervisor, en dan antwoordt de verkeerde:
+  // volgens org.json is de chief het enige aanspreekpunt van de gebruiker.
+  chiefChats = chatTasks.filter((t) => t.assignee === 'chief');
+  chatTasks = chatTasks.filter((t) => t.assignee !== 'chief');
 } catch (error) {
   log(`supervisor-stap overgeslagen: ${String(error).slice(0, 80)}`);
 }
+// Vragen aan de chief: die wekt zijn eigen rol, niet de supervisor. De chief
+// is volgens org.json het enige aanspreekpunt van de gebruiker, dus een
+// antwoord van de supervisor op een vraag aan de chief is geen kleine
+// onnauwkeurigheid — het is de verkeerde die terugpraat.
+if (chiefChats.length > 0) {
+  const signature = `chief-chat-${chiefChats.map((t) => t.id).sort().join('-')}`;
+  const tries = spawnAttempts(signature);
+  if (tries >= 2) {
+    log(`chief kwam er ${tries}× niet uit — niet opnieuw spawnen`);
+    await alertOnce(
+      signature,
+      6 * 60 * 60 * 1000,
+      `🟠 ARA World — chief komt er niet uit\n${chiefChats.length} vraag/vragen aan de chief blijven open na ${tries} pogingen. Kijk even mee op het bord.`,
+    );
+  } else if (!(await budgetExceeded())) {
+    spawnAttempts(signature, { increment: true });
+    spawnClaude(
+      'chief-chat',
+      `Je bent ara-chief. Er staan ${chiefChats.length} vraag/vragen van de gebruiker rechtstreeks aan jou op het bord (GET ${COLLECTOR}/tasks?status=open, titel begint met "CHAT:", assignee "chief"). Lees per taak het detail: daar staan de ruimte (room) en de letterlijke curl-regels om te antwoorden en de taak te sluiten. Beantwoord ze zelf of haal eerst op wat je nodig hebt; de gebruiker zit te wachten.`,
+      { agent: 'ara-chief', tools: 'Bash,Read,Write,Edit,Grep,Glob,Task' },
+    );
+  }
+}
+
 if (opsEscalations.length > 0 || userTasks.length > 0 || chatTasks.length > 0) {
   const parts = [];
   if (opsEscalations.length > 0)
@@ -660,7 +690,7 @@ if (opsEscalations.length > 0 || userTasks.length > 0 || chatTasks.length > 0) {
     );
   if (chatTasks.length > 0)
     parts.push(
-      `er staan ${chatTasks.length} vraag/vragen uit een kantoorchat op het bord (titel begint met "CHAT:", elk bij de aangesproken rol als assignee). Lees per taak het detail: daar staan de ruimte (room) en het antwoord-commando. Beantwoord ze zelf of zet ze door naar de juiste manager, POST het antwoord in dezelfde ruimte en sluit de taak af. De gebruiker zit te wachten in dat kantoor.`,
+      `er staan ${chatTasks.length} vraag/vragen uit een kantoorchat op het bord (titel begint met "CHAT:", elk bij de aangesproken rol als assignee; vragen aan de chief gaan apart naar hem). Lees per taak het detail: daar staan de ruimte (room) en het antwoord-commando. Beantwoord ze zelf of zet ze door naar de juiste manager, POST het antwoord in dezelfde ruimte en sluit de taak af. De gebruiker zit te wachten in dat kantoor.`,
     );
   const signature = `supervisor-${[...opsEscalations, ...userTasks, ...chatTasks].map((t) => t.id).sort().join('-')}`;
   const tries = spawnAttempts(signature);

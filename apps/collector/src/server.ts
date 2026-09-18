@@ -1011,8 +1011,15 @@ export function createCollector(store: EventStore): CollectorApp {
   const chatTaskDetail = (room: string, text: string, taskId: string): string => {
     const base = `http://127.0.0.1:${COLLECTOR_PORT}`;
     const auth = ARA_TOKEN ? ` \\\n    -H 'X-ARA-Token: ${ARA_TOKEN}'` : '';
+    // De ruimte zegt waar het gesprek staat: "office:<project>" is een kantoor,
+    // "hq:<rol>" is een rechtstreeks gesprek met de leiding vanuit de wereld.
+    // Een agent die te horen krijgt dat hij in een kantoor zit terwijl dat niet
+    // zo is, gaat dat kantoor in zijn antwoord noemen.
+    const where = room.startsWith('hq:')
+      ? `Gesprek met de leiding, ruimte "${room}". De gebruiker wacht op antwoord in dat gesprek.`
+      : `Kantoorchat uit "${room}". De gebruiker wacht op antwoord in dat kantoor.`;
     return [
-      `Kantoorchat uit "${room}". De gebruiker wacht op antwoord in dat kantoor.`,
+      where,
       '',
       'Vraag:',
       text,

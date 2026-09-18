@@ -186,7 +186,7 @@ function OfficeChat({ project, room }: { project: string; room: string }): JSX.E
           Gesprek met <strong>{target.name}</strong>
           {/* Zichtbaar maken dat de vraag via de manager loopt — anders lijkt
               het alsof je de specialist zelf te pakken hebt. */}
-          {target.about && <em className="office-note"> · over {target.about}</em>}
+          {target.about && <em style={{ opacity: 0.6 }}> · over {target.about}</em>}
         </span>
         <span className="office-chat-count">
           {messages.length > 0 && <em>{messages.length}</em>}

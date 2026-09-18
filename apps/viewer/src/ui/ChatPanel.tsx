@@ -274,6 +274,16 @@ export function ChatPanel({ open: openProp, onOpenChange, target: targetProp }: 
 
   const setOpen = useCallback(
     (value: boolean): void => {
+      // Eén paneel tegelijk. De store doet dat al voor de andere vier; dit
+      // paneel hoort bij dezelfde familie, dus ruimt het de rechterkolom op in
+      // plaats van er bovenop te gaan staan.
+      if (value) {
+        const s = useAra.getState();
+        s.setPanelOpen(false);
+        s.setBoardOpen(false);
+        s.setActionsOpen(false);
+        s.setOverviewOpen(false);
+      }
       if (openProp === undefined) setSelfOpen(value);
       onOpenChange?.(value);
     },
@@ -305,11 +315,10 @@ export function ChatPanel({ open: openProp, onOpenChange, target: targetProp }: 
     if (targetProp) setTargetId(targetProp);
   }, [targetProp]);
 
-  // Eén paneel tegelijk — dezelfde regel die de store voor de andere vier
-  // hanteert. Anders vechten twee panelen om dezelfde rechterkolom.
+  // En andersom: opent er via de balk een ander paneel, dan wijkt het gesprek.
   useEffect(() => {
-    if (panelOpen || boardOpen || actionsOpen || overviewOpen) setOpen(false);
-  }, [panelOpen, boardOpen, actionsOpen, overviewOpen, setOpen]);
+    if (open && (panelOpen || boardOpen || actionsOpen || overviewOpen)) setOpen(false);
+  }, [open, panelOpen, boardOpen, actionsOpen, overviewOpen, setOpen]);
 
   // Sneltoets 'c' (dezelfde familie als b/a/o in App.tsx).
   useEffect(() => {
@@ -651,6 +660,14 @@ function PanelStyle(): JSX.Element {
   /* Onder 16px zoomt iOS het hele scherm in zodra je het veld aantikt. */
   .hq-input input { font-size: 16px; min-height: var(--tap, 44px); }
   .hq-input button { min-height: var(--tap, 44px); min-width: 72px; }
+}
+
+/* Telefoon liggend: breed genoeg voor de desktop-indeling, maar 390px hoog.
+   Een sheet van 72dvh laat daar niets over, dus blijft het een kolom rechts —
+   met de 40px die de rest van de interface in deze stand ook aanhoudt. */
+@media (orientation: landscape) and (max-height: 520px) and (max-width: 1100px) {
+  .hq-chat { width: min(340px, 44vw); max-height: calc(100dvh - 24px); }
+  .hq-target, .hq-x, .hq-input input, .hq-input button { min-height: 40px; }
 }
 `}</style>
   );

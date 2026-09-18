@@ -12,6 +12,7 @@ import { OverviewPanel } from './ui/OverviewPanel.tsx';
 import { Ticker } from './ui/Ticker.tsx';
 import { SideTabs } from './ui/SideTabs.tsx';
 import { SoundPlayer } from './ui/Sound.tsx';
+import { ChatPanel } from './ui/ChatPanel.tsx';
 import { OfficeOverlay } from './office/OfficeOverlay.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
@@ -83,6 +84,10 @@ export function App(): JSX.Element {
       <NudgePulse />
       <SoundPlayer />
       <OfficeOverlay />
+      {/* Overleg met de leiding zonder eerst een kantoor te zoeken. Brengt
+          zijn eigen knop en sneltoets mee, en rendert niets boven een open
+          kantoor — dat heeft zijn eigen chat. */}
+      <ChatPanel />
       {/* Mobiel: veeg omhoog vanaf de onderrand om de threadlijst te openen */}
       {!panelOpen && (
         <div
