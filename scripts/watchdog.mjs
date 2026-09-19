@@ -17,6 +17,9 @@
  * 7. Eén keer per dag een levensteken, zodat stilte zélf het alarm is.
  * 7b. Dagelijkse backup van de database (0 tokens), zodat de backup-verifier
  *     iets heeft om terug te zetten.
+ * 7c. Bronbestand dat er wél staat maar onleesbaar is (verkeerde kop, verkeerd
+ *     aantal velden) → één Telegram-melding per bron per dag. Ontbreekt of
+ *     leeg is geen storing: dat staat al in de actielijst.
  * 8. Auto-update: nieuwe commits op de eigen branch ophalen, bouwen, herstarten.
  * 9. Inbox: taken die via git binnenkwamen op het bord zetten.
  * 10. Ritme: terugkerend werk per tak op het bord zetten zodra het aan de
@@ -31,6 +34,7 @@
  * Env: ARA_COLLECTOR_URL, ARA_TOKEN, ARA_REPO, ARA_LOCK_DIR,
  *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
  *      ARA_BACKUP=0 (sectie 7b uit), ARA_BACKUP_DIR=~/Backups/ara, ARA_BACKUP_HOURS=24,
+ *      ARA_SOURCES_ALERT=0 (sectie 7c uit),
  *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen),
  *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan),
  *      ARA_RHYTHM=1 (sectie 10 aan), ARA_RHYTHM_VENTURES=blex,traject (leeg = alle),
@@ -868,10 +872,21 @@ if (process.env.ARA_DAILY_PING !== '0') {
         (sum, row) => sum + row.inputTokens + row.outputTokens + row.cacheCreateTokens,
         0,
       );
+      // Hoeveel bronnen zijn er echt aangesloten (stand `gevuld`, regel 4:
+      // een kop zonder regels telt niet). Is /sources niet bereikbaar, dan
+      // valt de regel weg — er wordt geen getal verzonnen.
+      let sourcesLine = '';
+      try {
+        const all = (await api('/sources')).ventures.flatMap((v) => v.sources);
+        const filled = all.filter((s) => s.state === 'gevuld').length;
+        sourcesLine = `\nBronnen: ${filled} van ${all.length} gevuld`;
+      } catch {
+        /* geen cijfer = geen regel */
+      }
       await alertOnce(
         `heartbeat-${new Date().toISOString().slice(0, 10)}`,
         20 * 60 * 60 * 1000,
-        `🟢 ARA World draait\n${running} sessie(s) aan het werk · ${incidentsToHandle.length} open incident(en) · ${failures} monitor(s) stuk\nTokens vandaag: ${used.toLocaleString('nl-NL')}${budget ? ` van ${budget.toLocaleString('nl-NL')}` : ''}`,
+        `🟢 ARA World draait\n${running} sessie(s) aan het werk · ${incidentsToHandle.length} open incident(en) · ${failures} monitor(s) stuk\nTokens vandaag: ${used.toLocaleString('nl-NL')}${budget ? ` van ${budget.toLocaleString('nl-NL')}` : ''}${sourcesLine}`,
       );
     } catch (error) {
       log(`levensteken overgeslagen: ${String(error).slice(0, 80)}`);
@@ -924,6 +939,33 @@ if (process.env.ARA_BACKUP !== '0') {
         `⚠️ Database-backup mislukt\n${reason}\nMap: ${backupDir}`,
       );
     }
+  }
+}
+
+// ── 7c. Onleesbare bronbestanden ─────────────────────────────────────────
+// Een bron die ontbreekt of leeg is staat in de actielijst; dat ziet de
+// eigenaar. Een bron die er wél staat maar niet te lezen is (verkeerde kop,
+// verkeerd aantal velden na een export uit een ander programma) ziet hij niet:
+// het bestand is er, dus hij denkt dat het werkt, terwijl de rol die het leest
+// niets krijgt. Dat is een storing en die hoort gemeld — één keer per bron per
+// dag, met de eerste foutregel en het pad, zodat het bericht zelf zegt wat er
+// te repareren valt. Kost 0 tokens: de collector heeft de fout al gevonden.
+if (process.env.ARA_SOURCES_ALERT !== '0') {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const { ventures } = await api('/sources');
+    for (const venture of ventures) {
+      for (const source of venture.sources) {
+        if (source.state === 'ontbreekt' || !source.errors?.length) continue;
+        await alertOnce(
+          `source-broken-${venture.id}-${source.file}-${day}`,
+          20 * 60 * 60 * 1000,
+          `⚠️ Bronbestand onleesbaar (${venture.label})\n${source.label}: ${source.errors[0]}\nBestand: ${source.path}`,
+        );
+      }
+    }
+  } catch (error) {
+    log(`bronnencontrole overgeslagen: ${String(error).slice(0, 80)}`);
   }
 }
 

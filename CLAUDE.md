@@ -170,6 +170,12 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
   de aangesloten bronnen mét bestandspad.
 - `GET /sources` (alles, `?refresh=1` na een upload) en `GET /sources/:tak/:bestand` (rijen).
   Een rol leest dát, en parst geen CSV zelf.
+- **Een bestand dat er staat maar onleesbaar is, is een storing** (verkeerde kop, verkeerd
+  aantal velden): de actielijst toont alleen ontbreekt/leeg, dus de eigenaar ziet 'm niet.
+  Watchdog sectie 7c meldt zo'n bron één keer per dag via Telegram (`alertOnce`, sleutel
+  tak+bestand+dag) met de eerste foutregel en het pad; `ARA_SOURCES_ALERT=0` zet uit.
+  Het levensteken (sectie 7) telt "Bronnen: X van Y gevuld" — is `/sources` niet bereikbaar,
+  dan ontbreekt de regel (regel 4). `watchdog.test.ts` pint beide gedragingen van 7c vast.
 - **Nooit een sleutel**: posities, koersen, portefeuilles komen uit een export of het
   statusbestand dat de bot zelf schrijft. `trading-limits.json` is van de risicomotor en
   telt hier alleen als aanwezig-of-niet; bruikbaarheid meldt de actielijst.

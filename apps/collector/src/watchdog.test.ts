@@ -16,6 +16,9 @@ process.env.ARA_WORLD_CONFIG ??= path.join(
   fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-world-')),
   'world.config.json',
 );
+// Vóór de server-import, want sources.ts leest de map bij het laden. Zonder
+// dit leest de test de echte data/sources van deze checkout.
+process.env.ARA_SOURCES_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-sources-'));
 const { openStore } = await import('./db.ts');
 const { createCollector } = await import('./server.ts');
 
@@ -334,5 +337,49 @@ test('watchdog maakt zelf een backup als de nieuwste ouder is dan een dag', asyn
   } finally {
     server.close();
     store.close();
+  }
+});
+
+test('bronnen: een onleesbaar bestand wordt één keer per dag gemeld, een leesbaar niet', async () => {
+  const { forgetSources } = await import('./sources.ts');
+  const store = openStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-')), 'test.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const dir = path.join(process.env.ARA_SOURCES_DIR!, 'equities');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'kwartaalagenda.csv');
+  const alerts = (out: string) =>
+    out.split('\n').filter((line) => line.includes('[notify dryrun]') && line.includes('kwartaalagenda.csv'));
+  try {
+    // Het bestand staat er, maar de kop klopt niet: precies de storing die de
+    // actielijst niet toont (daar staat alleen ontbreekt/leeg) en de eigenaar
+    // dus niet ziet.
+    fs.writeFileSync(file, 'symbool;datum\nASML;2026-10-15\n');
+    forgetSources();
+    const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+    const first = await runWatchdog(base, lockDir);
+    const sent = alerts(first);
+    assert.equal(sent.length, 1, `één melding voor het kapotte bestand:\n${first}`);
+    assert.match(sent[0]!, /kolom\(men\) ontbreken in de kop: ticker/, 'met de eerste foutregel');
+    assert.match(sent[0]!, /Bronbestand onleesbaar/);
+
+    // Tweede tick, zelfde dag, zelfde lock-map: niet nog eens — anders komt
+    // hetzelfde bericht elke vijf minuten.
+    const second = await runWatchdog(base, lockDir);
+    assert.equal(alerts(second).length, 0, 'binnen dezelfde dag geen tweede melding');
+
+    // Een leesbaar bestand is geen storing, ook met een verse lock-map.
+    fs.writeFileSync(file, 'ticker;datum;soort\nASML;2026-10-15;kwartaalcijfers\n');
+    forgetSources();
+    const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+    const clean = await runWatchdog(base, fresh);
+    assert.equal(alerts(clean).length, 0, 'een correcte CSV geeft geen melding');
+    assert.doesNotMatch(clean, /Bronbestand onleesbaar/);
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(file, { force: true });
+    forgetSources();
   }
 });
