@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 115 unit tests (shared 68 + collector 47) + de viewer-smoke
+pnpm test                    # 123 unit tests (shared 74 + collector 49) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -148,6 +148,16 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
   naar een lid dat er ook echt staat) en `depth` (0 = chief, afgeleid uit `reportsTo`, niet
   los bedacht). Crypto en aandelen hebben eigen kolommen in plaats van die van de FX-vloer
   te erven. `packages/shared/src/office.test.ts` bewaakt dit.
+
+## Wagenpark (de eerste Blex-bronnen zijn bestanden)
+
+- `packages/shared/src/fleet.ts`: `readVehicles`/`readDrivers` (CSV, `;` of `,`, drie
+  datumvormen) en `fleetDeadlines()` — vensters verlopen · ≤14 · ≤30 · ≤60 in
+  `DEADLINE_WINDOWS`, ergste geval eerst, lege datum = `ontbreekt` (nooit "in orde").
+- Collector `GET /fleet` leest `ARA_FLEET_DIR` (standaard `data/fleet/`) — `vehicles.csv` en
+  `drivers.csv`, voorbeeld en kolommen in `ops/fleet/README.md`. Staat het bestand er, dan
+  markeert `withFleetSources()` die bron in `/org` en `/actions` als aangesloten; niemand hoeft
+  `configured: true` in org.json te zetten. `ara-compliance-watch` leest `/fleet` en telt niet na.
 
 ## Handel (agents mogen posities voorstellen)
 

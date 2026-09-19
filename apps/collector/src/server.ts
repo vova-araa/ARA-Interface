@@ -34,6 +34,7 @@ import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projec
 import { projectPulse } from './pulse.ts';
 import * as trading from './trading.ts';
 import { buildActions } from './actions.ts';
+import { fleetReport, withFleetSources } from './fleet.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, projectsJsonPath, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
@@ -613,10 +614,21 @@ export function createCollector(store: EventStore): CollectorApp {
           manager: entry?.manager ?? `manager:${v.id}`,
           priority: entry?.priority ?? 2,
           focus: entry?.focus ?? '',
-          playbook: resolvePlaybook(v.id, v.label, entry?.playbook),
+          playbook: withFleetSources(v.id, resolvePlaybook(v.id, v.label, entry?.playbook)),
         };
       }),
     });
+  });
+
+  /**
+   * Het wagenpark: de CSV's van schijf, de termijnen uitgerekend in
+   * `fleetDeadlines()` (pure functie, 0 tokens). De compliance-rol leest dit
+   * en hoeft zelf niets te tellen; klopt een venster niet, dan is dat een bug
+   * in die functie en niet een agent die verkeerd rekende.
+   */
+  app.get('/fleet', (req, res) => {
+    allowOrigin(req, res);
+    res.json(fleetReport());
   });
 
   app.get('/office/:project', async (req, res) => {
@@ -724,7 +736,10 @@ export function createCollector(store: EventStore): CollectorApp {
         ventures: VENTURES.filter((v) => v.id !== 'misc').map((v) => ({
           id: v.id,
           label: v.label,
-          playbook: resolvePlaybook(v.id, v.label, org.ventures?.find((o) => o.id === v.id)?.playbook),
+          playbook: withFleetSources(
+            v.id,
+            resolvePlaybook(v.id, v.label, org.ventures?.find((o) => o.id === v.id)?.playbook),
+          ),
         })),
         tradingProblems: report.problems,
         tradingHalted: tradingState.halted,

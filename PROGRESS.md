@@ -503,3 +503,22 @@ de machine van de eigenaar en zijn rol is nakijken.
 - De doc-writer's README-correcties zijn nagelopen op betekenis vóór overname: "Alle drie"
   klopt omdat het diagram erboven drie schakelaars noemt, prioriteit 1 telt in org.json zes
   takken, en het backup-commando bestaat als script in `apps/collector/package.json`.
+
+## Blex: de eerste twee bronnen zijn een bestand (2026-09-19)
+
+Tweeëntwintig van de 23 databronnen staan los, en de eerste twee van het wagenpark —
+voertuigen met keuringsdata, chauffeurs met termijnen — zijn rekenwerk op een lijst die
+de eigenaar al heeft. Dus geen koppeling maar een CSV.
+
+- `packages/shared/src/fleet.ts`: parser (`;`/`,`, BOM, aanhalingstekens, drie
+  datumvormen, `31-02` is geen datum) en `fleetDeadlines()` met `DEADLINE_WINDOWS`
+  (14/30/60) als getal — regel 1. Lege datum = `ontbreekt`, achteraan in de lijst maar
+  wél in de lijst — regel 4. Zes tests.
+- Collector `GET /fleet` (`ARA_FLEET_DIR`, 60s cache) en `withFleetSources()`: een
+  aanwezig bestand markeert de bron in `/org` en `/actions` als aangesloten. Endpoint-test
+  pint vast: zonder bestand niet aangesloten, met bestand uitgerekend en uit de actielijst.
+- `ops/fleet/`: voorbeeldbestanden + README met kolommen. `ara-compliance-watch` leest
+  `/fleet` en escaleert met de exacte bestandsnamen als beide ontbreken.
+
+Wat de eigenaar doet: twee bestanden neerzetten. De andere drie Blex-bronnen
+(garagepunten, kosten, trailers) blijven in de actielijst tot ze er zijn.

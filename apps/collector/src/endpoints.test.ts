@@ -21,6 +21,10 @@ process.env.ARA_PROJECTS_JSON = path.join(
   'projects.json',
 );
 
+// En het wagenpark: een eigen map, zodat de test nooit de echte lijsten van de
+// eigenaar leest of daar iets naast zet.
+process.env.ARA_FLEET_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-fleet-'));
+
 const { openStore } = await import('./db.ts');
 const { createCollector } = await import('./server.ts');
 
@@ -698,5 +702,49 @@ test('/usage: een latere post zonder stempel maakt van een agent geen mens', asy
     assert.equal(res.usage.reduce((sum, r) => sum + r.agentTokens, 0), 300);
   } finally {
     server.close();
+  }
+});
+
+test('/fleet: zonder bestand niet aangesloten, met bestand uitgerekend en in /org gemarkeerd', async () => {
+  const { forgetFleet } = await import('./fleet.ts');
+  const { store, server, base } = boot();
+  const fleetDir = process.env.ARA_FLEET_DIR!;
+  try {
+    forgetFleet();
+    const empty = await (await fetch(`${base}/fleet`)).json();
+    assert.equal(empty.vehicles.present, false);
+    assert.equal(empty.deadlines.length, 0);
+    const orgBefore = await (await fetch(`${base}/org`)).json();
+    const blexBefore = orgBefore.ventures.find((v: { id: string }) => v.id === 'blex');
+    const src = (org: typeof orgBefore, label: string) =>
+      org.ventures
+        .find((v: { id: string }) => v.id === 'blex')
+        .playbook.dataSources.find((d: { label: string }) => d.label.startsWith(label));
+    assert.equal(src(orgBefore, 'Kenteken').configured, false);
+    assert.ok(blexBefore, 'blex bestaat');
+
+    // Een lijst neerzetten is de hele koppeling.
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    fs.writeFileSync(path.join(fleetDir, 'vehicles.csv'), `kenteken;km;apk\n12-ABC-3;1000;${soon}\n`);
+    forgetFleet();
+    const report = await (await fetch(`${base}/fleet`)).json();
+    assert.equal(report.vehicles.present, true);
+    assert.equal(report.vehicles.rows.length, 1);
+    assert.equal(report.deadlines[0].window, '14');
+    assert.equal(report.summary.binnen14, 1);
+    // Drie termijnen ontbreken in deze lijst, en dat staat erbij.
+    assert.equal(report.summary.ontbreekt, 3);
+
+    const orgAfter = await (await fetch(`${base}/org`)).json();
+    assert.equal(src(orgAfter, 'Kenteken').configured, true);
+    assert.equal(src(orgAfter, 'Chauffeurstermijnen').configured, false, 'drivers.csv staat er niet');
+    const actions = (await (await fetch(`${base}/actions`)).json()).actions as { title: string }[];
+    assert.ok(!actions.some((a) => a.title.includes('Kenteken, APK-datum')), 'uit de actielijst');
+    assert.ok(actions.some((a) => a.title.includes('Chauffeurstermijnen')), 'de andere staat er nog');
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(path.join(fleetDir, 'vehicles.csv'), { force: true });
+    forgetFleet();
   }
 });
