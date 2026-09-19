@@ -492,3 +492,28 @@ je geen van beide meer.
 elke verwijzing wijst naar een lid dat ook echt in `staff` staat. Een keten waarin je op een
 dood id stuit, kun je niet tekenen. En `truncated` maakt van `open` eerlijk een **ondergrens**
 (het kantoor zegt "≥", net als de kaart) in plaats van een getal dat toevallig de limiet is.
+
+## Elke databron is een bestand, en de artifact is een etalage (2026-09-19)
+
+Tweeëntwintig bronnen stonden op `configured: false` met een "VUL-IN" erbij. De keuze was:
+per bron een koppeling bouwen (Supabase, TMS-API, broker), of per bron één bestand met een
+kolomlijst. Het werd het bestand. Niet omdat een koppeling niet kan, maar omdat een
+koppeling een sleutel vraagt — en ARA houdt nooit een sleutel met rechten op geld of
+productie. Een export of het statusbestand dat de bot zelf schrijft is precies genoeg om
+op te rekenen, en de eigenaar kan het vullen zonder dat er code aan te pas komt. Wat eruit
+volgde: de bureaus vullen zichzelf (`stationsFromSources`), de actielijst leest dezelfde
+tabellen (`sourceAlerts`), en "aangesloten" is geen vinkje in org.json meer maar een
+bestand met minstens één regel. Een kop zonder regels telt niet: dat is regel 4 in
+bestandsvorm.
+
+Twee reviews vonden samen zevenentwintig punten, waaronder één crash-lus uit een `;;`-regel.
+De les die blijft: **een lezer die een kolom leest die de spec niet kent, zwijgt stil** —
+daarom pint een Proxy-test nu vast dat kantoor en actielijst alleen spec-kolommen aanraken.
+
+De artifact op claude.ai vroeg om een collector-adres. Dat veld kon nooit werken: een pagina
+die claude.ai host mag van de browser geen verbinding naar buiten maken — fetch, SSE,
+WebSocket, allemaal geblokkeerd zonder foutmelding, Tailscale of niet. De keuze was: de
+artifact laten vallen, of hem eerlijk maken. Hij is eerlijk gemaakt: `--mode showcase` start
+altijd de demo en zegt één keer waar de echte wereld staat. De telefoon-weg blijft de PWA
+die de collector zelf serveert via Tailscale, en daarvoor kwam een QR-code in de balk — het
+adres overtypen op een telefoon is de stap waar het misging.
