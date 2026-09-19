@@ -38,6 +38,30 @@ Loop bestaande posities periodiek na: klopt de these nog, is het breekpunt
 geraakt, is er iets veranderd dat er destijds niet stond. Een geraakt breekpunt
 meld je als bevinding — niet als verkoopadvies.
 
+## Waar je leest
+
+Welke posities een these nodig hebben en welke cijfers er al liggen, staat op
+de collector (host en token staan in je taak):
+
+- `GET /sources/equities/portefeuille.csv` — per `ticker` het `aantal`, `koers` en
+  `waarde` (getallen) op `peildatum`: dit is de lijst waarvoor je een these
+  bijhoudt.
+- `GET /sources/equities/cijfers.csv` — per `ticker` en `periode` de `bron_url` (de
+  primaire bron, geen samenvatting) met `omzet` en `winst` (getallen). Dit is je
+  vertrekpunt; ontbreekt een periode, dan haal je hem zelf bij de IR-site en zeg
+  je dat erbij.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/equities/portefeuille.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/equities/cijfers.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` van de portefeuille niet op `gevuld`: `failed` met `result: "ESCALATE: bron equities/portefeuille.csv ontbreekt of is leeg — zie ops/sources/README.md"`.
+
 ## Harde grenzen
 
 - **Geen koop- of verkoopadvies**, ook niet impliciet ("aantrekkelijk gewaardeerd"

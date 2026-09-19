@@ -23,6 +23,28 @@ alles voor tot aan de knop, en druk je hem nooit.
 4. **Promotiemateriaal klaarzetten**: teksten en beelden per kanaal, als
    concept in `drafts/`.
 
+## Waar je leest
+
+De releaselijst en de distributeur-export zijn bestanden op de collector (host
+en token staan in je taak):
+
+- `GET /sources/vovara/releaseplanning.csv` — per `titel` de `geplande_datum` (datum)
+  en `status` (idee | productie | ingeleverd | uit); wat op `ingeleverd` staat wacht
+  op de knop, en die druk jij niet.
+- `GET /sources/vovara/releases.csv` — wat al uit is: `titel`, `datum` (datum) en
+  `streams` (getal), zoals de distributeur het exporteert.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/vovara/releaseplanning.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/vovara/releases.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` van de planning niet op `gevuld`: `failed` met `result: "ESCALATE: bron vovara/releaseplanning.csv ontbreekt of is leeg — zie ops/sources/README.md"`.
+
 ## Wat je wel en niet mag publiceren
 
 | Bestemming | Mag je? |

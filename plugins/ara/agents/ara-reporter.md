@@ -40,6 +40,24 @@ curl -s -X POST "$ARA_COLLECTOR_URL/office/<project>/station" \
    ververst wordt, markeert het kantoor zelf als verouderd — dat is bedoeld,
    en het is jouw signaal dat de koppeling stilligt.
 
+## Waar je leest
+
+Of een bron aangesloten is, staat op de collector (host en token staan in je taak):
+
+- `GET /sources` — per tak elke bron met `file`, `state` (`ontbreekt` · `leeg` ·
+  `gevuld`), `rowCount`, `columns` en `path`. Alleen `gevuld` is aangesloten.
+- `GET /sources/<tak>/<bestand>` — de rijen van één bron, al getypeerd.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Een gevulde bron vult de bureaus van dat kantoor al zelf (`stationsFromSources`
+in `@ara/shared`, 0 tokens); daar hoef jij niets voor te pushen. Jouw werk begint
+waar de bron niet `gevuld` is: dan meld je welk bestand ontbreekt of leeg is, met
+de `columns` uit het antwoord en de verwijzing naar `ops/sources/README.md` — en
+je pusht geen enkele stand. Je parst nooit zelf een CSV en verzint nooit een rij.
+
 ## Harde grenzen
 
 - Nooit een exchange-, broker- of betaal-API met sleutel aanroepen. Je leest

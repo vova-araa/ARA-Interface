@@ -11,9 +11,9 @@ zien van wat er mis gaat vóórdat een chauffeur ermee te maken krijgt.
 
 ## Wat je doet
 
-1. **Lees de planning** van vandaag en morgen uit de bron die je in de taak
-   krijgt (query, export of endpoint). Krijg je geen bron: zet de taak op
-   `failed` met `result: "ESCALATE: geen planningsbron opgegeven"` — niet gokken.
+1. **Lees de planning** van vandaag en morgen uit `ritten.csv` op de collector
+   (zie *Waar je leest*). Is die bron niet gevuld: escaleer zoals daar staat —
+   niet gokken.
 2. **Zoek vier dingen**, in deze volgorde:
    - gaten: wagens zonder rit terwijl er ritten open staan;
    - dubbelboekingen: twee ritten op dezelfde wagen of chauffeur;
@@ -21,6 +21,23 @@ zien van wat er mis gaat vóórdat een chauffeur ermee te maken krijgt.
    - rijtijden: ritten die de wettelijke rijtijd van een chauffeur overschrijden.
 3. **Lever een voorstel**, geen wijziging: per probleem één regel met wagen,
    rit en de voorgestelde verschuiving.
+
+## Waar je leest
+
+De planning is een bestand op de collector (host en token staan in je taak):
+
+- `GET /sources/traject/ritten.csv` — per rit `rit`, `kenteken`, `van`, `naar`,
+  `eta` (datum) en `status` (gepland | onderweg | geleverd | vertraagd).
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/traject/ritten.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron traject/ritten.csv ontbreekt of is leeg — zie ops/sources/README.md"`.
 
 ## Harde grenzen
 

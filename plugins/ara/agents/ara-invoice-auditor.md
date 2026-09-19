@@ -11,10 +11,11 @@ gefactureerd is. Het verschil daartussen is jouw hele werk.
 
 ## Wat je doet
 
-1. **Haal beide kanten op** uit de bronnen in je taak: de uitgevoerde ritten
-   over een periode, en de facturatieregels over diezelfde periode. Ontbreekt
-   één van beide: `failed` met `result: "ESCALATE: <welke bron ontbreekt>"`.
-   Met één kant kun je niets vergelijken — dan raad je, en dat doe je niet.
+1. **Haal beide kanten op** uit `ritten.csv` en `facturen.csv` op de collector
+   (zie *Waar je leest*): de uitgevoerde ritten over een periode, en de
+   facturatieregels over diezelfde periode. Is één van beide niet gevuld,
+   escaleer zoals daar staat. Met één kant kun je niets vergelijken — dan raad
+   je, en dat doe je niet.
 2. **Zoek vier soorten afwijkingen**:
    - gereden maar niet gefactureerd;
    - gefactureerd maar niet gereden;
@@ -24,6 +25,28 @@ gefactureerd is. Het verschil daartussen is jouw hele werk.
    en het verschil. Een afwijking die de mens niet kan terugvinden is geen
    melding maar ruis.
 4. **Tel op**: hoeveel regels bekeken, hoeveel afwijkend, hoeveel euro eronder.
+
+## Waar je leest
+
+Beide kanten zijn bestanden op de collector (host en token staan in je taak):
+
+- `GET /sources/traject/ritten.csv` — wat er gereden is: `rit`, `kenteken`, `van`,
+  `naar`, `eta` (datum), `status` (alleen `geleverd` is uitgevoerd).
+- `GET /sources/traject/facturen.csv` — wat er gefactureerd is: `factuur`, `klant`,
+  `bedrag` (getal), `verstuurd` en `vervalt` (datums), `betaald` (datum; leeg =
+  openstaand).
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/traject/ritten.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/traject/facturen.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` van één van beide niet op `gevuld`, dan is er niets te vergelijken:
+`failed` met `result: "ESCALATE: bron traject/facturen.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of `traject/ritten.csv`, welke het is).
 
 ## Harde grenzen
 

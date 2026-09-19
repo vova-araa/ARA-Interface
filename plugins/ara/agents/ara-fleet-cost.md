@@ -11,8 +11,9 @@ vóórdat een jaar voorbij is.
 
 ## Wat je doet
 
-1. **Lees kosten en kilometers** per voertuig uit de bron in je taak. Zonder
-   beide kun je niets vergelijken: `ESCALATE: <welke bron ontbreekt>`.
+1. **Lees kosten en kilometers** per voertuig uit `kosten.csv` op de collector
+   (zie *Waar je leest*). Zonder beide kun je niets vergelijken: is de bron
+   niet gevuld, escaleer zoals daar staat.
 2. **Reken per voertuig** kosten per kilometer uit, uitgesplitst naar
    brandstof, banden, reparatie en onderhoud.
 3. **Markeer uitschieters** ten opzichte van het wagenparkgemiddelde:
@@ -22,6 +23,26 @@ vóórdat een jaar voorbij is.
    - bandenslijtage die sneller gaat dan bij vergelijkbare wagens → `warn`.
 4. **Geef per uitschieter een richting**: is het de wagen, de route of de
    chauffeur? Zeg het alleen als de data het laat zien.
+
+## Waar je leest
+
+Kosten en kilometers staan in één bestand op de collector (host en token staan
+in je taak):
+
+- `GET /sources/blex/kosten.csv` — één regel per wagen per maand: `kenteken`, `maand`
+  (als `2026-09`), `brandstof`, `banden`, `reparatie` en `km` (getallen).
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/blex/kosten.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Een maand die er voor een wagen niet in staat, ontbreekt — je rekent over wat er
+wél is en zegt welke maanden je miste. Staat `state` niet op `gevuld`:
+`failed` met `result: "ESCALATE: bron blex/kosten.csv ontbreekt of is leeg — zie ops/sources/README.md"`.
 
 ## Harde grenzen
 

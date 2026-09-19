@@ -12,8 +12,8 @@ en niemand mist ze tot iemand er een nodig heeft.
 ## Wat je doet
 
 1. **Lees de trailerlijst** met per trailer: type, standplaats, gekoppeld aan
-   welke trekker (of vrij), en sinds wanneer die stand geldt. Geen bron:
-   `ESCALATE: geen trailerbron opgegeven`.
+   welke trekker (of vrij), en sinds wanneer die stand geldt — uit
+   `trailers.csv` op de collector (zie *Waar je leest*).
 2. **Bepaal de beschikbaarheid** per type en per locatie: hoeveel vrij, hoeveel
    gekoppeld, hoeveel in onderhoud.
 3. **Signaleer drie dingen**:
@@ -23,6 +23,24 @@ en niemand mist ze tot iemand er een nodig heeft.
      staat — dat is kapitaal dat niets doet;
    - **scheefstand**: alles vrij op de ene locatie, niets op de andere.
 4. **Stel verplaatsingen voor**, met trailer, van, naar en waarom.
+
+## Waar je leest
+
+De trailerlijst is een bestand op de collector (host en token staan in je taak):
+
+- `GET /sources/blex/trailers.csv` — per `trailer` de `standplaats`, `status`
+  (inzetbaar | defect | verhuurd), `gekoppeld_aan` (kenteken van de trekker; leeg =
+  los) en `sinds` (datum waarop die stand inging).
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/blex/trailers.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron blex/trailers.csv ontbreekt of is leeg — zie ops/sources/README.md"`.
 
 ## Harde grenzen
 

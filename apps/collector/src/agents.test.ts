@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { VENTURES, resolvePlaybook } from '@ara/shared';
+import { SOURCE_SPECS, VENTURES, resolvePlaybook } from '@ara/shared';
 
 /**
  * Structurele controles op de agent-organisatie. Nul tokens, draait in CI.
@@ -443,5 +443,100 @@ test('agents: managers delen één rolbestand; tak-specifieke inhoud komt uit /o
       ids.has(file.replace(/\.md$/, '')),
       `plugins/ara/managers/${file} hoort bij geen enkele venture uit org.json — een addendum dat niemand leest`,
     );
+  }
+});
+
+/**
+ * Sinds elke databron een bestand is (`SOURCE_SPECS` in @ara/shared), leest een
+ * rol hem via `GET /sources/<tak>/<bestand>` en parst hij geen CSV zelf. Welke
+ * rol welke bron nodig heeft staat hier expliciet — afgeleid uit de duties in
+ * org.ts, maar opgeschreven, zodat de test leesbaar is en niet raadt. Een rol
+ * die hier staat maar de bron niet noemt, gaat 'm in een taak zelf verzinnen.
+ */
+const SOURCE_READS: Record<string, string[]> = {
+  'ara-planner': ['traject/ritten.csv'],
+  'ara-invoice-auditor': ['traject/ritten.csv', 'traject/facturen.csv'],
+  'ara-compliance-watch': ['blex/vehicles.csv', 'blex/drivers.csv'],
+  'ara-fleet-tech': ['blex/vehicles.csv', 'blex/garage.csv'],
+  'ara-fleet-cost': ['blex/kosten.csv'],
+  'ara-trailer-manager': ['blex/trailers.csv'],
+  'ara-market-analyst': ['trading/posities.csv', 'crypto/portefeuille.csv'],
+  'ara-risk-guard': ['trading/posities.csv', 'crypto/portefeuille.csv', 'equities/portefeuille.csv'],
+  'ara-trade-journal': ['trading/trades.csv'],
+  'ara-event-scout': ['crypto/portefeuille.csv'],
+  'ara-execution-trader': ['trading/posities.csv', 'crypto/portefeuille.csv', 'equities/portefeuille.csv'],
+  'ara-allocation-guard': [
+    'crypto/portefeuille.csv',
+    'crypto/allocatie.csv',
+    'equities/portefeuille.csv',
+    'equities/sectorallocatie.csv',
+  ],
+  'ara-site-watch': ['elevate/sites.csv'],
+  'ara-booking-watch': ['uprising/boekingen.csv', 'uprising/aanvragen.csv'],
+  'ara-release-manager': ['vovara/releaseplanning.csv', 'vovara/releases.csv'],
+  'ara-equity-analyst': ['equities/portefeuille.csv', 'equities/cijfers.csv'],
+  'ara-earnings-watch': ['equities/kwartaalagenda.csv', 'equities/portefeuille.csv'],
+};
+
+test('agents: wie een bron nodig heeft, leest hem via GET /sources en escaleert als hij ontbreekt', () => {
+  const agents = new Map(loadAgents().map((a) => [a.name, a]));
+  const known = new Set(SOURCE_SPECS.map((s) => `${s.venture}/${s.file}`));
+  const specialistsOf = new Map(
+    VENTURES.filter((v) => v.id !== 'misc').map((v) => [
+      v.id,
+      new Set(resolvePlaybook(v.id, v.label).specialists.map((s) => s.agent)),
+    ]),
+  );
+
+  for (const [name, reads] of Object.entries(SOURCE_READS)) {
+    const agent = agents.get(name);
+    assert.ok(agent, `${name} ontbreekt`);
+    assert.match(agent.body, /## Waar je leest/, `${name} zegt niet waar hij leest`);
+
+    // De sectie staat vóór de grenzen: eerst waar de cijfers vandaan komen, dan
+    // wat je ermee niet mag. Een rol zonder "Harde grenzen" heeft een andere kop.
+    const grenzen = agent.body.indexOf('## Harde grenzen');
+    if (grenzen >= 0) {
+      assert.ok(
+        agent.body.indexOf('## Waar je leest') < grenzen,
+        `${name}: "Waar je leest" hoort vóór "Harde grenzen"`,
+      );
+    }
+
+    for (const src of reads) {
+      // De test zelf mag ook niet naar een bron wijzen die de registry niet kent.
+      assert.ok(known.has(src), `${name}: ${src} staat niet in SOURCE_SPECS`);
+      assert.ok(
+        agent.body.includes(`GET /sources/${src}`),
+        `${name} noemt \`GET /sources/${src}\` niet — dan leest hij de bron uit zijn taak of parst hij zelf`,
+      );
+      // Een rol leest alleen bronnen van een tak waar hij ook echt zit.
+      const venture = src.split('/')[0]!;
+      assert.ok(
+        specialistsOf.get(venture)?.has(name),
+        `${name} leest ${src}, maar staat niet als specialist in het playbook van ${venture}`,
+      );
+    }
+
+    // Eén escalatievorm voor "bron ontbreekt of is leeg", met de verwijzing naar
+    // de tabel waar de eigenaar het bestand vandaan haalt.
+    // Zinnen lopen over regels heen, dus toetsen we op de platgeslagen tekst.
+    assert.match(
+      flatten(agent.body),
+      /ESCALATE: bron [a-z]+\/[a-z.-]+ ontbreekt of is leeg — zie ops\/sources\/README\.md/,
+      `${name} mist de escalatievorm voor een ontbrekende of lege bron`,
+    );
+    assert.match(flatten(agent.body), /parst nooit zelf een CSV/i, `${name} moet benoemen dat hij geen CSV zelf parst`);
+  }
+
+  // Wie het overzicht doet, leest de lijst — en geen enkele rol wijst naar een
+  // bron die de registry niet kent (een tikfout in een bestandsnaam is een 404
+  // die de rol als "ontbreekt" gaat melden).
+  assert.match(agents.get('ara-reporter')!.body, /GET \/sources\b/, 'ara-reporter leest GET /sources');
+  for (const agent of agents.values()) {
+    for (const match of agent.body.matchAll(/\/sources\/([a-z]+)\/([a-z.-]+)/g)) {
+      const src = `${match[1]}/${match[2]}`;
+      assert.ok(known.has(src), `${agent.file} verwijst naar /sources/${src}, maar die bron bestaat niet in SOURCE_SPECS`);
+    }
   }
 });

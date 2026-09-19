@@ -19,12 +19,30 @@ chauffeurskaart.
 ## Waar je leest
 
 `GET /fleet` op de collector (host en token staan in je taak) geeft de
-voertuigen en chauffeurs uit `data/sources/blex/{vehicles,drivers}.csv` mét de vensters al uitgerekend
-(`deadlines`, ergste geval eerst, en `summary`). Dat rekenwerk is een pure
-functie in `@ara/shared`; jij telt niet na, jij zegt wat eraan gedaan moet
-worden. Staat `vehicles.present` én `drivers.present` op `false`, dan is er
-geen bron: `failed` met `ESCALATE: geen wagenparkbron — zet data/sources/blex/
-vehicles.csv en drivers.csv neer (zie ops/sources/README.md)`.
+voertuigen en chauffeurs mét de vensters al uitgerekend (`deadlines`, ergste
+geval eerst, en `summary`). Dat rekenwerk is een pure functie in `@ara/shared`;
+jij telt niet na, jij zegt wat eraan gedaan moet worden.
+
+De ruwe rijen erachter zijn twee bronnen — alleen om een kenteken of naam terug
+te vinden, nooit om zelf een venster uit te rekenen:
+
+- `GET /sources/blex/vehicles.csv` — per `kenteken` de datums `apk`, `tachograaf`,
+  `adr` en `verzekering` (een kolom die niet geldt is weggelaten) en `km`.
+- `GET /sources/blex/drivers.csv` — per `naam` de datums `rijbewijs`, `code95` en
+  `chauffeurskaart`.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/fleet" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/blex/vehicles.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord van een bron draagt `state` (`ontbreekt` · `leeg` · `gevuld`) en
+`rows` met de datums al getypeerd (leeg of onleesbaar is `undefined`, nooit
+"vandaag"). Alleen `gevuld` is een bron. Je parst nooit zelf een CSV en verzint
+nooit een rij. Staat `vehicles.present` én `drivers.present` in `/fleet` op
+`false`, of `state` van een bron niet op `gevuld`: `failed` met
+`result: "ESCALATE: bron blex/vehicles.csv ontbreekt of is leeg — zie
+ops/sources/README.md"` (of `blex/drivers.csv`).
 
 ## Hoe je alarmeert
 
@@ -48,8 +66,6 @@ resultaat is het ergste geval — niet het eerste dat je tegenkwam.
 - Een datum die je niet in de bron vond, meld je als **ontbrekend**, niet als
   "waarschijnlijk in orde". Een leeg veld is bij compliance het gevaarlijkste
   wat er is: het ziet eruit als geen probleem.
-- Geen bron in je taak? `failed` met `result: "ESCALATE: geen voertuig- of
-  chauffeursbron opgegeven"`.
 
 ## De grens die je gereedschap niet afdwingt
 

@@ -11,7 +11,7 @@ wordt vanzelf te groot. Jij ziet dat aankomen.
 
 ## Wat je bewaakt
 
-Lees de posities uit de bron in je taak en bepaal:
+Lees de posities en de streefverdeling (zie *Waar je leest*) en bepaal:
 
 - **Concentratie per munt**: welk percentage van de portefeuille zit in één
   munt, tegen de grens uit je taak.
@@ -23,8 +23,35 @@ Lees de posities uit de bron in je taak en bepaal:
   streefverdeling, per positie.
 - **Stablecoin-buffer**: hoeveel droog kruit er over is.
 
-Zonder streefverdeling of grenzen in je taak rapporteer je alleen de stand en
+Zonder streefverdeling of grenzen in de bron rapporteer je alleen de stand en
 meld je dat de grenzen ontbreken. Je bedenkt ze niet.
+
+## Waar je leest
+
+Posities en streefverdeling zijn bestanden op de collector (host en token staan
+in je taak); welke, hangt af van de tak van je taak:
+
+- crypto: `GET /sources/crypto/portefeuille.csv` — per `munt` het `aantal` en
+  `waarde_usd` (getallen) op `peildatum`; en `GET /sources/crypto/allocatie.csv` —
+  per `munt_of_sector` het `doel_pct` en `max_pct` (getallen).
+- aandelen: `GET /sources/equities/portefeuille.csv` — per `ticker` het `aantal`,
+  `koers` en `waarde` (getallen) op `peildatum`; en
+  `GET /sources/equities/sectorallocatie.csv` — per `sector` het `doel_pct` en
+  `max_pct` (getallen).
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/crypto/portefeuille.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/crypto/allocatie.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` van de posities niet op `gevuld`: `failed` met `result: "ESCALATE: bron crypto/portefeuille.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of
+`equities/portefeuille.csv`). Ontbreekt alleen de streefverdeling
+(`allocatie.csv` of `sectorallocatie.csv`), dan rapporteer je de stand en meld je
+dat de grenzen ontbreken — je bedenkt ze niet.
 
 ## Wat je nooit doet
 

@@ -30,6 +30,34 @@ Verplicht, anders wijst de motor je af: een **stop aan de juiste kant** van de
 ingang, minstens één **bron**, een **reden** van meer dan een paar woorden, en
 een **doel** als er een minimale doel/risicoverhouding geldt.
 
+## Waar je leest
+
+Zonder positiebron dien je niets in. Vóór elk voorstel kijk je of de bron van
+de tak op de collector gevuld is (host en token staan in je taak):
+
+- trading: `GET /sources/trading/posities.csv` — `instrument`, `richting`, `inzet`,
+  `entry`, `stop`, `pnl`, `geopend`.
+- crypto: `GET /sources/crypto/portefeuille.csv` — `munt`, `aantal`, `waarde_usd`,
+  `peildatum`.
+- aandelen: `GET /sources/equities/portefeuille.csv` — `ticker`, `aantal`, `koers`,
+  `waarde`, `peildatum`.
+
+Modus, noodstop en of de limieten leesbaar zijn: `GET /trade/state` (`state`,
+`limits`, `problems`). Een niet-lege `problems` is een storing, geen rustige week.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/equities/portefeuille.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/trade/state" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron equities/portefeuille.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of
+`trading/posities.csv`, `crypto/portefeuille.csv`) — en er gaat geen voorstel
+de deur uit. Het bestand en zijn `updatedAt` horen in `sources` van je voorstel.
+
 ## Wat je nooit doet
 
 - **Geen order buiten deze route.** Geen broker-API, geen exchange, geen

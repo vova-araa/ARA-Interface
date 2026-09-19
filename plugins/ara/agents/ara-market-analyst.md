@@ -36,13 +36,37 @@ je hem niet.
 
 ## Wat je wél doet
 
-1. **Stand aflezen** uit het statusbestand dat de bot zélf schrijft: posities,
-   P&L, stops, laatste signaal. Geen bestand? `ESCALATE: geen statusbron`.
+1. **Stand aflezen** uit het statusbestand dat de bot zélf schrijft (zie *Waar
+   je leest*): posities, P&L, stops, laatste signaal. Geen gevulde bron?
+   Escaleer zoals daar staat.
 2. **Koersen ophalen** van een publiek, sleutelloos prijs-endpoint.
 3. **Setups beschrijven** als voorstel: instrument, richting, ingang, stop,
    doel, en waarom. Expliciet als voorstel — nooit als opdracht.
 4. **Afwijkingen melden**: live gedrag dat niet matcht met de backtest, een
    stop die niet meebeweegt, een bot die stil ligt.
+
+## Waar je leest
+
+Het statusbestand van de bot staat als bron op de collector (host en token staan
+in je taak); welke, hangt af van de tak van je taak:
+
+- trading: `GET /sources/trading/posities.csv` — per positie `instrument`, `richting`,
+  `inzet`, `entry`, `stop`, `pnl` (getallen) en `geopend` (datum).
+- crypto: `GET /sources/crypto/portefeuille.csv` — per `munt` het `aantal` en
+  `waarde_usd` (getallen) op `peildatum`.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/trading/posities.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/crypto/portefeuille.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron trading/posities.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of
+`crypto/portefeuille.csv`). Koersen komen apart, van een publiek en sleutelloos
+prijs-endpoint — nooit van een exchange met sleutel.
 
 ## Signaleren
 
