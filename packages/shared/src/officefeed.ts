@@ -52,12 +52,14 @@ function metrics(pairs: [string, string | undefined, Metric['tone']?][]): Metric
     .map(([label, value, tone]) => (tone ? { label, value, tone } : { label, value }));
 }
 
+/** Eén bureau uit één bestand: `source` is de bestandsnaam, zodat het kantoor kan zeggen waar het cijfer vandaan komt. */
 function station(
   id: string,
+  source: string,
   updatedAt: number | undefined,
-  fields: Omit<StationOverride, 'id' | 'updatedAt' | 'staleAfterMs'>,
+  fields: Omit<StationOverride, 'id' | 'updatedAt' | 'staleAfterMs' | 'source'>,
 ): StationOverride {
-  return { id, ...fields, updatedAt, staleAfterMs: FILE_STALE_MS };
+  return { id, ...fields, source, updatedAt, staleAfterMs: FILE_STALE_MS };
 }
 
 // ── per branche ──────────────────────────────────────────────────────────
@@ -73,7 +75,7 @@ function fleet(t: SourceTables, now: number): OfficeFeed | undefined {
     const apk = daysLeft(num(v.apk), now);
     const open = openPoints(kenteken);
     const status: StationStatus = apk !== undefined && apk <= 14 ? 'alert' : open > 0 ? 'working' : 'idle';
-    return station(kenteken, vehicles.updatedAt, {
+    return station(kenteken, 'vehicles.csv', vehicles.updatedAt, {
       label: kenteken,
       sub: open > 0 ? 'in de garage' : 'rijdend',
       status,
@@ -103,7 +105,7 @@ function tms(t: SourceTables, now: number): OfficeFeed | undefined {
     const id = str(r.rit)!;
     const st = str(r.status)?.toLowerCase() ?? '';
     const eta = num(r.eta);
-    return station(id, ritten.updatedAt, {
+    return station(id, 'ritten.csv', ritten.updatedAt, {
       label: id,
       sub: [str(r.van), str(r.naar)].filter(Boolean).join(' → ') || 'rit',
       status: TMS_STATUS[st] ?? 'idle',
@@ -124,7 +126,7 @@ function trading(t: SourceTables): OfficeFeed | undefined {
   const overrides = pos.rows.slice(0, STATION_CAP).map((p) => {
     const id = str(p.instrument)!;
     const stop = num(p.stop);
-    return station(id, pos.updatedAt, {
+    return station(id, 'posities.csv', pos.updatedAt, {
       label: id,
       sub: `${str(p.richting) ?? 'positie'} · open`,
       // Een positie zonder stop is precies wat de risicobewaker moet zien.
@@ -164,7 +166,7 @@ function portfolio(t: SourceTables, idKey: 'munt' | 'ticker', valueKey: string, 
     const weight = w?.get(String(r[idKey]));
     const max = maxPct.get(id);
     const over = weight !== undefined && max !== undefined && weight > max;
-    return station(id, pf.updatedAt, {
+    return station(id, 'portefeuille.csv', pf.updatedAt, {
       label: id,
       sub: weight === undefined ? 'positie' : `${weight.toFixed(1)}% van de portefeuille`,
       status: over ? 'alert' : 'working',
@@ -188,7 +190,7 @@ function design(t: SourceTables, now: number): OfficeFeed | undefined {
     const id = str(j.opdracht)!;
     const left = daysLeft(num(j.deadline), now);
     const st = str(j.status)?.toLowerCase() ?? '';
-    return station(id, jobs.updatedAt, {
+    return station(id, 'opdrachten.csv', jobs.updatedAt, {
       label: id,
       sub: str(j.klant) ?? 'opdracht',
       status: left !== undefined && left < 7 && st !== 'af' ? 'alert' : DESIGN_STATUS[st] ?? 'idle',
@@ -218,7 +220,7 @@ function studio(t: SourceTables, now: number): OfficeFeed | undefined {
   });
   const overrides = rows.slice(0, STATION_CAP).map((b, i) => {
     const id = `${str(b.klant) ?? 'boeking'} · ${str(b.ruimte) ?? i + 1}`;
-    return station(id, bookings.updatedAt, {
+    return station(id, 'boekingen.csv', bookings.updatedAt, {
       label: id,
       sub: dateText(num(b.datum)) ?? 'datum ontbreekt',
       status: STUDIO_STATUS[str(b.status)?.toLowerCase() ?? ''] ?? 'idle',
@@ -242,7 +244,7 @@ function music(t: SourceTables): OfficeFeed | undefined {
   const planned = (plan?.rows ?? []).filter((p) => str(p.status)?.toLowerCase() !== 'uit');
   const overrides: StationOverride[] = [
     ...planned.map((p) =>
-      station(str(p.titel)!, plan!.updatedAt, {
+      station(str(p.titel)!, 'releaseplanning.csv', plan!.updatedAt, {
         label: str(p.titel)!,
         sub: `gepland ${dateText(num(p.geplande_datum)) ?? '—'}`,
         status: MUSIC_STATUS[str(p.status)?.toLowerCase() ?? ''] ?? 'idle',
@@ -254,7 +256,7 @@ function music(t: SourceTables): OfficeFeed | undefined {
       }),
     ),
     ...(releases?.rows ?? []).map((r) =>
-      station(str(r.titel)!, releases!.updatedAt, {
+      station(str(r.titel)!, 'releases.csv', releases!.updatedAt, {
         label: str(r.titel)!,
         sub: `uit ${dateText(num(r.datum)) ?? '—'}`,
         status: 'done',

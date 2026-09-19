@@ -251,6 +251,21 @@ test('werkplek: een stilgevallen koppeling ziet er niet levend uit', () => {
   assert.equal(zonderTijd.stations.find((s) => s.id === 'BTC')!.stale, false);
 });
 
+test('werkplek: de herkomst reist mee van override naar station, en wordt nooit ingevuld', () => {
+  const snap = office({
+    overrides: [
+      { id: 'BTC', value: 1, updatedAt: NOW, source: 'portefeuille.csv' },
+      { id: 'ETH', value: 1, updatedAt: NOW },
+    ],
+  });
+  assert.equal(snap.stations.find((s) => s.id === 'BTC')!.source, 'portefeuille.csv', 'uit een bestand: de bestandsnaam');
+  assert.equal(snap.stations.find((s) => s.id === 'ETH')!.source, undefined, 'een agent-push heeft geen bestand');
+  assert.ok(
+    snap.stations.filter((s) => s.simulated).every((s) => s.source === undefined),
+    'en een voorbeeldwerkplek al helemaal niet',
+  );
+});
+
 /* ─────────────────────────── determinisme ─────────────────────────────── */
 
 test('determinisme: hetzelfde kantoor, zonder klok en zonder toeval', () => {

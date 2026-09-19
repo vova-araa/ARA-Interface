@@ -1021,6 +1021,11 @@ button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-col
 .office-tag-stale { background: rgba(255, 107, 107, 0.14); border-color: rgba(255, 107, 107, 0.36); color: #ff9b9b; }
 .office-tag-real { background: rgba(78, 222, 145, 0.12); border-color: rgba(78, 222, 145, 0.3); color: #7ee2a8; }
 
+/* De herkomstregel boven een werkplek: label en "uit vehicles.csv · 3d oud"
+   op één regel, zodat je in één oogopslag ziet waar het cijfer vandaan komt. */
+.office-provenance { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.4; }
+.office-provenance .office-tag { margin-left: 0; }
+
 /* Het cijfer rechts op een werkplekregel: nooit meer een kaal getal. Eronder
    staat van wanneer het is — het enige dat ARA er met zekerheid bij weet. */
 .office-figure {

@@ -116,3 +116,20 @@ test('hoogstens twaalf bureaus, en het kantoor toont ze als echt en niet veroude
   const pushed = buildOffice({ project: 'p', venture, sessions: [], tasks: [], entities: ['X'], overrides: [{ id: 'X', value: 1, updatedAt: NOW - 31 * 60_000 }], now: NOW });
   assert.equal(pushed.stations[0]!.stale, true);
 });
+
+test('herkomst: een bureau uit een bestand draagt die bestandsnaam, tot in het kantoor', () => {
+  const venture = VENTURES.find((v) => v.id === 'blex')!;
+  const feed = stationsFromSources(
+    'blex',
+    { 'vehicles.csv': table('blex', 'Kenteken, APK-datum, kilometerstand', `kenteken;km;apk\nT-1;1;${iso(100)}\n`, NOW - 3 * DAY) },
+    NOW,
+  )!;
+  assert.ok(feed.overrides.every((o) => o.source === 'vehicles.csv'), 'de override noemt zijn bestand');
+  const office = buildOffice({ project: 'truck-trailers', venture, sessions: [], tasks: [], entities: feed.entities, overrides: feed.overrides, now: NOW });
+  const t1 = office.stations.find((s) => s.id === 'T-1')!;
+  assert.equal(t1.source, 'vehicles.csv', 'en het station ook — anders weet de viewer niet waar het cijfer vandaan komt');
+  assert.equal(t1.updatedAt, NOW - 3 * DAY, 'met de mtime van het bestand als leeftijd');
+  // Een agent-push heeft geen bestand; de viewer zegt dan "door agent", niet een verzonnen naam.
+  const pushed = buildOffice({ project: 'p', venture, sessions: [], tasks: [], entities: ['X'], overrides: [{ id: 'X', value: 1, updatedAt: NOW }], now: NOW });
+  assert.equal(pushed.stations[0]!.source, undefined);
+});

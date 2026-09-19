@@ -68,6 +68,12 @@ export interface Station {
   stale: boolean;
   /** Wanneer een agent deze werkplek voor het laatst bijwerkte. */
   updatedAt?: number;
+  /**
+   * Waar het cijfer vandaan komt: de bestandsnaam (`vehicles.csv`) als een
+   * bron het bureau vulde, leeg bij een agent-push of een voorbeeld. Een
+   * cijfer zonder herkomst is niet na te lopen.
+   */
+  source?: string;
 }
 
 export interface OfficeFact {
@@ -463,6 +469,8 @@ export interface StationOverride {
    * zelf hoe vers het hoort te zijn.
    */
   staleAfterMs?: number;
+  /** Bestandsnaam van de bron die dit bureau vulde; leeg = een agent-push. */
+  source?: string;
 }
 
 /** Een koppeling die hier langer dan dit niets stuurde, geldt als stilgevallen. */
@@ -588,6 +596,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       simulated: !isReal,
       stale,
       updatedAt: override?.updatedAt,
+      source: override?.source,
       detail: buildDetail(kind, spec, label, project, key, value, metrics, !isReal, stale),
     };
   });
