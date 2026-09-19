@@ -9,7 +9,7 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "playwright test",
-    "build:artifact": "vite build --base=./ --outDir dist-artifact"
+    "build:artifact": "vite build --base=./ --outDir dist-artifact --mode showcase"
   },
   "dependencies": {
     "@ara/shared": "workspace:*",

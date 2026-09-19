@@ -66,8 +66,9 @@ pnpm trade:review [dagen]    # handelsrapport uit het audit-spoor (0 tokens; --j
 pnpm retro [dagen]           # terugblik op het bord: wie liep waarop vast (0 tokens; --json)
 pnpm sources:init            # elk ontbrekend bronbestand aanmaken met alleen de kop (data/sources/<tak>/)
 pnpm ara:update              # Mac bijwerken: pull → install → viewer-build → launchd herstart → /health
-pnpm --filter @ara/viewer build:artifact   # viewer als losse pagina (dist-artifact/, relatieve
-#   paden) om ergens anders te hosten; hij vindt de collector via ?api=https://…
+pnpm --filter @ara/viewer build:artifact   # etalage-bouw (--mode showcase, dist-artifact/): altijd demo,
+#   want een pagina op claude.ai mag geen verbinding naar buiten maken (CSP) — de echte
+#   wereld op de telefoon is de PWA die de collector zelf serveert, via Tailscale
 pnpm --filter @ara/collector backup   # db-backup; ara-backup-verifier zet 'm wekelijks terug als proef
 pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 7 harde rolgrenzen
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
@@ -282,8 +283,11 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
   uit localStorage; `?api=` leeg zet 'm terug op dezelfde herkomst) in
   `apps/viewer/src/api.ts`. `sanitizeBase()` laat alleen http/https door — een pagina die
   elk schema slikt laat een geprepareerde link bepalen wat er in jouw sessie draait.
-  Daarmee is `build:artifact` te hosten als losse pagina voor de telefoon, met de collector
-  op de Mac achter het tailnet. Token gaat langs dezelfde weg (`?token=`).
+  `?api=` is voor een viewer die je zélf ergens host. **Niet voor de artifact op claude.ai**:
+  die pagina mag van de browser geen fetch/SSE/WebSocket naar een andere host doen (CSP,
+  zonder foutmelding), dus `build:artifact` (`--mode showcase`) start altijd de demo en toont
+  één keer een kaart waar de echte wereld staat (`ShowcaseNote`). De telefoon-weg is de PWA
+  van de collector via Tailscale. Token gaat langs dezelfde weg (`?token=`).
 
 ## Agent-org (plugins/ara)
 

@@ -14,6 +14,7 @@ import { SideTabs } from './ui/SideTabs.tsx';
 import { SoundPlayer } from './ui/Sound.tsx';
 import { ChatPanel } from './ui/ChatPanel.tsx';
 import { ConnectPanel } from './ui/ConnectPanel.tsx';
+import { ShowcaseNote } from './ui/ShowcaseNote.tsx';
 import { OfficeOverlay } from './office/OfficeOverlay.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
@@ -85,6 +86,7 @@ export function App(): JSX.Element {
           dan vraagt dit scherm één keer waar die draait. Zodra er verbinding
           is geweest neemt de reconnect-balk het over. */}
       <ConnectPanel />
+      <ShowcaseNote />
       <ReconnectBanner />
       <NudgePulse />
       <SoundPlayer />

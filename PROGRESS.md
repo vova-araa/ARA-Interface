@@ -641,3 +641,14 @@ verholpen, elk met test:
 - **Kalenderdag lokaal** (`dayStart` in fleet.ts, één plek): om 00:30 in Amsterdam is
   "vandaag" niet gisteren. `configured: true` uit org.json houdt zijn eigen `how`. `/actions`
   trekt één klok voor alle takken.
+
+## De artifact is een etalage, geen venster (2026-09-19)
+
+De eigenaar opende de artifact op zijn telefoon en kreeg "Geen collector gevonden" met een
+adresveld. Dat veld had nooit kunnen werken: een pagina die claude.ai host mag van de
+browser geen fetch, SSE of WebSocket naar een andere host doen (CSP, zonder foutmelding),
+ook niet naar een Tailscale-adres. `build:artifact` bouwt nu met `--mode showcase`: altijd
+de demo-wereld, geen adresvraag, en één keer een kaart (`ShowcaseNote`) die zegt dat dit
+de demo is en waar de echte staat — de PWA die de collector zelf serveert via
+`expose.sh tailnet`. Geverifieerd op 390 px: demo-chip, kaart, geen verbindingsscherm,
+nul externe verzoeken. `?api=` blijft bestaan voor een viewer die je zélf ergens host.

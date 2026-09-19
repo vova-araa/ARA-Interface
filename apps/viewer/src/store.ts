@@ -294,7 +294,11 @@ function syncOfficeParam(project: string | null): void {
 
 export const useAra = create<AraStore>((set, get) => ({
   connected: false,
-  demo: new URLSearchParams(location.search).has('demo'),
+  // Een pagina op claude.ai mag van de browser geen enkele verbinding naar
+  // buiten maken (CSP: geen fetch, SSE of WebSocket naar een andere host), dus
+  // de artifact-bouw (`--mode showcase`) kán nooit een collector bereiken. Dan
+  // is de demo niet een keuze maar de enige wereld die er is — en dat staat erbij.
+  demo: new URLSearchParams(location.search).has('demo') || import.meta.env.MODE === 'showcase',
   world: null,
   snapshot: EMPTY,
   effects: [],

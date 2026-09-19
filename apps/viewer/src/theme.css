@@ -2042,3 +2042,35 @@ button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-col
   font-size: 12px;
   cursor: pointer;
 }
+
+/* ── Etalage-kaart (artifact op claude.ai) ─────────────────────────────────
+   Geen blokkerend scherm: de demo-wereld draait erachter door. Onderaan als
+   sheet op de telefoon, als kaart rechtsonder op een breed scherm. */
+.showcase-note {
+  position: fixed;
+  left: calc(12px + var(--safe-l));
+  right: calc(12px + var(--safe-r));
+  bottom: calc(12px + var(--safe-b));
+  z-index: 55;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+.showcase-card {
+  pointer-events: auto;
+  width: min(440px, 100%);
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+}
+.showcase-lead { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+.showcase-body { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.showcase-body code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+.showcase-card .btn { width: 100%; min-height: var(--tap); }
