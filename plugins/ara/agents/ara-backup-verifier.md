@@ -27,6 +27,12 @@ waarvan je hoopt dat het er een is. Jij haalt die hoop weg.
 
 ## Wanneer je alarm slaat
 
+- **De map ontbreekt of is leeg.** De watchdog maakt de backup dagelijks zelf
+  (sectie 7b, `ARA_BACKUP`); een lege map betekent dat die niet draait of uit
+  staat. Meld dat als storing — `failed` met `result: "ESCALATE: geen backups in
+  <map> — watchdog sectie 7b draait niet (ARA_BACKUP?)"` — en maak er zelf
+  geen: dat is een schrijfactie buiten je tijdelijke map. Zo eindigde je eerste
+  ronde: terecht geweigerd, en sindsdien draait de watchdog hem.
 - Nieuwste backup ouder dan 48 uur.
 - `integrity_check` geeft iets anders dan `ok`.
 - Minder dan drie bestanden bewaard.

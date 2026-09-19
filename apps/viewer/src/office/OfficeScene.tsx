@@ -2932,7 +2932,12 @@ export function OfficeScene({
       {office.stations.map((st, i) => {
         const slot = layout.desks[i];
         if (!st.agentName || !slot) return null;
-        const chip = chipTexture(st.agentName, '', accent);
+        // De agent-id ("ara-fleet-tech") zegt een ontwikkelaar iets; de eigenaar
+        // wil weten wat die stoel dóét. De vaste rol uit het playbook draagt
+        // die naam ("Wagenparkbeheer"), dus die komt eronder — en alleen als
+        // hij er is: een losse worker krijgt geen functie toegedicht.
+        const role = office.staff.find((m) => m.agent === st.agentName)?.name ?? '';
+        const chip = chipTexture(st.agentName, role, accent);
         return (
           <sprite
             key={`who-${st.id}`}

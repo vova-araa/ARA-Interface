@@ -314,9 +314,9 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
   is, en `packages/shared/src/duties.test.ts` bewaakt dat (samen met: elke specialist heeft
   werk, geen tak draait grotendeels op dagelijks werk, de rollen die géén databron nodig
   hebben hebben werk, en `playbookPrompt()` noemt de eigenaar bij elke taak).
-  Let op de huidige stand: het ritme zet een duty-taak op **`manager:<venture>`**, niet op
-  `duty.who` — de eigenaar reist mee in de prompt van de manager, die verdeelt. Ops-duties
-  (in `org.json` onder `ops.duties`) worden door het ritme nog helemaal niet geplaatst.
+  Het ritme zet de taak op **`duty.who`** (leeg ⇒ de manager van de tak), en de ops-duties
+  uit `org.json` (`ops.duties`) lopen als eigen groep mee. `watchdog.test.ts` pint vast dat
+  de assignees in de roster van de tak staan en dat ops-werk geplaatst wordt.
 - **Ritme en uitvoering horen bij elkaar.** Sectie 11 (`ARA_DISPATCH=1`, **standaard uit**)
   wekt de rol die open bordwerk op zijn naam heeft: rollen uit `/org` krijgen hun eigen
   agent-bestand, een `manager:<venture>` draait op `ara-manager`. Wie het langst wacht gaat
