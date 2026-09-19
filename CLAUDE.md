@@ -280,6 +280,11 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
   hadden uitgegeven: gemeten 15,9 miljoen tokens tegen een budget van 2 miljoen, waarvan
   14,1 miljoen cache-creatie uit één ontwikkelsessie. `spawned_by` is een losse migratie
   (`ALTER TABLE` op `usage` én `usage_days`), dus bestaande databases groeien mee.
+- **De watchdog maakt de backup zelf** (sectie 7b, `ARA_BACKUP=0` zet uit, standaard aan
+  omdat het 0 tokens kost): zodra de nieuwste kopie in `ARA_BACKUP_DIR` (~/Backups/ara)
+  ouder is dan `ARA_BACKUP_HOURS` (24). De backup-verifier leest dezelfde map; zijn eerste
+  ronde eindigde in ESCALATE omdat die map niet bestond — een controle is niets waard
+  zonder iets om te controleren, en de verifier mag zelf niets schrijven.
 - `watchdog.mjs` draait via launchd elke 5 min met 0 LLM-tokens; spawnt alléén agents
   bij incidenten, geplande taken, open bordwerk (sectie 11) of de verbeterronde (sectie 12).
   Niet ombouwen naar iets dat continu LLM-calls doet.

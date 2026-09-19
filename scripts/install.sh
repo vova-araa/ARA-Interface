@@ -47,6 +47,8 @@ install_agent() {
       -e "s|__DISPATCH_MAX__|${ARA_DISPATCH_MAX:-2}|g" \
       -e "s|__IMPROVE__|${ARA_IMPROVE:-}|g" \
       -e "s|__IMPROVE_DAYS__|${ARA_IMPROVE_DAYS:-7}|g" \
+      -e "s|__BACKUP__|${ARA_BACKUP:-}|g" \
+      -e "s|__BACKUP_DIR__|${ARA_BACKUP_DIR:-}|g" \
       -e "s|__QA_SAMPLE__|${ARA_QA_SAMPLE:-0}|g" \
       "$REPO/ops/launchd/$name.plist" > "$plist"
   # De plist bevat ARA_TOKEN en de Telegram-sleutel. Standaard schrijft sed 'm

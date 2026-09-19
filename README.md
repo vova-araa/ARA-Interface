@@ -160,6 +160,7 @@ watchdog (launchd, elke 5 min, 0 tokens)
   ├─ collector/viewer down? → zelf herstarten (launchctl)
   ├─ monitors.json checken (jouw sites) → stuk? → INCIDENT-taak op het bord
   ├─ hersteld vóór iemand keek? → taak zelf sluiten
+  ├─ nieuwste db-backup ouder dan een dag? → zelf een kopie maken (~/Backups/ara)
   ├─ open incidenten → spawn manager:ops (vaste storingsdienst, eigen pod)
   ├─ escalaties → spawn supervisor (feedback + 1 herkansing) → pas dan needsHuman naar jou
   ├─ ARA_RHYTHM=1   → terugkerend playbook-werk op het bord zodra het aan de beurt is

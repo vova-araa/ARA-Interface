@@ -15,6 +15,8 @@
  * 6. needsHuman → Telegram (dedupe op sessie + inhoud).
  * 6b. Maandag: het handelsrapport van de afgelopen week (0 tokens).
  * 7. Eén keer per dag een levensteken, zodat stilte zélf het alarm is.
+ * 7b. Dagelijkse backup van de database (0 tokens), zodat de backup-verifier
+ *     iets heeft om terug te zetten.
  * 8. Auto-update: nieuwe commits op de eigen branch ophalen, bouwen, herstarten.
  * 9. Inbox: taken die via git binnenkwamen op het bord zetten.
  * 10. Ritme: terugkerend werk per tak op het bord zetten zodra het aan de
@@ -28,6 +30,7 @@
  *
  * Env: ARA_COLLECTOR_URL, ARA_TOKEN, ARA_REPO, ARA_LOCK_DIR,
  *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
+ *      ARA_BACKUP=0 (sectie 7b uit), ARA_BACKUP_DIR=~/Backups/ara, ARA_BACKUP_HOURS=24,
  *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen),
  *      ARA_AUTO_UPDATE=1 (sectie 8 aan), ARA_INBOX=1 (sectie 9 aan),
  *      ARA_RHYTHM=1 (sectie 10 aan), ARA_RHYTHM_VENTURES=blex,traject (leeg = alle),
@@ -872,6 +875,54 @@ if (process.env.ARA_DAILY_PING !== '0') {
       );
     } catch (error) {
       log(`levensteken overgeslagen: ${String(error).slice(0, 80)}`);
+    }
+  }
+}
+
+// ── 7b. Dagelijkse backup van de database ────────────────────────────────
+// De backup-verifier meldde na een week met ESCALATE dat er niets te
+// controleren viel: `~/Backups/ara` bestond niet, het backup-commando was hier
+// nog nooit gedraaid. Een rol die een backup nakijkt maakt hem niet zelf — dat
+// is een schrijfactie op de machine van de eigenaar — dus dat hoort hier, bij
+// de bewaker die toch elke vijf minuten langskomt. Kost 0 tokens.
+//
+// Draait zodra de nieuwste kopie ouder is dan ARA_BACKUP_HOURS (24). Niet aan
+// de klok gebonden: een Mac die om 03:00 sliep haalt het om 09:00 in. Uitzetten
+// met ARA_BACKUP=0; de map komt uit ARA_BACKUP_DIR (standaard ~/Backups/ara,
+// dezelfde die de verifier leest).
+if (process.env.ARA_BACKUP !== '0') {
+  const backupDir = process.env.ARA_BACKUP_DIR ?? path.join(os.homedir(), 'Backups', 'ara');
+  const everyMs = Number(process.env.ARA_BACKUP_HOURS ?? 24) * 60 * 60 * 1000;
+  const dbPath = path.join(process.env.ARA_DATA_DIR ?? path.join(REPO, 'data'), 'ara-events.db');
+  let newest = 0;
+  try {
+    for (const name of fs.readdirSync(backupDir)) {
+      if (!/^ara-events-.*\.db$/.test(name)) continue;
+      newest = Math.max(newest, fs.statSync(path.join(backupDir, name)).mtimeMs);
+    }
+  } catch {
+    // Geen map = nog nooit een backup. Precies de stand die de verifier aantrof.
+  }
+  if (fs.existsSync(dbPath) && Date.now() - newest > everyMs) {
+    try {
+      const out = execFileSync('pnpm', ['--filter', '@ara/collector', 'backup'], {
+        cwd: REPO,
+        encoding: 'utf8',
+        timeout: 5 * 60_000,
+        env: { ...process.env, ARA_BACKUP_DIR: backupDir },
+      });
+      const made = out.split('\n').find((line) => line.includes('ara-events-')) ?? 'gemaakt';
+      log(`backup: ${made.replace(/^\[backup\] /, '')}`);
+    } catch (error) {
+      // Eén melding per dag: een backup die stil mislukt is precies het bestand
+      // waarvan je bij een restore hoopt dat het er is.
+      const reason = String(error?.stderr ?? error).slice(0, 200);
+      log(`backup mislukt: ${reason}`);
+      await alertOnce(
+        `backup-failed-${new Date().toISOString().slice(0, 10)}`,
+        20 * 60 * 60 * 1000,
+        `⚠️ Database-backup mislukt\n${reason}\nMap: ${backupDir}`,
+      );
     }
   }
 }

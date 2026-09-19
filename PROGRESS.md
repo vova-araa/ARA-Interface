@@ -484,3 +484,22 @@ in twee helften die alleen samen werken.
 - ✅ **Clusters blijven binnen de terreinschijf**: `placeClusterOnFreeHex` zoekt eerst binnen
   `WORLD_HEX_RADIUS` en pas daarna erbuiten, en toetst het hele cluster in plaats van alleen
   zijn hart. Twee projecten op dezelfde tegel weet niet welk kantoor het moet openen.
+
+## De backup die er nooit was (2026-09-19)
+
+Vier agents draaiden tegelijk (`ARA_DISPATCH_MAX=4`) tegen de demo-collector: org-auditor,
+qa-verifier, doc-writer en backup-verifier. Drie leverden; de vierde kwam terug met
+`ESCALATE:` — `~/Backups/ara` bestond niet, nul backupbestanden, het commando was hier nog
+nooit gedraaid. Hij weigerde terecht zelf een backup te maken: dat is een schrijfactie op
+de machine van de eigenaar en zijn rol is nakijken.
+
+- **Watchdog sectie 7b** maakt nu dagelijks de kopie (`pnpm --filter @ara/collector backup`,
+  0 tokens) zodra de nieuwste in `ARA_BACKUP_DIR` ouder is dan `ARA_BACKUP_HOURS` (24).
+  Niet aan de klok gebonden, dus een slapende Mac haalt het later in. Mislukt hij, dan
+  één Telegram-melding per dag. `ARA_BACKUP=0` zet het uit; standaard aan, want het kost
+  niets en de verifier had anders elke week hetzelfde te melden.
+- `apps/collector/src/watchdog.test.ts` pint vast: uit is uit, lege map krijgt één kopie,
+  binnen het venster komt er geen tweede (anders 288 per dag).
+- De doc-writer's README-correcties zijn nagelopen op betekenis vóór overname: "Alle drie"
+  klopt omdat het diagram erboven drie schakelaars noemt, prioriteit 1 telt in org.json zes
+  takken, en het backup-commando bestaat als script in `apps/collector/package.json`.

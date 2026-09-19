@@ -39,6 +39,12 @@
     <string>__IMPROVE__</string>
     <key>ARA_IMPROVE_DAYS</key>
     <string>__IMPROVE_DAYS__</string>
+    <!-- Backup staat standaard aan: kost 0 tokens en de verifier had anders
+         niets om terug te zetten. 0 = uit; de map deelt hij met de verifier. -->
+    <key>ARA_BACKUP</key>
+    <string>__BACKUP__</string>
+    <key>ARA_BACKUP_DIR</key>
+    <string>__BACKUP_DIR__</string>
   </dict>
   <key>StartInterval</key>
   <integer>300</integer>

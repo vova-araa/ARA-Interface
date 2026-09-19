@@ -38,6 +38,7 @@ function runWatchdog(base: string, lockDir: string): Promise<string> {
         ARA_TELEGRAM_BOT_TOKEN: 'test',
         ARA_TELEGRAM_CHAT_ID: 'test',
         ARA_DAILY_PING: '0',
+        ARA_BACKUP: '0',
       },
     });
     let out = '';
@@ -133,6 +134,7 @@ test('inbox: een taak uit git komt op het bord, precies één keer', async () =>
           ARA_TELEGRAM_BOT_TOKEN: 'test',
           ARA_TELEGRAM_CHAT_ID: 'test',
           ARA_DAILY_PING: '0',
+          ARA_BACKUP: '0',
           ...env,
         },
       });
@@ -195,7 +197,7 @@ test('ritme: terugkerend werk komt op het bord, één keer, en alleen aangezet',
           ARA_NOTIFY_DRYRUN: '1',
           ARA_TELEGRAM_BOT_TOKEN: 'test',
           ARA_TELEGRAM_CHAT_ID: 'test',
-          ARA_DAILY_PING: '0',
+          ARA_BACKUP: '0',
           ...env,
         },
       });
@@ -273,6 +275,62 @@ test('ritme: terugkerend werk komt op het bord, één keer, en alleen aangezet',
       withOps.length,
       'een tweede ronde stapelt niets bovenop',
     );
+  } finally {
+    server.close();
+    store.close();
+  }
+});
+
+test('watchdog maakt zelf een backup als de nieuwste ouder is dan een dag', async () => {
+  // De verifier trof na een week een lege map aan: niemand had het commando
+  // ooit gedraaid. De watchdog doet het nu zelf, en deze test pint vast dat
+  // hij dat doet (lege map), en niet doet (verse kopie aanwezig).
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-data-'));
+  const store = openStore(path.join(dataDir, 'ara-events.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+  const backupDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-backup-')), 'ara');
+
+  const run = (env: Record<string, string>): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const child = spawn('node', [path.join(REPO, 'scripts', 'watchdog.mjs')], {
+        env: {
+          ...process.env,
+          ARA_COLLECTOR_URL: base,
+          ARA_LOCK_DIR: lockDir,
+          ARA_DATA_DIR: dataDir,
+          ARA_BACKUP_DIR: backupDir,
+          ARA_WATCHDOG_NO_SPAWN: '1',
+          ARA_NOTIFY_DRYRUN: '1',
+          ARA_TELEGRAM_BOT_TOKEN: 'test',
+          ARA_TELEGRAM_CHAT_ID: 'test',
+          ARA_DAILY_PING: '0',
+          ...env,
+        },
+      });
+      let out = '';
+      child.stdout.on('data', (chunk) => (out += String(chunk)));
+      child.stderr.on('data', (chunk) => (out += String(chunk)));
+      child.on('error', reject);
+      child.on('close', () => resolve(out));
+    });
+  const copies = (): string[] =>
+    fs.existsSync(backupDir) ? fs.readdirSync(backupDir).filter((f) => /^ara-events-.*\.db$/.test(f)) : [];
+
+  try {
+    await run({ ARA_BACKUP: '0' });
+    assert.equal(copies().length, 0, 'uit is uit');
+
+    const first = await run({});
+    assert.equal(copies().length, 1, 'een lege map krijgt zijn eerste kopie');
+    assert.match(first, /backup: /, 'en de watchdog zegt dat erbij');
+
+    // Een verse kopie is genoeg: geen tweede binnen het venster, anders staat de
+    // map na een dag vol met 288 exemplaren.
+    await run({});
+    assert.equal(copies().length, 1, 'binnen het venster komt er geen tweede');
   } finally {
     server.close();
     store.close();
