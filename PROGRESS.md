@@ -522,3 +522,27 @@ de eigenaar al heeft. Dus geen koppeling maar een CSV.
 
 Wat de eigenaar doet: twee bestanden neerzetten. De andere drie Blex-bronnen
 (garagepunten, kosten, trailers) blijven in de actielijst tot ze er zijn.
+
+## Alle 22 bronnen hebben een bestand (2026-09-19)
+
+De vraag was "koppel alle nodige bronnen". Koppelen aan een TMS, een broker of een
+boekingssysteem kan ARA niet zelf — en een sleutel mag hij niet hebben. Wat wél kan: elke
+bron één bestand geven met een kolomlijst, zodat het enige wat de eigenaar nog doet
+*neerzetten* is.
+
+- `packages/shared/src/sources.ts`: registry van 22 specs (tak, exact playbook-label,
+  bestand, verplichte/datum/getalkolommen). Test: elke niet-aangesloten playbook-bron heeft
+  een spec en elke spec hoort bij een playbook-bron — de registry kan niet uit de pas lopen.
+- Collector `sources.ts`: `ARA_SOURCES_DIR` (standaard `data/sources/`), standen
+  `ontbreekt`/`leeg`/`gevuld`, 60s cache, `withFileSources()` vervangt de blex-only variant.
+  `GET /sources`, `GET /sources/:tak/:bestand`. Alleen gevuld = aangesloten: een kop zonder
+  regels heeft niets gemeten (regel 4). Endpoint-test loopt de drie standen af, plus een
+  verkeerde kop die als fout terugkomt in plaats van als stille lege bron.
+- `playbookPrompt()` noemt nu ook de aangesloten bronnen mét pad — een rol wist vroeger wel
+  dát er data was, niet waar.
+- `pnpm sources:init` maakt alle ontbrekende bestanden aan met alleen de kop;
+  `ops/sources/README.md` is de tabel. `ops/fleet/` is daarin opgegaan; het wagenpark leest
+  `data/sources/blex/`.
+
+Wat de eigenaar doet: `pnpm sources:init`, bestanden vullen in volgorde van opbrengst
+(`ops/24-7.md` fase 2). Wat er níét komt: een broker- of exchange-koppeling.

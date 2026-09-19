@@ -70,6 +70,7 @@ money stays on the record.
 | `pnpm trade:review [dagen]` | Handelsrapport uit het audit-spoor (0 LLM-tokens) |
 | `pnpm verify:agents` | End-to-end: spawn-keten, kantoorchat en 7 harde rolgrenzen (kost één haiku-sessie) |
 | `pnpm ara:update` | Mac bijwerken: pull → install → viewer-build → launchd herstart → /health |
+| `pnpm sources:init` | Elk ontbrekend bronbestand aanmaken (`data/sources/<tak>/`, zie `ops/sources/README.md`) |
 | `pnpm --filter @ara/collector backup` | Db-backup; `ara-backup-verifier` zet 'm wekelijks terug als proef |
 | `/ara-open` (in Claude Code) | Print URLs + open the viewer |
 | `/ara <bericht>` (in Claude Code) | De directe lijn naar de chief |

@@ -19,12 +19,12 @@ chauffeurskaart.
 ## Waar je leest
 
 `GET /fleet` op de collector (host en token staan in je taak) geeft de
-voertuigen en chauffeurs uit `data/fleet/*.csv` mét de vensters al uitgerekend
+voertuigen en chauffeurs uit `data/sources/blex/{vehicles,drivers}.csv` mét de vensters al uitgerekend
 (`deadlines`, ergste geval eerst, en `summary`). Dat rekenwerk is een pure
 functie in `@ara/shared`; jij telt niet na, jij zegt wat eraan gedaan moet
 worden. Staat `vehicles.present` én `drivers.present` op `false`, dan is er
-geen bron: `failed` met `ESCALATE: geen wagenparkbron — zet data/fleet/
-vehicles.csv en drivers.csv neer (zie ops/fleet/README.md)`.
+geen bron: `failed` met `ESCALATE: geen wagenparkbron — zet data/sources/blex/
+vehicles.csv en drivers.csv neer (zie ops/sources/README.md)`.
 
 ## Hoe je alarmeert
 

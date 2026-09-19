@@ -34,7 +34,7 @@ import { DATA_DIR } from './config.ts';
 // module. Anders ligt de configuratie vast op het moment dat iets anders deze
 // module toevallig als eerste importeerde — en dan verandert een gewijzigde
 // omgeving niets meer, wat je pas merkt als het ertoe doet.
-const limitsPath = (): string =>
+export const limitsPath = (): string =>
   process.env.ARA_TRADING_LIMITS ?? path.join(process.env.ARA_DATA_DIR ?? DATA_DIR, 'trading-limits.json');
 const statePath = (): string => path.join(process.env.ARA_DATA_DIR ?? DATA_DIR, 'trading-state.json');
 

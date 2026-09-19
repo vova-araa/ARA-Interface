@@ -564,6 +564,14 @@ export function playbookPrompt(playbook: Playbook): string {
     `ALTIJD escaleren (taak failed met "ESCALATE: …"): ${playbook.escalate.join('; ')}.`,
     `Valideer vóór done: ${playbook.checks.join(', ')}.`,
   ];
+  // Een aangesloten bron reist mee mét zijn plek: anders weet de rol wel dát
+  // er data is, maar niet waar — en gaat hij zelf zoeken of verzinnen.
+  const connected = playbook.dataSources.filter((d) => d.configured);
+  if (connected.length > 0) {
+    lines.push(`Aangesloten databronnen (lees deze, verzin niets ernaast): ${connected
+      .map((d) => `${d.label} (${d.how})`)
+      .join('; ')}.`);
+  }
   const open = playbook.dataSources.filter((d) => !d.configured);
   if (open.length > 0) {
     lines.push(

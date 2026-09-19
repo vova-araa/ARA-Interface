@@ -10,6 +10,7 @@ import {
   placementForProject,
   redactValue,
   resolvePlaybook,
+  sourceSpecs,
   evaluateIntent,
   routeIntent,
   autoHaltReason,
@@ -34,7 +35,8 @@ import { loadOrBuildWorldConfig, projectForCwd, refreshProjects } from './projec
 import { projectPulse } from './pulse.ts';
 import * as trading from './trading.ts';
 import { buildActions } from './actions.ts';
-import { fleetReport, withFleetSources } from './fleet.ts';
+import { fleetReport } from './fleet.ts';
+import { SOURCES_DIR, forgetSources, readSource, ventureSources, withFileSources } from './sources.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, projectsJsonPath, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
@@ -614,7 +616,7 @@ export function createCollector(store: EventStore): CollectorApp {
           manager: entry?.manager ?? `manager:${v.id}`,
           priority: entry?.priority ?? 2,
           focus: entry?.focus ?? '',
-          playbook: withFleetSources(v.id, resolvePlaybook(v.id, v.label, entry?.playbook)),
+          playbook: withFileSources(v.id, resolvePlaybook(v.id, v.label, entry?.playbook)),
         };
       }),
     });
@@ -626,6 +628,36 @@ export function createCollector(store: EventStore): CollectorApp {
    * en hoeft zelf niets te tellen; klopt een venster niet, dan is dat een bug
    * in die functie en niet een agent die verkeerd rekende.
    */
+  /**
+   * Alle bronnen van alle takken, met hun stand op schijf. Dit is de lijst
+   * die de eigenaar afwerkt: wat ontbreekt, wat er leeg staat, wat gevuld is.
+   * `?refresh=1` leest opnieuw na een verse upload.
+   */
+  app.get('/sources', (req, res) => {
+    allowOrigin(req, res);
+    if (req.query.refresh === '1') forgetSources();
+    res.json({
+      dir: SOURCES_DIR,
+      ventures: VENTURES.filter((v) => v.id !== 'misc').map((v) => ({
+        id: v.id,
+        label: v.label,
+        sources: ventureSources(v.id).map(({ rows, ...rest }) => ({ ...rest, rowCount: rows.length })),
+      })),
+    });
+  });
+
+  /** Eén bron met zijn rijen — wat een rol leest in plaats van zelf een CSV te parsen. */
+  app.get('/sources/:venture/:file', (req, res) => {
+    allowOrigin(req, res);
+    const spec = sourceSpecs(req.params.venture).find((s) => s.file === req.params.file);
+    if (!spec) {
+      res.status(404).json({ error: 'onbekende bron', known: sourceSpecs(req.params.venture).map((s) => s.file) });
+      return;
+    }
+    if (req.query.refresh === '1') forgetSources();
+    res.json(readSource(spec));
+  });
+
   app.get('/fleet', (req, res) => {
     allowOrigin(req, res);
     res.json(fleetReport());
@@ -736,7 +768,7 @@ export function createCollector(store: EventStore): CollectorApp {
         ventures: VENTURES.filter((v) => v.id !== 'misc').map((v) => ({
           id: v.id,
           label: v.label,
-          playbook: withFleetSources(
+          playbook: withFileSources(
             v.id,
             resolvePlaybook(v.id, v.label, org.ventures?.find((o) => o.id === v.id)?.playbook),
           ),

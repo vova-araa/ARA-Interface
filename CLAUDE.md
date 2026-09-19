@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 123 unit tests (shared 74 + collector 49) + de viewer-smoke
+pnpm test                    # 128 unit tests (shared 78 + collector 50) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -64,6 +64,7 @@ pnpm map                     # world.config.json (her)genereren
 pnpm soak                    # soak-test tegen draaiende collector (ARA_SOAK_SECONDS=…)
 pnpm trade:review [dagen]    # handelsrapport uit het audit-spoor (0 tokens; --json voor ruwe data)
 pnpm retro [dagen]           # terugblik op het bord: wie liep waarop vast (0 tokens; --json)
+pnpm sources:init            # elk ontbrekend bronbestand aanmaken met alleen de kop (data/sources/<tak>/)
 pnpm ara:update              # Mac bijwerken: pull → install → viewer-build → launchd herstart → /health
 pnpm --filter @ara/viewer build:artifact   # viewer als losse pagina (dist-artifact/, relatieve
 #   paden) om ergens anders te hosten; hij vindt de collector via ?api=https://…
@@ -149,15 +150,26 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
   los bedacht). Crypto en aandelen hebben eigen kolommen in plaats van die van de FX-vloer
   te erven. `packages/shared/src/office.test.ts` bewaakt dit.
 
-## Wagenpark (de eerste Blex-bronnen zijn bestanden)
+## Databronnen (elke bron is een bestand)
 
-- `packages/shared/src/fleet.ts`: `readVehicles`/`readDrivers` (CSV, `;` of `,`, drie
-  datumvormen) en `fleetDeadlines()` — vensters verlopen · ≤14 · ≤30 · ≤60 in
-  `DEADLINE_WINDOWS`, ergste geval eerst, lege datum = `ontbreekt` (nooit "in orde").
-- Collector `GET /fleet` leest `ARA_FLEET_DIR` (standaard `data/fleet/`) — `vehicles.csv` en
-  `drivers.csv`, voorbeeld en kolommen in `ops/fleet/README.md`. Staat het bestand er, dan
-  markeert `withFleetSources()` die bron in `/org` en `/actions` als aangesloten; niemand hoeft
-  `configured: true` in org.json te zetten. `ara-compliance-watch` leest `/fleet` en telt niet na.
+- **`packages/shared/src/sources.ts`** is de registry: 22 bronnen uit de playbooks, elk met
+  tak, exact label, bestandsnaam, verplichte kolommen, datum- en getalkolommen. Test pint
+  vast dat elke niet-aangesloten playbook-bron een spec heeft en andersom. `readTable()`
+  typeert datums en getallen; onbekende kolommen blijven staan.
+- Bestanden staan in `ARA_SOURCES_DIR` (standaard `data/sources/<tak>/<bestand>`), tabel met
+  kolommen in `ops/sources/README.md`, `pnpm sources:init` maakt de ontbrekende aan met alleen
+  een kop. Drie standen: `ontbreekt` · `leeg` · `gevuld` — **alleen gevuld is aangesloten**
+  (een kop zonder regels heeft niets gemeten, regel 4). `withFileSources()` zet dat in `/org`
+  en `/actions`; niemand zet `configured: true` in org.json. `playbookPrompt()` geeft de rol
+  de aangesloten bronnen mét bestandspad.
+- `GET /sources` (alles, `?refresh=1` na een upload) en `GET /sources/:tak/:bestand` (rijen).
+  Een rol leest dát, en parst geen CSV zelf.
+- **Nooit een sleutel**: posities, koersen, portefeuilles komen uit een export of het
+  statusbestand dat de bot zelf schrijft. `trading-limits.json` is van de risicomotor en
+  telt hier alleen als aanwezig-of-niet; bruikbaarheid meldt de actielijst.
+- Wagenpark daarbovenop: `fleet.ts` (`readVehicles`/`readDrivers`, `fleetDeadlines()` met
+  `DEADLINE_WINDOWS` 14/30/60, lege datum = `ontbreekt`) en `GET /fleet`, dat
+  `data/sources/blex/{vehicles,drivers}.csv` leest. `ara-compliance-watch` telt niet na.
 
 ## Handel (agents mogen posities voorstellen)
 

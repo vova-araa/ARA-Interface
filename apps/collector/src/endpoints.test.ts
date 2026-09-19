@@ -23,7 +23,7 @@ process.env.ARA_PROJECTS_JSON = path.join(
 
 // En het wagenpark: een eigen map, zodat de test nooit de echte lijsten van de
 // eigenaar leest of daar iets naast zet.
-process.env.ARA_FLEET_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-fleet-'));
+process.env.ARA_SOURCES_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-sources-'));
 
 const { openStore } = await import('./db.ts');
 const { createCollector } = await import('./server.ts');
@@ -707,8 +707,10 @@ test('/usage: een latere post zonder stempel maakt van een agent geen mens', asy
 
 test('/fleet: zonder bestand niet aangesloten, met bestand uitgerekend en in /org gemarkeerd', async () => {
   const { forgetFleet } = await import('./fleet.ts');
+  const { forgetSources } = await import('./sources.ts');
   const { store, server, base } = boot();
-  const fleetDir = process.env.ARA_FLEET_DIR!;
+  const fleetDir = path.join(process.env.ARA_SOURCES_DIR!, 'blex');
+  fs.mkdirSync(fleetDir, { recursive: true });
   try {
     forgetFleet();
     const empty = await (await fetch(`${base}/fleet`)).json();
@@ -727,6 +729,7 @@ test('/fleet: zonder bestand niet aangesloten, met bestand uitgerekend en in /or
     const soon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
     fs.writeFileSync(path.join(fleetDir, 'vehicles.csv'), `kenteken;km;apk\n12-ABC-3;1000;${soon}\n`);
     forgetFleet();
+    forgetSources();
     const report = await (await fetch(`${base}/fleet`)).json();
     assert.equal(report.vehicles.present, true);
     assert.equal(report.vehicles.rows.length, 1);
@@ -746,5 +749,56 @@ test('/fleet: zonder bestand niet aangesloten, met bestand uitgerekend en in /or
     store.close();
     fs.rmSync(path.join(fleetDir, 'vehicles.csv'), { force: true });
     forgetFleet();
+    forgetSources();
+  }
+});
+
+test('/sources: ontbreekt → leeg → gevuld, en alleen gevuld telt als aangesloten', async () => {
+  const { forgetSources } = await import('./sources.ts');
+  const { store, server, base } = boot();
+  const dir = path.join(process.env.ARA_SOURCES_DIR!, 'equities');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'kwartaalagenda.csv');
+  const find = (all: { ventures: { id: string; sources: { file: string; state: string; rowCount: number; errors: string[] }[] }[] }) =>
+    all.ventures.find((v) => v.id === 'equities')!.sources.find((s) => s.file === 'kwartaalagenda.csv')!;
+  const configured = async () =>
+    (await (await fetch(`${base}/org`)).json()).ventures
+      .find((v: { id: string }) => v.id === 'equities')
+      .playbook.dataSources.find((d: { label: string }) => d.label === 'Kwartaalagenda').configured as boolean;
+  try {
+    forgetSources();
+    const all = await (await fetch(`${base}/sources`)).json();
+    // Elke tak heeft zijn lijst, en elke bron uit het playbook staat erin.
+    assert.equal(all.ventures.length, 8);
+    assert.equal(find(all).state, 'ontbreekt');
+    assert.equal(await configured(), false);
+
+    // Alleen een kop: er is niets gemeten, dus niet aangesloten — met opzet.
+    fs.writeFileSync(file, 'ticker;datum;soort\n');
+    const empty = await (await fetch(`${base}/sources?refresh=1`)).json();
+    assert.equal(find(empty).state, 'leeg');
+    assert.equal(await configured(), false);
+
+    fs.writeFileSync(file, 'ticker;datum;soort\nASML;2026-10-15;kwartaalcijfers\n');
+    const filled = await (await fetch(`${base}/sources?refresh=1`)).json();
+    assert.equal(find(filled).state, 'gevuld');
+    assert.equal(find(filled).rowCount, 1);
+    assert.equal(await configured(), true);
+    const one = await (await fetch(`${base}/sources/equities/kwartaalagenda.csv`)).json();
+    assert.equal(one.rows[0].ticker, 'ASML');
+    assert.equal(one.rows[0].datum, Date.UTC(2026, 9, 15), 'datum is getypeerd, geen tekst');
+    const unknown = await fetch(`${base}/sources/equities/nope.csv`);
+    assert.equal(unknown.status, 404);
+
+    // Een verkeerde kop is een fout die je te zien krijgt, geen stille lege bron.
+    fs.writeFileSync(file, 'symbool;datum\nASML;2026-10-15\n');
+    const broken = find(await (await fetch(`${base}/sources?refresh=1`)).json());
+    assert.equal(broken.state, 'leeg');
+    assert.match(broken.errors[0]!, /ticker/);
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(file, { force: true });
+    forgetSources();
   }
 });

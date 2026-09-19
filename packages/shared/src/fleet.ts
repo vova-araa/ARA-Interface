@@ -130,7 +130,8 @@ export function parseCsv(text: string): { header: string[]; records: Record<stri
  * 14/03/2026. Alles anders is geen datum — en dus `undefined`, niet "vandaag".
  */
 export function parseDate(raw: string | undefined): number | undefined {
-  const s = (raw ?? '').trim();
+  // Een tijd erachter (ETA "2026-09-20 14:30", ook met T) mag; de dag telt.
+  const s = (raw ?? '').trim().replace(/[ T]\d{1,2}:\d{2}(:\d{2})?$/, '');
   if (!s) return undefined;
   let y: number, m: number, d: number;
   let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
