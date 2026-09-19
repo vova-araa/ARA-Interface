@@ -12,7 +12,9 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { DB_PATH } from './config.ts';
 
-const KEEP = Number(process.env.ARA_BACKUP_KEEP ?? 14);
+// Een onleesbare of nul-waarde mag nooit álle kopieën wissen (slice(NaN) = alles).
+const keepRaw = Number(process.env.ARA_BACKUP_KEEP ?? 14);
+const KEEP = Number.isFinite(keepRaw) && keepRaw >= 1 ? Math.floor(keepRaw) : 14;
 const dir = process.env.ARA_BACKUP_DIR ?? path.join(os.homedir(), 'Backups', 'ara');
 
 if (!fs.existsSync(DB_PATH)) {

@@ -666,3 +666,30 @@ nul externe verzoeken. `?api=` blijft bestaan voor een viewer die je zélf ergen
   en eist elke dataroute — een nieuwe route die vergeten wordt valt in CI.
 - **`trades.csv` voor crypto en aandelen** (registry 24): zelfde vorm als trading, in R.
   `ara-trade-journal` leest alle drie.
+
+## Collector-review: zeventien punten (2026-09-19)
+
+Een read-only review van de routes buiten de bronnenlaag, alles verholpen met test waar het
+gedrag raakt:
+- **Akkoord volgde de modus van toen, niet van nu**: een oud wachtend voorstel kon in modus
+  `off` (of zonder slot) nog een handoff worden. Nu: alleen `approval`/`live` van dit moment.
+- **Afwijzen herschreef élk voorstel**, ook een papieren vulling of een handoff — alleen
+  `awaiting` is nog af te wijzen; het spoor wordt nooit herschreven.
+- **NaN in qty/entry/stop** gaf een 500 vóór de toets en de afwijzing was weg; nu 0, dus
+  regel 1 wijst af én bewaart.
+- **`trading-limits.json` = `null`** liet de hele actielijst met 500 wegvallen; niet-object is
+  nu "geen geldige JSON" en de strengste stand. `tradingHours` wordt gevalideerd.
+- **Half geschreven `trading-state.json`** liet de noodstop verdwijnen: onleesbaar = noodstop
+  uit voorzorg; schrijven via tmp + rename.
+- **CSRF zonder token**: een vreemde site kon met een simple request de noodstop opheffen.
+  Mutaties eisen nu JSON (preflight) en een eigen herkomst. `curl -X POST` zonder
+  `Content-Type: application/json` krijgt 415 — de commando-docs zijn bijgewerkt.
+- **Chat-taak droeg het token in klare tekst** (db, backups, elke bordlijst) en bouwde een
+  shell-regel uit een ongevalideerde `room`: nu `$ARA_TOKEN` uit de omgeving, `room`
+  gevalideerd, payload via JSON + shell-escaping.
+- Verder: `ARA_BACKUP_KEEP=abc` wiste álle backups (nu 14), station-push >8000 tekens gaf
+  stil ongeldige JSON (nu 413), timing-safe vergelijking lekte de tokenlengte (hash eerst),
+  `?from=abc` en `limit=abc` geven 400 i.p.v. leeg/500, onbegrensde strings begrensd (ook in
+  het event-schema), `/hook/constructor` en onbekende hooks netjes, `INSERT OR IGNORE` op
+  events (replay-volgorde), `office_stations` geprund, token uit de adresbalk na opslaan en
+  `<meta name="referrer" content="no-referrer">`.

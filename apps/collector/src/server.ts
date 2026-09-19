@@ -76,10 +76,34 @@ export function createCollector(store: EventStore): CollectorApp {
       String(req.query.token ?? '');
     // Timing-safe vergelijking: een gewone === lekt via responstijd hoeveel
     // tekens van het token kloppen.
-    const a = Buffer.from(presented);
-    const b = Buffer.from(ARA_TOKEN);
-    if (a.length === b.length && crypto.timingSafeEqual(a, b)) next();
+    // Beide eerst hashen: dan is de lengte altijd gelijk en lekt ook die niet.
+    const a = crypto.createHash('sha256').update(presented).digest();
+    const b = crypto.createHash('sha256').update(ARA_TOKEN).digest();
+    if (crypto.timingSafeEqual(a, b)) next();
     else res.status(401).json({ ok: false, error: 'unauthorized' });
+  });
+
+  // Zonder token bindt de collector op loopback, maar elke website in de
+  // browser van de eigenaar mag een *simple request* naar 127.0.0.1 sturen —
+  // een POST met text/plain en zonder body volstaat om de noodstop op te
+  // heffen. Een mutatie eist daarom een JSON-verzoek (dat gaat niet zonder
+  // preflight, en die weigert de browser voor een vreemde herkomst), en een
+  // Origin die niet van deze machine is wordt sowieso afgewezen.
+  app.use((req, res, next) => {
+    if (ARA_TOKEN || req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+      next();
+      return;
+    }
+    const origin = req.get('origin');
+    if (origin && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      res.status(403).json({ ok: false, error: 'mutatie vanaf een vreemde herkomst' });
+      return;
+    }
+    if (!/^application\/json\b/i.test(req.get('content-type') ?? '')) {
+      res.status(415).json({ ok: false, error: 'stuur JSON (Content-Type: application/json)' });
+      return;
+    }
+    next();
   });
 
   // CORS: met token is '*' veilig (auth beschermt); zonder token alleen de
@@ -262,12 +286,20 @@ export function createCollector(store: EventStore): CollectorApp {
     allowOrigin(req, res);
     const to = Number(req.query.to ?? Date.now());
     const from = Number(req.query.from ?? to - 24 * 60 * 60 * 1000);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) {
+      res.status(400).json({ ok: false, error: 'from/to moeten getallen zijn' });
+      return;
+    }
     res.json({ events: store.range(from, to) });
   });
 
   app.get('/stats', (req, res) => {
     allowOrigin(req, res);
     const from = Number(req.query.from ?? Date.now() - 24 * 60 * 60 * 1000);
+    if (!Number.isFinite(from)) {
+      res.status(400).json({ ok: false, error: 'from moet een getal zijn' });
+      return;
+    }
     res.json({ stats: store.stats(from) });
   });
 
@@ -299,10 +331,10 @@ export function createCollector(store: EventStore): CollectorApp {
       updatedAt: Date.now(),
       title,
       detail: capText(String(body.detail ?? ''), 2000) ?? '',
-      project: String(body.project ?? ''),
-      assignee: String(body.assignee ?? ''),
-      createdBy: String(body.createdBy ?? ''),
-      parentId: body.parentId ? String(body.parentId) : null,
+      project: capText(String(body.project ?? ''), 120) ?? '',
+      assignee: capText(String(body.assignee ?? ''), 120) ?? '',
+      createdBy: capText(String(body.createdBy ?? ''), 120) ?? '',
+      parentId: body.parentId ? (capText(String(body.parentId), 120) ?? null) : null,
       status: 'open' as const,
       result: '',
     };
@@ -387,7 +419,7 @@ export function createCollector(store: EventStore): CollectorApp {
   // ── Token usage (absolute totals per session, parsed from transcripts) ──
   app.post('/usage', (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const sessionId = String(body.sessionId ?? '');
+    const sessionId = capText(String(body.sessionId ?? ''), 120) ?? '';
     if (!sessionId) {
       res.status(400).json({ ok: false, error: 'sessionId required' });
       return;
@@ -404,7 +436,7 @@ export function createCollector(store: EventStore): CollectorApp {
       outputTokens: num(body.outputTokens),
       cacheReadTokens: num(body.cacheReadTokens),
       cacheCreateTokens: num(body.cacheCreateTokens),
-      model: String(body.model ?? ''),
+      model: capText(String(body.model ?? ''), 100) ?? '',
       // Gezet door de watchdog bij het spawnen en doorgegeven door usage.mjs.
       // Leeg = de eigenaar startte deze sessie zelf.
       spawnedBy: capText(String(body.spawnedBy ?? ''), 60) ?? '',
@@ -448,7 +480,7 @@ export function createCollector(store: EventStore): CollectorApp {
 
   app.post('/status', (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
-    const sessionId = String(body.sessionId ?? '');
+    const sessionId = capText(String(body.sessionId ?? ''), 120) ?? '';
     if (!sessionId) {
       res.status(400).json({ ok: false, error: 'sessionId required' });
       return;
@@ -457,7 +489,7 @@ export function createCollector(store: EventStore): CollectorApp {
     const status: LiveStatus = {
       sessionId,
       ts: Date.now(),
-      model: String(body.model ?? ''),
+      model: capText(String(body.model ?? ''), 100) ?? '',
       contextPct: Math.min(100, Math.max(0, num(body.contextPct))),
       inputTokens: Math.max(0, num(body.inputTokens)),
       outputTokens: Math.max(0, num(body.outputTokens)),
@@ -774,10 +806,16 @@ export function createCollector(store: EventStore): CollectorApp {
       return;
     }
     const { id: _ignored, ...rest } = body;
+    const json = JSON.stringify(rest);
+    if (json.length > 8000) {
+      // Afknippen gaf ongeldige JSON die bij het lezen stil wegviel.
+      res.status(413).json({ ok: false, error: 'werkplek-data groter dan 8000 tekens' });
+      return;
+    }
     store.upsertStation({
       project: req.params.project,
       stationId,
-      json: JSON.stringify(rest).slice(0, 8000),
+      json,
       updatedAt: Date.now(),
     });
     broadcastFrame('event: office\ndata: {}\n\n');
@@ -868,16 +906,20 @@ export function createCollector(store: EventStore): CollectorApp {
   app.post('/trade/intent', (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const now = Date.now();
+    const finite = (v: unknown): number => (Number.isFinite(Number(v)) ? Number(v) : 0);
     const intent: TradeIntent = {
       id: crypto.randomUUID(),
       createdAt: now,
       venture: capText(String(body.venture ?? ''), 40) ?? '',
       instrument: capText(String(body.instrument ?? ''), 40) ?? '',
       side: body.side === 'sell' ? 'sell' : 'buy',
-      qty: Number(body.qty),
-      entry: Number(body.entry),
-      stop: Number(body.stop),
-      target: body.target === undefined ? undefined : Number(body.target),
+      // Geen getal wordt 0, niet NaN: NaN bindt als NULL en de db weigert de
+      // rij vóór de toets — dan is de afwijzing weg. 0 laat regel 1 afwijzen
+      // én bewaren.
+      qty: finite(body.qty),
+      entry: finite(body.entry),
+      stop: finite(body.stop),
+      target: body.target === undefined ? undefined : finite(body.target),
       reason: capText(String(body.reason ?? ''), 500) ?? '',
       sources: Array.isArray(body.sources)
         ? body.sources.map((x) => capText(String(x), 200) ?? '').filter(Boolean)
@@ -934,7 +976,8 @@ export function createCollector(store: EventStore): CollectorApp {
   app.get('/trade/intents', (req, res) => {
     allowOrigin(req, res);
     const status = req.query.status ? String(req.query.status) : undefined;
-    const rows = store.listIntents({ status, limit: Math.min(Number(req.query.limit ?? 50), 200) });
+    const rawLimit = Number(req.query.limit ?? 50);
+    const rows = store.listIntents({ status, limit: Number.isFinite(rawLimit) ? Math.min(Math.max(1, Math.floor(rawLimit)), 200) : 50 });
     res.json({
       intents: rows.map((r) => ({
         ...r,
@@ -978,15 +1021,23 @@ export function createCollector(store: EventStore): CollectorApp {
       portfolioNow(report.limits),
       now,
     );
-    if (!fresh.ok || state.halted) {
+    // De modus van nú telt, niet die van toen het voorstel werd ingediend:
+    // een oud wachtend voorstel mocht anders in modus `off` (of zonder slot)
+    // nog een handoff worden — de ladder omzeild via de achterdeur.
+    const modeOk = state.mode === 'approval' || state.mode === 'live';
+    if (!fresh.ok || state.halted || !modeOk) {
       store.updateIntent(row.id, {
         status: 'rejected',
         resolvedAt: now,
         resolvedBy: by,
-        note: state.halted ? 'noodstop actief bij akkoord' : `hertoets faalde: ${fresh.blockedBy.join(', ')}`,
+        note: state.halted
+          ? 'noodstop actief bij akkoord'
+          : !modeOk
+            ? `modus is nu ${state.mode}: geen akkoord mogelijk`
+            : `hertoets faalde: ${fresh.blockedBy.join(', ')}`,
       });
       broadcastFrame('event: trade\ndata: {}\n\n');
-      res.status(409).json({ ok: false, error: 'hertoets faalde', decision: fresh, halted: state.halted });
+      res.status(409).json({ ok: false, error: 'hertoets faalde', decision: fresh, halted: state.halted, mode: state.mode });
       return;
     }
     store.updateIntent(row.id, { status: 'handoff', resolvedAt: now, resolvedBy: by, note: 'akkoord gegeven' });
@@ -995,6 +1046,13 @@ export function createCollector(store: EventStore): CollectorApp {
   });
 
   app.post('/trade/intents/:id/reject', (req, res) => {
+    // Alleen een wachtend voorstel is af te wijzen: een papieren vulling of een
+    // handoff is al een besluit, en het spoor wordt nooit herschreven.
+    const existing = store.getIntent(req.params.id);
+    if (!existing || existing.status !== 'awaiting') {
+      res.status(existing ? 409 : 404).json({ ok: false, error: existing ? `voorstel is al ${existing.status}` : 'onbekend voorstel' });
+      return;
+    }
     const by = capText(String((req.body ?? {}).by ?? 'mens'), 80) ?? 'mens';
     const note = capText(String((req.body ?? {}).note ?? 'afgewezen door mens'), 200) ?? '';
     const updated = store.updateIntent(req.params.id, {
@@ -1165,9 +1223,15 @@ export function createCollector(store: EventStore): CollectorApp {
    * "antwoord met POST /chat" was te weinig — zonder host, zonder token en
    * zonder taak-id kwam er niets terug in het kantoor.
    */
+  const ROOM_RE = /^(office|hq):[A-Za-z0-9._:-]{1,80}$/;
   const chatTaskDetail = (room: string, text: string, taskId: string): string => {
     const base = `http://127.0.0.1:${COLLECTOR_PORT}`;
-    const auth = ARA_TOKEN ? ` \\\n    -H 'X-ARA-Token: ${ARA_TOKEN}'` : '';
+    // Het token staat niet in de taak (die staat in de db, in backups en in
+    // elke bordlijst); de spawn krijgt process.env mee, dus $ARA_TOKEN volstaat.
+    const auth = ARA_TOKEN ? ` \\\n    -H "X-ARA-Token: $ARA_TOKEN"` : '';
+    // Eén enkele aanhaling in de payload (of in de ruimte) zou de shell-regel
+    // openbreken; JSON bouwen en de quote escapen zoals sh dat wil.
+    const sq = (json: string): string => `'${json.replace(/'/g, `'\\''`)}'`;
     // De ruimte zegt waar het gesprek staat: "office:<project>" is een kantoor,
     // "hq:<rol>" is een rechtstreeks gesprek met de leiding vanuit de wereld.
     // Een agent die te horen krijgt dat hij in een kantoor zit terwijl dat niet
@@ -1184,12 +1248,12 @@ export function createCollector(store: EventStore): CollectorApp {
       '1) Zet je antwoord in dezelfde ruimte:',
       `  curl -sS -X POST ${base}/chat \\`,
       `    -H 'Content-Type: application/json'${auth} \\`,
-      `    -d '{"room":"${room}","role":"agent","sender":"<jouw rol>","text":"<je antwoord>"}'`,
+      `    -d ${sq(JSON.stringify({ room, role: 'agent', sender: '<jouw rol>', text: '<je antwoord>' }))}`,
       '',
       '2) Sluit daarna deze taak:',
       `  curl -sS -X PATCH ${base}/tasks/${taskId} \\`,
       `    -H 'Content-Type: application/json'${auth} \\`,
-      `    -d '{"status":"done","result":"beantwoord in ${room}"}'`,
+      `    -d ${sq(JSON.stringify({ status: 'done', result: `beantwoord in ${room}` }))}`,
     ].join('\n');
   };
 
@@ -1199,6 +1263,12 @@ export function createCollector(store: EventStore): CollectorApp {
     const text = capText(String(body.text ?? ''), 2000);
     if (!room || !text) {
       res.status(400).json({ ok: false, error: 'room and text required' });
+      return;
+    }
+    // De ruimte belandt letterlijk in een curl-regel die een agent uitvoert;
+    // alleen "office:<project>" of "hq:<rol>" met gewone tekens is een ruimte.
+    if (!ROOM_RE.test(room)) {
+      res.status(400).json({ ok: false, error: 'room moet office:<project> of hq:<rol> zijn (letters, cijfers, . _ -)' });
       return;
     }
     const roleRaw = String(body.role ?? 'user');

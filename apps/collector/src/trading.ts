@@ -82,7 +82,12 @@ export function readLimits(): LimitsReport {
 
   let parsed: Partial<RiskLimits> = {};
   try {
-    parsed = JSON.parse(raw) as Partial<RiskLimits>;
+    const value: unknown = JSON.parse(raw);
+    // `null`, een getal of een array zijn geldige JSON en géén limieten; zonder
+    // deze check las de code `.allowedInstruments` van null en viel de hele
+    // actielijst weg met een 500.
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('geen object');
+    parsed = value as Partial<RiskLimits>;
   } catch (error) {
     return {
       limits: DEFAULT_LIMITS,
@@ -117,7 +122,7 @@ export function readLimits(): LimitsReport {
     allowedInstruments: allowed,
     minRewardRisk: num('minRewardRisk', DEFAULT_LIMITS.minRewardRisk),
     cooldownAfterLossMin: num('cooldownAfterLossMin', DEFAULT_LIMITS.cooldownAfterLossMin),
-    tradingHours: parsed.tradingHours,
+    tradingHours: tradingHoursOf(parsed.tradingHours, problems),
   };
   if (limits.accountValue <= 0) problems.push('accountValue staat op 0 — geen percentage is te toetsen');
 
@@ -131,6 +136,25 @@ const FRESH_STATE: TradingState = {
   modeSetBy: 'standaard',
   modeSetAt: 0,
 };
+
+/**
+ * Handelsuren alleen overnemen als ze kloppen: `days: "0123456"` liet
+ * `evaluateIntent` gooien op `.join`, en dan was het voorstel weg zonder spoor.
+ */
+function tradingHoursOf(raw: unknown, problems: string[]): RiskLimits['tradingHours'] | undefined {
+  if (raw === undefined) return undefined;
+  const h = raw as { fromHour?: unknown; toHour?: unknown; days?: unknown };
+  const hour = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 24 ? v : undefined;
+  const from = hour(h?.fromHour);
+  const to = hour(h?.toHour);
+  const days = Array.isArray(h?.days) ? h.days.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6) : undefined;
+  if (from === undefined || to === undefined || days === undefined) {
+    problems.push('tradingHours: fromHour/toHour (0–24) en days (array van 0–6) verwacht, genegeerd');
+    return undefined;
+  }
+  return { fromHour: from, toHour: to, days };
+}
 
 export function readState(): TradingState {
   try {
@@ -147,14 +171,22 @@ export function readState(): TradingState {
       modeSetBy: typeof parsed.modeSetBy === 'string' ? parsed.modeSetBy : 'onbekend',
       modeSetAt: typeof parsed.modeSetAt === 'number' ? parsed.modeSetAt : 0,
     };
-  } catch {
-    return { ...FRESH_STATE };
+  } catch (error) {
+    // Geen bestand: verse stand. Wél een bestand maar onleesbaar: dan kan er een
+    // noodstop in hebben gestaan, en die mag niet verdwijnen door een half
+    // geschreven bestand — dicht falen, tot een mens `resume` zegt.
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return { ...FRESH_STATE };
+    return { ...FRESH_STATE, halted: true, haltReason: 'trading-state.json onleesbaar — noodstop uit voorzorg', haltedAt: Date.now() };
   }
 }
 
 export function writeState(state: TradingState): void {
   fs.mkdirSync(path.dirname(statePath()), { recursive: true });
-  fs.writeFileSync(statePath(), `${JSON.stringify(state, null, 2)}\n`);
+  // Eerst naast het bestand schrijven en dan hernoemen: een stroomstoring
+  // halverwege laat anders een afgekapt bestand achter.
+  const tmp = `${statePath()}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+  fs.renameSync(tmp, statePath());
 }
 
 export interface ModeChange {

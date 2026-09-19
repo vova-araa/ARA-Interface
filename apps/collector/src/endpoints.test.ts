@@ -103,7 +103,7 @@ test('/world en /world/refresh geven een geldige config met hiddenVentures', asy
     };
     assert.ok(Array.isArray(world.districts));
     const refreshed = (await (
-      await fetch(`${base}/world/refresh`, { method: 'POST' })
+      await fetch(`${base}/world/refresh`, { method: 'POST', headers: json })
     ).json()) as typeof world;
     assert.ok(Array.isArray(refreshed.districts));
   } finally {
@@ -919,4 +919,123 @@ test('auth: elke dataroute eist het token, ook de nieuwe', async () => {
   }
   assert.ok(!re.test('/health'), '/health blijft open voor probes');
   assert.ok(!re.test('/assets/index.js'), 'statische viewer-bestanden blijven open');
+});
+
+test('/trade: akkoord volgt de modus van nú, afwijzen alleen bij wachtend, NaN wordt bewaard', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-trade2-'));
+  fs.writeFileSync(
+    path.join(dir, 'limits.json'),
+    JSON.stringify({
+      accountValue: 100_000,
+      maxRiskPerTradePct: 1,
+      maxTotalExposurePct: 20,
+      maxPositionsTotal: 3,
+      maxPositionsPerInstrument: 1,
+      dailyLossLimitPct: 2,
+      maxDrawdownPct: 10,
+      allowedInstruments: ['XAUUSD'],
+      minRewardRisk: 1.5,
+      cooldownAfterLossMin: 0,
+    }),
+  );
+  process.env.ARA_TRADING_LIMITS = path.join(dir, 'limits.json');
+  process.env.ARA_DATA_DIR = dir;
+  process.env.ARA_TRADING_UNLOCK = 'yes-i-accept-the-risk';
+  const { createCollector: makeCollector } = await import(`./server.ts?trade2=${Date.now()}`);
+  const store = openStore(path.join(dir, 'test.db'));
+  const { app } = makeCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const post = (p: string, body: unknown) => fetch(`${base}${p}`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+  const propose = (patch: Record<string, unknown> = {}) =>
+    post('/trade/intent', { venture: 'trading', instrument: 'XAUUSD', side: 'buy', qty: 10, entry: 2000, stop: 1980, target: 2060, reason: 'uitbraak boven de weekopening, bevestigd op het uur', sources: ['bot-status.json 12:00'], proposedBy: 'ara-market-analyst', ...patch });
+  try {
+    // NaN in qty: geen 500 en geen verdwenen voorstel, maar een bewaarde afwijzing.
+    const nan = await propose({ qty: 'abc' });
+    assert.equal(nan.status, 200, `status ${nan.status}`);
+    const stored = (await (await fetch(`${base}/trade/intents`)).json()) as { intents: { status: string }[] };
+    assert.equal(stored.intents.length, 1);
+    assert.equal(stored.intents[0]!.status, 'rejected');
+
+    // Modus approval → voorstel wacht.
+    await post('/trade/mode', { mode: 'approval', by: 'test' });
+    const waiting = (await (await propose()).json()) as { intent?: { id: string }; id?: string; route?: { action: string } };
+    const id = waiting.intent?.id ?? waiting.id!;
+    const awaiting = (await (await fetch(`${base}/trade/intents?status=awaiting`)).json()) as { intents: { id: string }[] };
+    assert.equal(awaiting.intents.length, 1);
+    // Modus terug naar off: het oude voorstel mag nu geen handoff meer worden.
+    await post('/trade/mode', { mode: 'off', by: 'test' });
+    const approve = await post(`/trade/intents/${id}/approve`, { by: 'test' });
+    assert.equal(approve.status, 409);
+    const after = (await (await fetch(`${base}/trade/intents`)).json()) as { intents: { id: string; status: string; note: string }[] };
+    const row = after.intents.find((i) => i.id === id)!;
+    assert.equal(row.status, 'rejected');
+    assert.match(row.note, /modus is nu off/);
+    // En een besluit dat er al ligt, is niet nog eens af te wijzen.
+    const again = await post(`/trade/intents/${id}/reject`, { by: 'test' });
+    assert.equal(again.status, 409);
+  } finally {
+    server.close();
+    store.close();
+    delete process.env.ARA_TRADING_LIMITS;
+    delete process.env.ARA_TRADING_UNLOCK;
+  }
+});
+
+test('zonder token: een mutatie eist JSON en een eigen herkomst (geen CSRF via simple request)', async () => {
+  const { store, server, base } = boot();
+  try {
+    const plain = await fetch(`${base}/trade/resume`, { method: 'POST', headers: { 'content-type': 'text/plain' }, body: 'x' });
+    assert.equal(plain.status, 415, 'text/plain is precies wat een vreemde site zonder preflight mag sturen');
+    const foreign = await fetch(`${base}/trade/resume`, { method: 'POST', headers: { ...json, origin: 'https://evil.example' }, body: '{}' });
+    assert.equal(foreign.status, 403);
+    const own = await fetch(`${base}/trade/resume`, { method: 'POST', headers: { ...json, origin: 'http://localhost:4748' }, body: '{}' });
+    assert.notEqual(own.status, 403);
+    assert.notEqual(own.status, 415);
+    // Lezen blijft gewoon lezen.
+    assert.equal((await fetch(`${base}/state`)).status, 200);
+  } finally {
+    server.close();
+    store.close();
+  }
+});
+
+test('trading: kapotte limieten en een kapotte stand falen dicht', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-trade3-'));
+  process.env.ARA_TRADING_LIMITS = path.join(dir, 'limits.json');
+  process.env.ARA_DATA_DIR = dir;
+  const trading = await import(`./trading.ts?t3=${Date.now()}`);
+  try {
+    fs.writeFileSync(path.join(dir, 'limits.json'), 'null');
+    const nul = trading.readLimits();
+    assert.equal(nul.limits.allowedInstruments.length, 0, 'null is geen object: strengste stand');
+    assert.match(nul.problems[0]!, /geen geldige JSON/);
+    fs.writeFileSync(path.join(dir, 'limits.json'), JSON.stringify({ accountValue: 1000, allowedInstruments: ['X'], tradingHours: { days: '0123456' } }));
+    const hours = trading.readLimits();
+    assert.equal(hours.limits.tradingHours, undefined, 'onbruikbare handelsuren worden genegeerd, niet doorgegeven');
+    assert.ok(hours.problems.some((p: string) => p.startsWith('tradingHours')));
+    // Half geschreven stand: dan liever een noodstop dan een verdwenen noodstop.
+    fs.writeFileSync(path.join(dir, 'trading-state.json'), '{"mode":"paper","halted":tr');
+    const state = trading.readState();
+    assert.equal(state.halted, true);
+    assert.match(state.haltReason, /onleesbaar/);
+    // Geen bestand: gewoon vers, geen noodstop.
+    fs.rmSync(path.join(dir, 'trading-state.json'));
+    assert.equal(trading.readState().halted, false);
+  } finally {
+    delete process.env.ARA_TRADING_LIMITS;
+  }
+});
+
+test('/hook: prototype-sleutels en onbekende hooks geven 400/genegeerd, geen crash', async () => {
+  const { store, server, base } = boot();
+  try {
+    for (const name of ['constructor', '__proto__', 'toString', 'NietBestaand']) {
+      const r = await fetch(`${base}/hook/${name}`, { method: 'POST', headers: json, body: JSON.stringify({ session_id: 's1', cwd: '/x' }) });
+      assert.ok(r.status < 500, `${name} → ${r.status}`);
+    }
+  } finally {
+    server.close();
+    store.close();
+  }
 });

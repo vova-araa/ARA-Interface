@@ -22,6 +22,15 @@ export function getToken(): string {
     const fromUrl = new URLSearchParams(location.search).get('token');
     if (fromUrl) {
       localStorage.setItem('ara.token', fromUrl);
+      // Uit de adresbalk halen zodra hij is opgeslagen: anders reist hij mee
+      // in elke Referer en in elke gedeelde link.
+      try {
+        const url = new URL(location.href);
+        url.searchParams.delete('token');
+        history.replaceState(history.state, '', url);
+      } catch {
+        /* geen history-API: dan blijft hij staan, en dat is de oude stand */
+      }
       return fromUrl;
     }
     return localStorage.getItem('ara.token') ?? '';

@@ -352,7 +352,9 @@ export function openStore(dbPath = DB_PATH): EventStore {
   }
 
   const insertStmt = db.prepare(
-    'INSERT OR REPLACE INTO events (id, ts, kind, session_id, project, json) VALUES (?, ?, ?, ?, ?, ?)',
+    // IGNORE, niet REPLACE: een opnieuw gestuurd event (zelfde id) kreeg anders
+    // een nieuwe rowid en dus een andere plek bij zelfde-ms replay.
+    'INSERT OR IGNORE INTO events (id, ts, kind, session_id, project, json) VALUES (?, ?, ?, ?, ?, ?)',
   );
   const rangeStmt = db.prepare(
     'SELECT json FROM events WHERE ts BETWEEN ? AND ? ORDER BY ts ASC, rowid ASC LIMIT ?',
@@ -569,6 +571,8 @@ export function openStore(dbPath = DB_PATH): EventStore {
       db.prepare('DELETE FROM usage WHERE updated_at < ?').run(Date.now() - USAGE_RETENTION_MS);
       db.prepare('DELETE FROM usage_days WHERE day < ?').run(localDay(Date.now() - USAGE_RETENTION_MS));
       db.prepare('DELETE FROM chat_messages WHERE ts < ?').run(cutoff);
+      // Werkplek-pushes voor willekeurige projectnamen groeiden anders eeuwig.
+      db.prepare('DELETE FROM office_stations WHERE updated_at < ?').run(cutoff);
       // Verwijderde rijen geven pas ruimte terug ná een checkpoint + VACUUM;
       // zonder dit groeit het bestand (en de WAL ernaast) alleen maar door.
       try {

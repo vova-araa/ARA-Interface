@@ -80,9 +80,22 @@ export function toolSummary(tool: string | undefined, input: Record<string, unkn
   }
 }
 
+const unknownHooks = new Set<string>();
+
 export function mapHookPayload(hookName: string, payload: HookPayload): IncomingEvent | null {
-  const kind = HOOK_TO_KIND[hookName] ?? HOOK_TO_KIND[payload.hook_event_name ?? ''];
-  if (!kind) return null;
+  // Alleen eigen sleutels: "/hook/constructor" vond anders een functie op het
+  // prototype. En een onbekende hook één keer loggen, niet stil laten vallen.
+  const lookup = (name: string): AraEventKind | undefined =>
+    Object.hasOwn(HOOK_TO_KIND, name) ? HOOK_TO_KIND[name] : undefined;
+  const kind = lookup(hookName) ?? lookup(payload.hook_event_name ?? '');
+  if (!kind) {
+    const key = hookName || payload.hook_event_name || '?';
+    if (!unknownHooks.has(key) && unknownHooks.size < 50) {
+      unknownHooks.add(key);
+      console.warn(`[collector] onbekende hook genegeerd: ${key.slice(0, 60)}`);
+    }
+    return null;
+  }
 
   const responseIsError = (() => {
     const r = payload.tool_response;
