@@ -349,8 +349,21 @@ const STATION_STATUS_LABEL: Record<string, string> = {
   done: 'klaar',
 };
 
+/**
+ * Waar een echt cijfer vandaan komt, in één regel: `uit vehicles.csv · 3d oud`
+ * voor een bureau uit een bronbestand, `door agent · 12m geleden` voor een
+ * push. Een bestand veroudert in dagen, een push in minuten — vandaar "oud"
+ * tegenover "geleden". Zonder `updatedAt` staat er geen leeftijd: een
+ * leeftijd die niet gemeten is wordt weggelaten, niet ingevuld.
+ */
+function provenance(station: Station, now: number): string {
+  const origin = station.source ? `uit ${station.source}` : 'door agent';
+  if (station.updatedAt === undefined) return origin;
+  return `${origin} · ${ageString(station.updatedAt, now)} ${station.source ? 'oud' : 'geleden'}`;
+}
+
 /** Detailpaneel van een werkplek: cijfers, belofte × geleverd en de curve. */
-function StationDetail({ station, valueKind }: { station: Station; valueKind: string }): JSX.Element {
+function StationDetail({ station, valueKind, now }: { station: Station; valueKind: string; now: number }): JSX.Element {
   const d = station.detail;
   return (
     <div className="office-detail">
@@ -364,23 +377,30 @@ function StationDetail({ station, valueKind }: { station: Station; valueKind: st
         </span>
       </div>
 
-      {/* Eén keer bovenaan, in een hele zin: wat je hieronder ziet is
-          ingevuld of juist aangeleverd. Voorheen droeg élk cijfer een "≈" en
-          dan lees je een teken in plaats van een zin. */}
+      {/* Eén keer bovenaan: waar de cijfers hieronder vandaan komen en hoe
+          oud ze zijn. Er stond "aangeleverd door de agent" — ook boven een
+          bureau dat uit vehicles.csv kwam zonder dat er ooit een agent aan te
+          pas was. Nu noemt de regel het bestand, of anders de agent. */}
       {station.simulated ? (
-        <p className="office-warn">
-          <b>Voorbeeldcijfers.</b> Geen agent levert data voor deze werkplek, dus ARA heeft alles
-          hieronder zelf ingevuld — bruikbaar om te zien hóe het eruitziet, niet om op te sturen.
+        <p className="office-warn office-provenance">
+          <Tag kind="est">voorbeeld</Tag>
+          <span>
+            voorbeeldcijfers — geen bron gekoppeld, ARA vulde dit zelf in; om te zien hóe het eruitziet,
+            niet om op te sturen.
+          </span>
         </p>
       ) : station.stale ? (
-        <p className="office-warn">
-          <b>Verouderd.</b> Deze cijfers komen van een agent, maar de laatste levering was om{' '}
-          {clockTime(station.updatedAt ?? 0)} — sindsdien kwam er niets meer binnen.
+        <p className="office-warn office-provenance">
+          <Tag kind="stale">verouderd</Tag>
+          <span>
+            {provenance(station, now)}
+            {station.source ? ' — sindsdien niet ververst.' : ' — sindsdien kwam er niets meer binnen.'}
+          </span>
         </p>
       ) : (
-        <p className="office-note office-note-real">
-          Aangeleverd door de agent op deze werkplek
-          {station.updatedAt ? `, om ${clockTime(station.updatedAt)}` : ''}.
+        <p className="office-note office-note-real office-provenance">
+          <Tag kind="real">gemeten</Tag>
+          <span>{provenance(station, now)}</span>
         </p>
       )}
 
@@ -834,7 +854,9 @@ export function OfficeOverlay(): JSX.Element | null {
             </button>
           )}
 
-          {tab === 'werk' && station && <StationDetail station={station} valueKind={office?.valueKind ?? 'count'} />}
+          {tab === 'werk' && station && (
+            <StationDetail station={station} valueKind={office?.valueKind ?? 'count'} now={now} />
+          )}
           {tab === 'werk' && !station && (
             <div className="office-list">
               {/* Eén regel die uitlegt hoe je de kolom rechts moet lezen. Stond
@@ -853,9 +875,7 @@ export function OfficeOverlay(): JSX.Element | null {
                   title={
                     s.simulated
                       ? `${s.label} — voorbeeldwerkplek; open hem om te zien welke cijfers hier zouden staan.`
-                      : `${s.label} — aangeleverd${s.updatedAt ? ` om ${clockTime(s.updatedAt)}` : ''}${
-                          s.agentName ? ` door ${s.agentName}` : ''
-                        }`
+                      : `${s.label} — ${provenance(s, now)}${s.agentName ? ` · ${s.agentName} zit hier` : ''}`
                   }
                 >
                   {/* Gevuld = een echte status, hol = een voorbeeld. Een volle
