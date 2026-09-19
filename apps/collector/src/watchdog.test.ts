@@ -421,7 +421,7 @@ test('levensteken: telt de gevulde bronnen, en verzint geen getal als /sources o
     forgetSources();
     const out = await run({});
     assert.match(out, /ARA World draait/, 'het levensteken is verstuurd');
-    assert.match(out, /Bronnen: 1 van 22 gevuld/, 'één gevulde bron, geteld uit /sources');
+    assert.match(out, /Bronnen: 1 van 24 gevuld/, 'één gevulde bron, geteld uit /sources');
   } finally {
     server.close();
     store.close();

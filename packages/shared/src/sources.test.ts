@@ -33,7 +33,7 @@ test('bestandsnamen zijn uniek per tak en kolomnamen zijn genormaliseerd', () =>
       assert.match(col, /^[a-z0-9_]+$/, `${key}: kolom "${col}" moet klein en zonder spaties zijn`);
     }
   }
-  assert.equal(SOURCE_SPECS.length, 22);
+  assert.equal(SOURCE_SPECS.length, 24);
 });
 
 test('readTable: verplichte kolommen, datums en getallen getypeerd, rest tekst', () => {

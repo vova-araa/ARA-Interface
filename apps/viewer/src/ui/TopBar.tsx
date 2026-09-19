@@ -44,6 +44,7 @@ export function TopBar(): JSX.Element {
   const overviewOpen = useAra((s) => s.overviewOpen);
   const setOverviewOpen = useAra((s) => s.setOverviewOpen);
   const demo = useAra((s) => s.demo);
+  const setPhoneOpen = useAra((s) => s.setPhoneOpen);
 
   return (
     <div className="topbar">
@@ -74,6 +75,14 @@ export function TopBar(): JSX.Element {
         <span className="stat">🟢 Klaar: <b>{counters.doneToday}</b></span>
       </div>
       <div className="topbar-actions">
+        <button
+          className="btn btn-phone"
+          onClick={() => setPhoneOpen(true)}
+          title="Open deze wereld op je telefoon (QR-code)"
+          aria-label="Op je telefoon"
+        >
+          📱
+        </button>
         <button
           className={`btn ${followLive ? 'btn-active' : ''}`}
           onClick={toggleFollowLive}

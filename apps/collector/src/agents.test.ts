@@ -462,7 +462,7 @@ const SOURCE_READS: Record<string, string[]> = {
   'ara-trailer-manager': ['blex/trailers.csv'],
   'ara-market-analyst': ['trading/posities.csv', 'crypto/portefeuille.csv'],
   'ara-risk-guard': ['trading/posities.csv', 'crypto/portefeuille.csv', 'equities/portefeuille.csv'],
-  'ara-trade-journal': ['trading/trades.csv'],
+  'ara-trade-journal': ['trading/trades.csv', 'crypto/trades.csv', 'equities/trades.csv'],
   'ara-event-scout': ['crypto/portefeuille.csv'],
   'ara-execution-trader': ['trading/posities.csv', 'crypto/portefeuille.csv', 'equities/portefeuille.csv'],
   'ara-allocation-guard': [

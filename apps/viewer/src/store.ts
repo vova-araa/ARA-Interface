@@ -107,6 +107,9 @@ interface AraStore {
   panelOpen: boolean;
   boardOpen: boolean;
   actionsOpen: boolean;
+  /** Het telefoonpaneel (QR-code naar het Tailscale-adres). */
+  phoneOpen: boolean;
+  setPhoneOpen: (open: boolean) => void;
   /** Bumpt bij elke trade-gebeurtenis, zodat de actielijst zichzelf ververst. */
   tradeVersion: number;
   /** LOD: true wanneer ver uitgezoomd — icons/bubbles verbergen (perf). */
@@ -316,6 +319,8 @@ export const useAra = create<AraStore>((set, get) => ({
   panelOpen: window.innerWidth > 800,
   boardOpen: false,
   actionsOpen: false,
+  phoneOpen: false,
+  setPhoneOpen: (open) => set({ phoneOpen: open }),
   tradeVersion: 0,
   lodFar: false,
   cameraView: null,

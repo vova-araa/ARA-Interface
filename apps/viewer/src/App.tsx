@@ -15,6 +15,7 @@ import { SoundPlayer } from './ui/Sound.tsx';
 import { ChatPanel } from './ui/ChatPanel.tsx';
 import { ConnectPanel } from './ui/ConnectPanel.tsx';
 import { ShowcaseNote } from './ui/ShowcaseNote.tsx';
+import { PhonePanel } from './ui/PhonePanel.tsx';
 import { OfficeOverlay } from './office/OfficeOverlay.tsx';
 import { useAra } from './store.ts';
 import { connectLive } from './api.ts';
@@ -87,6 +88,7 @@ export function App(): JSX.Element {
           is geweest neemt de reconnect-balk het over. */}
       <ConnectPanel />
       <ShowcaseNote />
+      <PhonePanel />
       <ReconnectBanner />
       <NudgePulse />
       <SoundPlayer />

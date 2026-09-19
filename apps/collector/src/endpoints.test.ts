@@ -891,3 +891,32 @@ test('/actions: wat in de bronbestanden ligt staat naast de rest, zonder knop', 
     forgetSources();
   }
 });
+
+test('/access: zonder Tailscale geen adres, en de route valt onder het token', async () => {
+  const { store, server, base } = boot();
+  try {
+    const info = (await (await fetch(`${base}/access`)).json()) as { tailnet: string | null; serving: boolean; port: number };
+    // In deze container is er geen tailscale: dan géén adres verzinnen.
+    assert.equal(info.tailnet, null);
+    assert.equal(info.serving, false);
+    assert.equal(typeof info.port, 'number');
+  } finally {
+    server.close();
+    store.close();
+  }
+});
+
+test('auth: elke dataroute eist het token, ook de nieuwe', async () => {
+  // De middleware leest ARA_TOKEN uit config bij import; een aparte collector
+  // met token starten kan alleen via een subproces. Hier toetsen we de regex
+  // zelf: elk pad dat data geeft moet erin staan.
+  const src = fs.readFileSync(path.join(import.meta.dirname, 'server.ts'), 'utf8');
+  const match = /const API_PATHS = (\/\^.*?\/i);/.exec(src);
+  assert.ok(match, 'API_PATHS gevonden');
+  const re = new Function(`return ${match![1]}`)() as RegExp;
+  for (const p of ['/sources', '/sources/blex/vehicles.csv', '/fleet', '/retro', '/access', '/actions', '/office/x', '/tasks', '/trade/intent', '/events', '/state']) {
+    assert.ok(re.test(p), `${p} hoort achter het token`);
+  }
+  assert.ok(!re.test('/health'), '/health blijft open voor probes');
+  assert.ok(!re.test('/assets/index.js'), 'statische viewer-bestanden blijven open');
+});

@@ -328,6 +328,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       },
       { label: 'Portefeuille en posities', how: 'VUL-IN: eigen statusbestand dat je bot of wallet-export wegschrijft', configured: false },
       { label: 'Streefverdeling en concentratiegrenzen', how: 'VUL-IN: jouw doelallocatie per munt/sector', configured: false },
+      { label: 'Handelslogboek van afgesloten trades', how: 'VUL-IN: export van de exchange of het logboek van je bot — in R, niet in geld', configured: false },
     ],
   },
   // De drie creatieve takken delen geen rol meer: klantwerk, eigen zaak en een
@@ -491,6 +492,7 @@ const DEFAULTS: Record<OfficeKind, Omit<Playbook, 'managerName'>> = {
       { label: 'Kwartaalagenda', how: 'VUL-IN: investor-relations-pagina per naam, of een agenda-export', configured: false },
       { label: 'Jaarverslagen en kwartaalcijfers', how: 'VUL-IN: primaire bron per naam (IR-site)', configured: false },
       { label: 'Streefverdeling per sector', how: 'VUL-IN: jouw doelallocatie', configured: false },
+      { label: 'Handelslogboek van afgesloten trades', how: 'VUL-IN: transactie-export van je broker — in R, niet in geld', configured: false },
     ],
   },
   generic: {

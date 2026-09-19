@@ -38,6 +38,7 @@ import { projectPulse } from './pulse.ts';
 import * as trading from './trading.ts';
 import { buildActions } from './actions.ts';
 import { fleetReport } from './fleet.ts';
+import { accessInfo } from './access.ts';
 import { SOURCES_DIR, forgetSources, readSource, ventureSources, ventureTables, withFileSources } from './sources.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, projectsJsonPath, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
@@ -60,7 +61,9 @@ export function createCollector(store: EventStore): CollectorApp {
   // all data flows through the guarded API. EventSource can't set headers, so a
   // ?token= query param is accepted too. De regex is case-insensitief als
   // verdediging-in-diepte: rare casing krijgt auth + 404, nooit data.
-  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org|trade|actions)(\/|$)/i;
+  // Elke nieuwe dataroute hoort hier: /sources, /fleet en /retro stonden er
+  // een dag niet in en waren dus met ARA_TOKEN gezet gewoon open.
+  const API_PATHS = /^\/(event|hook|events|state|world|session|history|fixture|stats|status|tasks|usage|otel|latency|office|chat|org|trade|actions|sources|fleet|retro|access)(\/|$)/i;
   app.use((req, res, next) => {
     if (!ARA_TOKEN || !API_PATHS.test(req.path)) {
       next();
@@ -658,6 +661,15 @@ export function createCollector(store: EventStore): CollectorApp {
     }
     if (req.query.refresh === '1') forgetSources();
     res.json(readSource(spec));
+  });
+
+  /**
+   * Het adres voor de telefoon. De viewer tekent er een QR-code van; zonder
+   * Tailscale is er geen adres en zegt de viewer welk commando dat verhelpt.
+   */
+  app.get('/access', (req, res) => {
+    allowOrigin(req, res);
+    res.json(accessInfo());
   });
 
   app.get('/fleet', (req, res) => {

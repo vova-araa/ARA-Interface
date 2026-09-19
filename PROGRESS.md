@@ -652,3 +652,17 @@ de demo-wereld, geen adresvraag, en één keer een kaart (`ShowcaseNote`) die ze
 de demo is en waar de echte staat — de PWA die de collector zelf serveert via
 `expose.sh tailnet`. Geverifieerd op 390 px: demo-chip, kaart, geen verbindingsscherm,
 nul externe verzoeken. `?api=` blijft bestaan voor een viewer die je zélf ergens host.
+
+## QR naar de telefoon, en drie routes die open stonden (2026-09-19)
+
+- **📱-knop in de balk** (desktop): `PhonePanel` tekent een QR-code van het Tailscale-adres
+  dat de collector via `GET /access` meldt (`tailscale status --json` → DNS-naam; `tailscale
+  serve status` → geeft hij poort 4747 door?). Token reist mee in de code. Geen Tailscale
+  ⇒ geen lege QR maar het commando `./scripts/expose.sh tailnet`. Op de telefoon zelf is de
+  knop verborgen. Dep: `qrcode` (gebundeld, geen CDN — de viewer draait ook offline op het
+  tailnet).
+- **Auth-gat**: `/sources`, `/fleet` en `/retro` stonden niet in `API_PATHS`; met `ARA_TOKEN`
+  gezet waren ze open. Nu erin, samen met `/access`, en een test leest de regex uit de bron
+  en eist elke dataroute — een nieuwe route die vergeten wordt valt in CI.
+- **`trades.csv` voor crypto en aandelen** (registry 24): zelfde vorm als trading, in R.
+  `ara-trade-journal` leest alle drie.

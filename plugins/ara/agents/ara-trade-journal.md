@@ -34,10 +34,9 @@ en token staan in je taak):
 - trading: `GET /sources/trading/trades.csv` — per afgesloten trade `datum`
   (datum), `instrument`, `richting`, `resultaat_r` (R: winst gedeeld door risico,
   niet in geld) en `inzet` (getal).
-- crypto en aandelen: de registry kent daar géén logboekbestand
-  (`ops/sources/README.md`). Staan de afgesloten posities niet letterlijk in je
-  taak, dan is dát je melding: `failed` met `result: "ESCALATE: geen logboekbron
-  voor <tak> — zie ops/sources/README.md"`.
+- crypto: `GET /sources/crypto/trades.csv` (`datum`, `munt`, `richting`,
+  `resultaat_r`, `inzet`); aandelen: `GET /sources/equities/trades.csv` (`datum`,
+  `ticker`, `richting`, `resultaat_r`, `inzet`). Zelfde vorm, zelfde R.
 
 ```bash
 curl -s "$ARA_COLLECTOR_URL/sources/trading/trades.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}

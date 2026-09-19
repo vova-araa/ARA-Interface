@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 158 unit tests (shared 102 + collector 56) + de viewer-smoke
+pnpm test                    # 160 unit tests (shared 102 + collector 58) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -159,7 +159,7 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
 
 ## Databronnen (elke bron is een bestand)
 
-- **`packages/shared/src/sources.ts`** is de registry: 22 bronnen uit de playbooks, elk met
+- **`packages/shared/src/sources.ts`** is de registry: 24 bronnen uit de playbooks, elk met
   tak, exact label, bestandsnaam, verplichte kolommen, datum- en getalkolommen. Test pint
   vast dat elke niet-aangesloten playbook-bron een spec heeft en andersom. `readTable()`
   typeert datums en getallen; onbekende kolommen blijven staan.
