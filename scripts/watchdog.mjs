@@ -14,6 +14,8 @@
  * 5. Escalaties, gebruikerstaken én kantoorchat-vragen → spawn de supervisor.
  * 6. needsHuman → Telegram (dedupe op sessie + inhoud).
  * 6b. Maandag: het handelsrapport van de afgelopen week (0 tokens).
+ * 6c. Blokkerende acties uit de bronbestanden (verlopen APK, positie zonder
+ *     stop) → Telegram, één keer per feit per dag.
  * 7. Eén keer per dag een levensteken, zodat stilte zélf het alarm is.
  * 7b. Dagelijkse backup van de database (0 tokens), zodat de backup-verifier
  *     iets heeft om terug te zetten.
@@ -817,6 +819,28 @@ try {
   }
 } catch (error) {
   log(`telegram-stap overgeslagen: ${String(error).slice(0, 80)}`);
+}
+
+// ── 6c. Blokkerende acties uit de bronbestanden → Telegram ───────────────
+// Een verlopen APK of een positie zonder stop staat in de actielijst, maar
+// die lees je pas als je de viewer opent. Wat blokkerend is hoort op de
+// telefoon: één melding per feit per dag (de id van de actie is stabiel per
+// feit, dus dezelfde APK meldt zich morgen opnieuw en niet elke vijf minuten).
+// De tekst is de titel uit de lijst zelf — geen tweede lezing. 0 tokens.
+if (process.env.ARA_SOURCES_ALERT !== '0') {
+  try {
+    const { actions } = await api('/actions');
+    const blocking = actions.filter((a) => a.kind === 'source-alert' && a.urgency === 'blocking');
+    for (const action of blocking) {
+      await alertOnce(
+        `src-${action.id}`,
+        24 * 60 * 60 * 1000,
+        `🔴 ARA World — uit de bronnen\n${action.title}\n${String(action.detail).split('\n')[0]}`,
+      );
+    }
+  } catch (error) {
+    log(`bronacties overgeslagen: ${String(error).slice(0, 80)}`);
+  }
 }
 
 // ── 6b. Wekelijks handelsrapport ──────────────────────────────────────────

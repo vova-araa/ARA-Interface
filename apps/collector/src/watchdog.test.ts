@@ -429,3 +429,53 @@ test('levensteken: telt de gevulde bronnen, en verzint geen getal als /sources o
     forgetSources();
   }
 });
+
+test('bronacties: een verlopen APK gaat één keer per dag naar Telegram, niet elke tick', async () => {
+  const { forgetSources } = await import('./sources.ts');
+  const store = openStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-')), 'test.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+  const dir = path.join(process.env.ARA_SOURCES_DIR!, 'blex');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'vehicles.csv');
+  const run = (): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const child = spawn('node', [path.join(REPO, 'scripts', 'watchdog.mjs')], {
+        env: {
+          ...process.env,
+          ARA_COLLECTOR_URL: base,
+          ARA_LOCK_DIR: lockDir,
+          ARA_WATCHDOG_NO_SPAWN: '1',
+          ARA_NOTIFY_DRYRUN: '1',
+          ARA_TELEGRAM_BOT_TOKEN: 'test',
+          ARA_TELEGRAM_CHAT_ID: 'test',
+          ARA_BACKUP: '0',
+          ARA_DAILY_PING: '0',
+        },
+      });
+      let out = '';
+      child.stdout.on('data', (chunk) => (out += String(chunk)));
+      child.stderr.on('data', (chunk) => (out += String(chunk)));
+      child.on('error', reject);
+      child.on('close', () => resolve(out));
+    });
+  try {
+    const gone = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    fs.writeFileSync(file, `kenteken;apk\n12-ABC-3;${gone}\n45-XYZ-9;${soon}\n`);
+    forgetSources();
+    const first = await run();
+    const sent = (first.match(/uit de bronnen/g) ?? []).length;
+    assert.equal(sent, 1, 'alleen het blokkerende feit (verlopen), niet de termijn over vijf dagen');
+    assert.match(first, /APK van wagen 12-ABC-3 is 2 dag\(en\) verlopen/);
+    const second = await run();
+    assert.equal((second.match(/uit de bronnen/g) ?? []).length, 0, 'dezelfde dag niet nog een keer');
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(file, { force: true });
+    forgetSources();
+  }
+});
