@@ -11,6 +11,8 @@ import {
   redactValue,
   resolvePlaybook,
   sourceSpecs,
+  stationsFromSources,
+  type SourceTables,
   evaluateIntent,
   routeIntent,
   autoHaltReason,
@@ -686,7 +688,14 @@ export function createCollector(store: EventStore): CollectorApp {
         // veld kan het kantoor geen escalatie van gewoon werk onderscheiden.
         result: t.result,
       }));
-    const overrides: StationOverride[] = [];
+    // Eerst de bronbestanden (0 tokens), daarna wat agents zelf duwden: een
+    // agent-push over dezelfde werkplek wint, want die is bewuster en verser.
+    const tables: SourceTables = {};
+    for (const source of ventureSources(venture.id)) {
+      if (source.state === 'gevuld') tables[source.file] = { rows: source.rows, updatedAt: source.updatedAt };
+    }
+    const feed = stationsFromSources(venture.id, tables, Date.now());
+    const overrides: StationOverride[] = [...(feed?.overrides ?? [])];
     for (const row of store.listStations(project)) {
       try {
         overrides.push({
@@ -723,7 +732,7 @@ export function createCollector(store: EventStore): CollectorApp {
         sessions,
         tasks,
         taskLimit: TASK_LIMIT,
-        entities: officeEntities(venture.id),
+        entities: feed?.entities ?? officeEntities(venture.id),
         overrides,
         pulse,
         playbook: playbookFor(venture.id, venture.label),

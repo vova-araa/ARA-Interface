@@ -97,10 +97,14 @@ function splitLine(line: string, sep: string): string[] {
 
 /** Kolomnaam zoals de bron hem schrijft → zoals wij hem zoeken. */
 function normalizeHeader(name: string): string {
+  // "Waarde USD", "waarde-usd" en "waarde_usd" zijn dezelfde kolom; het
+  // onderstrepingsteken blijft, want de registry schrijft kolommen zo.
   return name
     .toLowerCase()
-    .replace(/^﻿/, '')
-    .replace(/[^a-z0-9]/g, '');
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
 }
 
 export function parseCsv(text: string): { header: string[]; records: Record<string, string>[]; errors: string[] } {

@@ -802,3 +802,42 @@ test('/sources: ontbreekt → leeg → gevuld, en alleen gevuld telt als aangesl
     forgetSources();
   }
 });
+
+test('/office: een gevuld bronbestand vult de bureaus — echt, niet verouderd, zonder agent', async () => {
+  const { forgetSources } = await import('./sources.ts');
+  const { store, server, base } = boot();
+  const dir = path.join(process.env.ARA_SOURCES_DIR!, 'blex');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'vehicles.csv');
+  type Office = { stations: { id: string; label: string; simulated: boolean; stale: boolean; status: string; metrics: { label: string; value: string }[] }[] };
+  try {
+    forgetSources();
+    const before = (await (await fetch(`${base}/office/truck-trailers`)).json()) as Office;
+    assert.ok(before.stations.every((s) => s.simulated), 'zonder bron: voorbeeldcijfers, en dat staat erbij');
+
+    const soon = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    fs.writeFileSync(file, `Kenteken;Km;APK\n12-abc-3;120.500;${soon}\n45-XYZ-9;9000;\n`);
+    forgetSources();
+    const after = (await (await fetch(`${base}/office/truck-trailers`)).json()) as Office;
+    assert.deepEqual(after.stations.map((s) => s.id), ['12-ABC-3', '45-XYZ-9'], 'de kentekens zijn de bureaus');
+    assert.ok(after.stations.every((s) => !s.simulated && !s.stale));
+    assert.equal(after.stations[0]!.status, 'alert', 'APK over vijf dagen');
+    assert.equal(after.stations[0]!.metrics.find((m) => m.label === 'Km-stand')!.value, '120.500');
+    assert.equal(after.stations[1]!.metrics.find((m) => m.label === 'APK')!.value, 'ontbreekt');
+
+    // Een agent-push over dezelfde werkplek wint van het bestand.
+    await fetch(`${base}/office/truck-trailers/station`, {
+      method: 'POST',
+      headers: json,
+      body: JSON.stringify({ id: '12-ABC-3', value: 7, sub: 'net uit de garage' }),
+    });
+    const pushed = (await (await fetch(`${base}/office/truck-trailers`)).json()) as Office & { stations: { value: number; sub: string }[] };
+    assert.equal(pushed.stations[0]!.value, 7);
+    assert.equal(pushed.stations[0]!.sub, 'net uit de garage');
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(file, { force: true });
+    forgetSources();
+  }
+});

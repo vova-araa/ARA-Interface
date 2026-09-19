@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 128 unit tests (shared 78 + collector 50) + de viewer-smoke
+pnpm test                    # 137 unit tests (shared 86 + collector 51) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -130,6 +130,12 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
 - Agents leveren echte cijfers via `POST /office/:project/station`; zolang dat
   niet gebeurt vult `buildOffice` deterministisch in en staat `simulated: true`
   (de UI toont dan "voorbeeldcijfers" — nooit stilzwijgend nepdata).
+- **Een gevuld bronbestand vult de bureaus zelf** (`packages/shared/src/officefeed.ts`,
+  `stationsFromSources()`, 0 tokens): kentekens, ritten, posities, munten, tickers,
+  opdrachten, boekingen, releases worden de werkplekken, `simulated: false`. Een kolom die
+  ontbreekt geeft geen metric; weging alleen als élke regel een waarde heeft. Elke werkplek
+  draagt `staleAfterMs` (weekbestand = 8 dagen) naast de 30 min voor een agent-push, en een
+  agent-push over dezelfde werkplek wint van het bestand. Hoogstens `STATION_CAP` (12).
 - De **Gemeten-tab** is het tegendeel: `apps/collector/src/pulse.ts` leest git
   (branch, commits, laatste commit, dirty files — 60s cache), het bord telt taken
   en de usage-tabel telt tokens. Niet meetbaar ⇒ de regel ontbreekt; er wordt

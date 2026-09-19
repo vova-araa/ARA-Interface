@@ -76,9 +76,14 @@ export interface SourceTable {
 function parseNumber(raw: string | undefined): number | undefined {
   const s = (raw ?? '').trim();
   if (!s) return undefined;
-  // 1.250,50 (NL) → 1250.50; 1250.50 (EN) blijft; 1,5 → 1.5.
-  const normalized =
-    s.includes(',') && s.includes('.') ? s.replace(/\./g, '').replace(',', '.') : s.replace(',', '.');
+  // 1.250,50 (NL) → 1250.50; 1,5 → 1.5; 1250.50 (EN) blijft. Eén punt met
+  // precies drie cijfers erachter en geen komma (120.500) is een Nederlands
+  // duizendtal, geen 120 en een half — de lijsten komen uit een NL-Excel.
+  let normalized: string;
+  if (s.includes(',') && s.includes('.')) normalized = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) normalized = s.replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) normalized = s.replace(/\./g, '');
+  else normalized = s;
   const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
 }

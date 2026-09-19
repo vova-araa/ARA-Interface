@@ -546,3 +546,22 @@ bron één bestand geven met een kolomlijst, zodat het enige wat de eigenaar nog
 
 Wat de eigenaar doet: `pnpm sources:init`, bestanden vullen in volgorde van opbrengst
 (`ops/24-7.md` fase 2). Wat er níét komt: een broker- of exchange-koppeling.
+
+## De bureaus vullen zichzelf uit de bronnen (2026-09-19)
+
+Een kantoor toonde voorbeeldcijfers tot een reporter-sessie ze kwam vervangen — een sessie
+per keer, voor een cijfer dat al in het bestand stond. `stationsFromSources()` in
+`packages/shared/src/officefeed.ts` doet dat nu zonder tokens, per branche: wagenpark
+(kenteken = bureau, APK ≤14 d = alarm, open garagepunten = waarde), ritten (vertraagd
+eerst, ETA voorbij), posities (pnl = waarde, zonder stop = alarm), portefeuilles (weging
+alleen als élke regel een waarde heeft; boven `max_pct` = alarm), opdrachten (deadline
+<7 d), boekingen (komend eerst, aanvraag = alarm), releases en planning.
+
+- `StationOverride.staleAfterMs`: een weekbestand van drie dagen oud is niet "verouderd";
+  de dertig minuten blijven gelden voor een agent-push. Een push over dezelfde werkplek
+  wint van het bestand.
+- Twee parserfouten gevonden door de tests: kolomnamen met `_` werden platgeslagen
+  (`waarde_usd` → `waardeusd`, dus elke registry-kolom met onderstreping was onleesbaar),
+  en `120.500` las als 120,5. Nu: één punt met drie cijfers erachter is een NL-duizendtal.
+- Endpoint-test: zonder bron voorbeeldcijfers, met `vehicles.csv` echte bureaus,
+  agent-push wint. Zeven tests op de voeding zelf.

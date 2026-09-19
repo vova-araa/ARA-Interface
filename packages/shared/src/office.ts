@@ -457,6 +457,12 @@ export interface StationOverride {
   metrics?: Metric[];
   /** Tijdstip van de push; bepaalt of de koppeling nog leeft. */
   updatedAt?: number;
+  /**
+   * Na hoeveel ms deze werkplek als verouderd geldt. Een agent-push is na
+   * dertig minuten oud (`STATION_STALE_MS`); een weekbestand niet — dat zegt
+   * zelf hoe vers het hoort te zijn.
+   */
+  staleAfterMs?: number;
 }
 
 /** Een koppeling die hier langer dan dit niets stuurde, geldt als stilgevallen. */
@@ -558,7 +564,9 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
     // data is gepusht. Eén echte werkplek maakt de rest niet echt.
     const isReal = override !== undefined;
     const stale =
-      isReal && override.updatedAt !== undefined && now - override.updatedAt > STATION_STALE_MS;
+      isReal &&
+      override.updatedAt !== undefined &&
+      now - override.updatedAt > (override.staleAfterMs ?? STATION_STALE_MS);
     const status = override?.status ?? statusFor(i, working, key);
     const magnitude = kind === 'trading' || kind === 'crypto' ? 120 : 40;
     const raw = (rnd(`${key}-v`) - 0.42) * magnitude;

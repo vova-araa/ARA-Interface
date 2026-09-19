@@ -50,6 +50,14 @@ test('readTable: verplichte kolommen, datums en getallen getypeerd, rest tekst',
   assert.match(bad.errors[0]!, /bedrag, verstuurd, vervalt/);
 });
 
+test('kolomnamen met spatie, streepje of onderstreping zijn dezelfde kolom', () => {
+  const spec = sourceSpec('crypto', 'Portefeuille en posities')!;
+  const t = readTable('Munt;Aantal;Waarde USD\nBTC;1;100\n', spec);
+  assert.equal(t.errors.length, 0);
+  assert.equal(t.rows[0]!.waarde_usd, 100);
+  assert.equal(readTable('munt;aantal;waarde-usd\nBTC;1;100\n', spec).rows[0]!.waarde_usd, 100);
+});
+
 test('een ETA met tijd erachter is een datum; 1250.50 en 1,5 zijn getallen', () => {
   assert.equal(parseDate('2026-09-20 14:30'), Date.UTC(2026, 8, 20));
   assert.equal(parseDate('2026-09-20T14:30:00'), Date.UTC(2026, 8, 20));
@@ -57,5 +65,10 @@ test('een ETA met tijd erachter is een datum; 1250.50 en 1,5 zijn getallen', () 
   const t = readTable('kenteken;maand;brandstof;banden;reparatie;km\nA;2026-09;1250.50;1,5;;12\n', spec);
   assert.equal(t.rows[0]!.brandstof, 1250.5);
   assert.equal(t.rows[0]!.banden, 1.5);
+  const nl = readTable('kenteken;maand;brandstof;banden;reparatie;km\nA;2026-09;1.250;1.250.000;12.5;120.500\n', spec);
+  assert.equal(nl.rows[0]!.brandstof, 1250, 'één punt, drie cijfers: duizendtal');
+  assert.equal(nl.rows[0]!.banden, 1250000);
+  assert.equal(nl.rows[0]!.reparatie, 12.5, 'twee cijfers achter de punt: decimaal');
+  assert.equal(nl.rows[0]!.km, 120500);
   assert.equal(t.rows[0]!.reparatie, undefined);
 });
