@@ -56,6 +56,12 @@ export interface Station {
   status: StationStatus;
   /** Zwevend cijfer boven het bureau (geld, aantal of tijd — zie valueKind). */
   value: number;
+  /**
+   * true = deze werkplek is echt, maar de bron had geen waarde voor dit cijfer
+   * (geen pnl-kolom, geen garagelijst). `value` is dan een vulling om de
+   * vorm heel te houden en hoort niet getoond te worden — regel 4.
+   */
+  valueMissing?: boolean;
   metrics: Metric[];
   detail: StationDetail;
   /** Naam van de agent die hier werkt; leeg = onbemand bureau. */
@@ -175,6 +181,8 @@ export interface OfficeSnapshot {
   chart: number[];
   facts: OfficeFact[];
   stations: Station[];
+  /** Bronregels die niet meer op een bureau pasten (0 = alles staat er). */
+  stationsTruncated: number;
   staff: StaffMember[];
   room: { name: string; status: string; messages: RoomMessage[] };
   /** Eenheid van het zwevende cijfer boven de bureaus. */
@@ -491,6 +499,8 @@ export interface OfficeInput {
   entities?: string[];
   /** Echte, door agents aangeleverde werkplek-data. */
   overrides?: StationOverride[];
+  /** Hoeveel bronregels buiten de bureaus vielen (uit `stationsFromSources`). */
+  stationsTruncated?: number;
   /** Gemeten projectcijfers (git/bord/tokens) — nooit ingevuld. */
   pulse?: ProjectPulse;
   /** Organisatie van deze tak (manager, vaste rollen, escalaties). */
@@ -579,6 +589,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
     const magnitude = kind === 'trading' || kind === 'crypto' ? 120 : 40;
     const raw = (rnd(`${key}-v`) - 0.42) * magnitude;
     const value = override?.value ?? Number(raw.toFixed(2));
+    const valueMissing = isReal && override.value === undefined;
     const agent = liveAgents[i];
     const baseMetrics: Metric[] = override?.metrics ?? buildMetrics(kind, spec, key, label, value, status);
     // Zonder echte bron is élk cijfer op deze werkplek een invulling.
@@ -589,6 +600,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       sub: override?.sub ?? spec.stationSub(i, seed, label),
       status,
       value,
+      ...(valueMissing ? { valueMissing } : {}),
       metrics,
       agentName: agent?.name,
       agentId: agent?.id,
@@ -882,6 +894,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
     simulated: realStations === 0,
     realStations,
     staleStations,
+    stationsTruncated: input.stationsTruncated ?? 0,
     chartEstimated: true, // het verloop is een invulling zolang niets het voedt
     work,
     now,

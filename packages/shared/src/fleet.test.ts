@@ -64,6 +64,15 @@ test('vensters: de grens ligt op de dag zelf en is een getal, geen zin', () => {
   assert.equal(byKey.has('B:verzekering'), false, 'dag 61 heeft niets te melden');
 });
 
+test('om tien uur is een APK van vandaag nog niet verlopen', () => {
+  const { rows } = readVehicles(`kenteken;apk\nA;${iso(0)}\n`);
+  const at10 = fleetDeadlines(rows, [], NOW + 10 * 60 * 60 * 1000);
+  assert.equal(at10.find((d) => d.term === 'apk')!.window, '14');
+  assert.equal(at10.find((d) => d.term === 'apk')!.daysLeft, 0);
+  assert.equal(parseDate('2026-09-19T14:30:00Z'), Date.UTC(2026, 8, 19));
+  assert.equal(parseDate('2026-09-19T14:30:00.000Z'), Date.UTC(2026, 8, 19));
+});
+
 test('een lege datum wordt "ontbreekt", nooit stilzwijgend in orde', () => {
   const { rows } = readVehicles(`kenteken;apk\nA;\n`);
   const found = fleetDeadlines(rows, [], NOW);

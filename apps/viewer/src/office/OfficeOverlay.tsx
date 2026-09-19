@@ -859,6 +859,13 @@ export function OfficeOverlay(): JSX.Element | null {
           )}
           {tab === 'werk' && !station && (
             <div className="office-list">
+              {(office?.stationsTruncated ?? 0) > 0 && (
+                <p className="office-note">
+                  {/* Twaalf bureaus, meer regels: de ergste staan er, de rest niet. Zeg dat, anders leest "12" als "alles". */}
+                  ≥ {office!.stationsTruncated} regel(s) uit de bron passen niet meer op een bureau — de ergste
+                  gevallen staan hier.
+                </p>
+              )}
               {/* Eén regel die uitlegt hoe je de kolom rechts moet lezen. Stond
                   er niet, en toen was elke regel een getal zonder eenheid. */}
               <p className="office-note office-note-lead">
@@ -902,9 +909,11 @@ export function OfficeOverlay(): JSX.Element | null {
                             : undefined
                         }
                       >
-                        {office.valueKind === 'money'
-                          ? `${s.value >= 0 ? '+' : '−'}$${Math.abs(s.value).toFixed(2)}`
-                          : Math.round(s.value)}
+                        {s.valueMissing
+                          ? '—'
+                          : office.valueKind === 'money'
+                            ? `${s.value >= 0 ? '+' : '−'}$${Math.abs(s.value).toFixed(2)}`
+                            : Math.round(s.value)}
                       </strong>
                       {/* Het tijdstip is het enige dat dit cijfer duidt: van wie
                           en van wanneer. Een eenheid erbij verzinnen zou een

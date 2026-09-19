@@ -15,7 +15,7 @@
  * `trading-limits.json` is de uitzondering op het CSV-formaat: dat bestand is
  * van de risicomotor zelf en telt hier alleen mee als aanwezig-of-niet.
  */
-import { parseCsv, parseDate } from './fleet.ts';
+import { parseCsv, parseDate, parseNumber } from './fleet.ts';
 
 export interface SourceSpec {
   venture: string;
@@ -25,12 +25,22 @@ export interface SourceSpec {
   file: string;
   /** Kolommen die in de kop moeten staan; ontbreekt er één, dan is de tabel onleesbaar. */
   required: string[];
+  /**
+   * Cellen die per rij gevuld moeten zijn (leeg = de eerste van `required`):
+   * de sleutel van de rij. Een lege stop bij een positie is juist het alarm,
+   * dus die is verplicht als kolom en niet als cel.
+   */
+  key?: string[];
   /** Kolommen die als datum gelezen worden (leeg of onleesbaar ⇒ undefined, nooit "vandaag"). */
   dates?: string[];
   /** Kolommen die als getal gelezen worden (1.250,50 en 1250.50 allebei). */
   numbers?: string[];
   note?: string;
+  /** Eigen verversingstermijn; leeg = een week (plus een dag speling). */
+  staleAfterMs?: number;
 }
+
+const MONTH_MS = 40 * 24 * 60 * 60 * 1000;
 
 export const SOURCE_SPECS: SourceSpec[] = [
   { venture: 'traject', label: "Ritten en ETA per wagen", file: 'ritten.csv', required: ['rit', 'kenteken', 'van', 'naar', 'eta', 'status'], dates: ['eta'], note: "status: gepland | onderweg | geleverd | vertraagd" },
@@ -49,11 +59,11 @@ export const SOURCE_SPECS: SourceSpec[] = [
   { venture: 'elevate', label: "Te bewaken sites", file: 'sites.csv', required: ['url', 'klant'], note: "de site-watch leest alleen; niets gaat naar buiten" },
   { venture: 'uprising', label: "Agenda en boekingen", file: 'boekingen.csv', required: ['datum', 'klant', 'ruimte', 'status'], dates: ['datum'], numbers: ['uren'], note: "status: aanvraag | bevestigd | geannuleerd" },
   { venture: 'uprising', label: "Openstaande aanvragen", file: 'aanvragen.csv', required: ['ontvangen', 'van', 'onderwerp', 'status'], dates: ['ontvangen'], note: "status: nieuw | beantwoord | gesloten" },
-  { venture: 'vovara', label: "Releases en streams", file: 'releases.csv', required: ['titel', 'datum'], dates: ['datum'], numbers: ['streams'], note: "distributeur-export, streams als getal" },
+  { venture: 'vovara', label: "Releases en streams", file: 'releases.csv', staleAfterMs: MONTH_MS, required: ['titel', 'datum'], dates: ['datum'], numbers: ['streams'], note: "distributeur-export, streams als getal" },
   { venture: 'vovara', label: "Releaseplanning en metadata", file: 'releaseplanning.csv', required: ['titel', 'geplande_datum', 'status'], dates: ['geplande_datum'], note: "status: idee | productie | ingeleverd | uit \u2014 uitbrengen doet ARA nooit" },
   { venture: 'equities', label: "Koersen en portefeuille", file: 'portefeuille.csv', required: ['ticker', 'aantal'], dates: ['peildatum'], numbers: ['aantal', 'koers', 'waarde'], note: "broker-export \u2014 ARA vraagt nooit zelf de broker" },
   { venture: 'equities', label: "Kwartaalagenda", file: 'kwartaalagenda.csv', required: ['ticker', 'datum', 'soort'], dates: ['datum'], note: "soort: kwartaalcijfers | jaarcijfers | ava | ex-dividend" },
-  { venture: 'equities', label: "Jaarverslagen en kwartaalcijfers", file: 'cijfers.csv', required: ['ticker', 'periode', 'bron_url'], numbers: ['omzet', 'winst'], note: "bron_url = de primaire bron (IR-site), niet een samenvatting" },
+  { venture: 'equities', label: "Jaarverslagen en kwartaalcijfers", file: 'cijfers.csv', staleAfterMs: MONTH_MS, required: ['ticker', 'periode', 'bron_url'], numbers: ['omzet', 'winst'], note: "bron_url = de primaire bron (IR-site), niet een samenvatting" },
   { venture: 'equities', label: "Streefverdeling per sector", file: 'sectorallocatie.csv', required: ['sector', 'doel_pct', 'max_pct'], numbers: ['doel_pct', 'max_pct'] },
 ];
 
@@ -73,21 +83,6 @@ export interface SourceTable {
   errors: string[];
 }
 
-function parseNumber(raw: string | undefined): number | undefined {
-  const s = (raw ?? '').trim();
-  if (!s) return undefined;
-  // 1.250,50 (NL) → 1250.50; 1,5 → 1.5; 1250.50 (EN) blijft. Eén punt met
-  // precies drie cijfers erachter en geen komma (120.500) is een Nederlands
-  // duizendtal, geen 120 en een half — de lijsten komen uit een NL-Excel.
-  let normalized: string;
-  if (s.includes(',') && s.includes('.')) normalized = s.replace(/\./g, '').replace(',', '.');
-  else if (s.includes(',')) normalized = s.replace(',', '.');
-  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) normalized = s.replace(/\./g, '');
-  else normalized = s;
-  const n = Number(normalized);
-  return Number.isFinite(n) ? n : undefined;
-}
-
 /**
  * Een CSV volgens zijn spec: verplichte kolommen aanwezig, datums en getallen
  * getypeerd, al het andere als tekst. Onbekende kolommen blijven gewoon
@@ -102,14 +97,22 @@ export function readTable(text: string, spec: SourceSpec): SourceTable {
   }
   const dates = new Set(spec.dates ?? []);
   const numbers = new Set(spec.numbers ?? []);
-  const rows: SourceRow[] = records.map((rec) => {
+  const rows: SourceRow[] = [];
+  records.forEach((rec, i) => {
+    // Een lege sleutelcel (een Excel-export eindigt graag op ";;") is geen rij
+    // maar een fout: melden en overslaan, niet doorgeven als "".
+    const empty = (spec.key ?? spec.required.slice(0, 1)).filter((c) => !(rec[c] ?? '').trim());
+    if (empty.length > 0) {
+      errors.push(`regel ${i + 2}: verplichte kolom leeg: ${empty.join(', ')}`);
+      return;
+    }
     const row: SourceRow = {};
     for (const [key, raw] of Object.entries(rec)) {
       if (dates.has(key)) row[key] = parseDate(raw);
       else if (numbers.has(key)) row[key] = parseNumber(raw);
       else row[key] = raw;
     }
-    return row;
+    rows.push(row);
   });
   return { rows, errors };
 }

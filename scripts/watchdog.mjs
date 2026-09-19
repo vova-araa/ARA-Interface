@@ -907,7 +907,10 @@ if (process.env.ARA_DAILY_PING !== '0') {
 // dezelfde die de verifier leest).
 if (process.env.ARA_BACKUP !== '0') {
   const backupDir = process.env.ARA_BACKUP_DIR ?? path.join(os.homedir(), 'Backups', 'ara');
-  const everyMs = Number(process.env.ARA_BACKUP_HOURS ?? 24) * 60 * 60 * 1000;
+  // Een onleesbare ARA_BACKUP_HOURS mag niet stil in NaN eindigen (dan komt er
+  // nooit een backup en zegt niemand iets): terug naar 24.
+  const hours = Number(process.env.ARA_BACKUP_HOURS ?? 24);
+  const everyMs = (Number.isFinite(hours) && hours > 0 ? hours : 24) * 60 * 60 * 1000;
   const dbPath = path.join(process.env.ARA_DATA_DIR ?? path.join(REPO, 'data'), 'ara-events.db');
   let newest = 0;
   try {

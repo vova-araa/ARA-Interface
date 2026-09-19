@@ -48,6 +48,10 @@ test('readTable: verplichte kolommen, datums en getallen getypeerd, rest tekst',
   const bad = readTable('factuur;klant\nF-1;Acme\n', spec);
   assert.equal(bad.rows.length, 0);
   assert.match(bad.errors[0]!, /bedrag, verstuurd, vervalt/);
+  // Een Excel-export eindigt graag op ";;;;;" — dat is geen factuur.
+  const trailing = readTable('factuur;klant;bedrag;verstuurd;vervalt\nF-1;Acme;1;2026-09-01;2026-10-01\n;;;;\n', spec);
+  assert.equal(trailing.rows.length, 1);
+  assert.match(trailing.errors[0]!, /regel 3: verplichte kolom leeg: factuur/);
 });
 
 test('kolomnamen met spatie, streepje of onderstreping zijn dezelfde kolom', () => {

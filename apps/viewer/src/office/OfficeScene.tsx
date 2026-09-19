@@ -2856,6 +2856,9 @@ export function OfficeScene({
         const slot = layout.desks[i]!;
         const mark = st.stale ? '!' : st.simulated ? '~' : '';
         const chip = chipTexture(st.label, st.sub, accent, mark);
+        // Een echte werkplek zonder gemeten cijfer krijgt géén zwevend getal:
+        // "+$0,00" boven een positie zonder pnl-kolom leest als winst nul.
+        const showValue = !st.valueMissing;
         const text =
           office.valueKind === 'money'
             ? `${st.value >= 0 ? '+' : '-'}$${Math.abs(st.value).toFixed(2)}`
@@ -2866,9 +2869,11 @@ export function OfficeScene({
             <sprite position={[0, 1.95, 0]} scale={[1.45 * chip.aspect * 0.62, 0.62, 1]} renderOrder={10}>
               <spriteMaterial map={chip.texture} transparent depthWrite={false} depthTest={false} />
             </sprite>
-            <sprite position={[1.2, 2.45, 0]} scale={[0.95, 0.28, 1]} renderOrder={10}>
-              <spriteMaterial map={value.texture} transparent depthWrite={false} depthTest={false} />
-            </sprite>
+            {showValue && (
+              <sprite position={[1.2, 2.45, 0]} scale={[0.95, 0.28, 1]} renderOrder={10}>
+                <spriteMaterial map={value.texture} transparent depthWrite={false} depthTest={false} />
+              </sprite>
+            )}
             {st.id === selectedId && (
               <mesh position={[0, 0.03, 0]} rotation={[FLAT, 0, 0]} scale={1.55}>
                 <primitive object={G_RING} attach="geometry" />

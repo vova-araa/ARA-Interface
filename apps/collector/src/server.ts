@@ -662,12 +662,23 @@ export function createCollector(store: EventStore): CollectorApp {
 
   app.get('/fleet', (req, res) => {
     allowOrigin(req, res);
+    if (req.query.refresh === '1') forgetSources();
     res.json(fleetReport());
   });
 
   app.get('/office/:project', async (req, res) => {
     allowOrigin(req, res);
-    const project = req.params.project;
+    // Express 4 vangt een afgewezen promise niet: één kapotte bronregel zou
+    // anders het proces neerhalen, launchd herstart, de viewer vraagt opnieuw —
+    // een crash-lus uit een CSV. Data mag nooit de collector doden.
+    try {
+      await officeSnapshot(req.params.project, res);
+    } catch (error) {
+      res.status(500).json({ error: `kantoor niet samen te stellen: ${String(error).slice(0, 160)}` });
+    }
+  });
+
+  async function officeSnapshot(project: string, res: Response): Promise<void> {
     const world = loadOrBuildWorldConfig();
     const placement = placementForProject(world, project);
     const venture = VENTURES.find((v) => v.id === placement.venture) ?? VENTURES[VENTURES.length - 1]!;
@@ -692,11 +703,17 @@ export function createCollector(store: EventStore): CollectorApp {
     // agent-push over dezelfde werkplek wint, want die is bewuster en verser.
     const tables: SourceTables = {};
     for (const source of ventureSources(venture.id)) {
-      if (source.state === 'gevuld') tables[source.file] = { rows: source.rows, updatedAt: source.updatedAt };
+      if (source.state === 'gevuld') {
+        tables[source.file] = { rows: source.rows, updatedAt: source.updatedAt, staleAfterMs: source.staleAfterMs };
+      }
     }
     const feed = stationsFromSources(venture.id, tables, Date.now());
     const overrides: StationOverride[] = [...(feed?.overrides ?? [])];
+    const fromFile = new Map(overrides.map((o) => [o.id, o.updatedAt ?? 0]));
     for (const row of store.listStations(project)) {
+      // Een push wint alleen als hij verser is dan het bestand; een push van
+      // drie dagen geleden mag een lijst van vandaag niet "stilgevallen" maken.
+      if (row.updatedAt <= (fromFile.get(row.stationId) ?? 0)) continue;
       try {
         overrides.push({
           id: row.stationId,
@@ -734,12 +751,13 @@ export function createCollector(store: EventStore): CollectorApp {
         taskLimit: TASK_LIMIT,
         entities: feed?.entities ?? officeEntities(venture.id),
         overrides,
+        stationsTruncated: feed?.truncated,
         pulse,
         playbook: playbookFor(venture.id, venture.label),
         now: Date.now(),
       }),
     );
-  });
+  }
 
   /** Agents duwen hier echte werkplek-data in (vervangt de ingevulde cijfers). */
   app.post('/office/:project/station', (req, res) => {

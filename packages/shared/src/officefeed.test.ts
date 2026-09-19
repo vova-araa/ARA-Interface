@@ -34,6 +34,7 @@ test('wagenpark: kenteken is de werkplek, APK binnen 14 dagen is alarm, garagepu
   assert.equal(a!.metrics!.find((m) => m.label === 'Km-stand')!.value, '120.500');
   assert.equal(b!.status, 'working', 'één open garagepunt');
   assert.equal(b!.value, 1, 'afgemelde punten tellen niet');
+  assert.equal(feed.truncated, 0);
   assert.equal(a!.staleAfterMs, FILE_STALE_MS);
 });
 
@@ -45,6 +46,9 @@ test('een kolom die ontbreekt levert geen metric op — en APK zonder datum heet
   )!;
   const labels = feed.overrides[0]!.metrics!.map((m) => m.label);
   assert.ok(!labels.includes('Km-stand'), 'geen km-kolom, geen km-metric');
+  assert.ok(!labels.includes('Storingen'), 'geen garagelijst, geen storingencijfer');
+  assert.equal(feed.overrides[0]!.value, undefined, 'en geen verzonnen nul als waarde');
+  assert.equal(feed.overrides[0]!.sub, 'geen garagelijst');
   assert.equal(feed.overrides[0]!.metrics!.find((m) => m.label === 'APK')!.value, 'ontbreekt');
 });
 
@@ -54,10 +58,14 @@ test('handel: pnl is de waarde, een positie zonder stop is alarm', () => {
     { 'posities.csv': table('trading', 'Posities, P&L, stops', `instrument;richting;inzet;entry;stop;pnl\nXAUUSD;long;500;2410,5;2390;42,25\nEURUSD;short;200;1.0850;;-3\n`) },
     NOW,
   )!;
-  assert.equal(feed.overrides[0]!.value, 42.25);
-  assert.equal(feed.overrides[0]!.status, 'working');
-  assert.equal(feed.overrides[1]!.status, 'alert');
-  assert.equal(feed.overrides[1]!.metrics!.find((m) => m.label === 'Stop')!.value, 'GEEN STOP');
+  // Zonder stop vooraan: dat is wat de risicobewaker moet zien.
+  assert.equal(feed.overrides[0]!.id, 'EURUSD');
+  assert.equal(feed.overrides[0]!.status, 'alert');
+  assert.equal(feed.overrides[0]!.metrics!.find((m) => m.label === 'Stop')!.value, 'GEEN STOP');
+  assert.equal(feed.overrides[1]!.value, 42.25);
+  assert.equal(feed.overrides[1]!.status, 'working');
+  const noPnl = stationsFromSources('trading', { 'posities.csv': table('trading', 'Posities, P&L, stops', 'instrument;richting;inzet;entry;stop\nXAUUSD;long;500;2410;2390\n') }, NOW)!;
+  assert.equal(noPnl.overrides[0]!.value, undefined, 'geen pnl-kolom is geen winst van nul');
 });
 
 test('portefeuille: weging alleen als elke regel een waarde heeft, en boven max is alarm', () => {
@@ -107,9 +115,11 @@ test('hoogstens twaalf bureaus, en het kantoor toont ze als echt en niet veroude
     NOW,
   )!;
   assert.equal(feed.entities.length, STATION_CAP);
+  assert.equal(feed.truncated, 8);
   const venture = VENTURES.find((v) => v.id === 'blex')!;
-  const office = buildOffice({ project: 'truck-trailers', venture, sessions: [], tasks: [], entities: feed.entities, overrides: feed.overrides, now: NOW });
+  const office = buildOffice({ project: 'truck-trailers', venture, sessions: [], tasks: [], entities: feed.entities, overrides: feed.overrides, stationsTruncated: feed.truncated, now: NOW });
   assert.equal(office.stations.length, STATION_CAP);
+  assert.equal(office.stationsTruncated, 8);
   assert.ok(office.stations.every((s) => !s.simulated), 'uit een bestand = echt');
   assert.ok(office.stations.every((s) => !s.stale), 'drie dagen oud weekbestand is niet verouderd');
   // Een agent-push van dertig minuten geleden is dat wél — die regel blijft.
@@ -132,4 +142,49 @@ test('herkomst: een bureau uit een bestand draagt die bestandsnaam, tot in het k
   // Een agent-push heeft geen bestand; de viewer zegt dan "door agent", niet een verzonnen naam.
   const pushed = buildOffice({ project: 'p', venture, sessions: [], tasks: [], entities: ['X'], overrides: [{ id: 'X', value: 1, updatedAt: NOW }], now: NOW });
   assert.equal(pushed.stations[0]!.source, undefined);
+});
+
+test('ergste eerst vóór het afkappen: een verlopen APK op regel dertien staat vooraan', () => {
+  const ok = Array.from({ length: 12 }, (_, i) => `OK-${i};1;${iso(300)}`).join('\n');
+  const feed = stationsFromSources(
+    'blex',
+    { 'vehicles.csv': table('blex', 'Kenteken, APK-datum, kilometerstand', `kenteken;km;apk\n${ok}\nBAD-13;1;${iso(-2)}\nNODATE;1;\n`) },
+    NOW,
+  )!;
+  assert.equal(feed.entities[0], 'BAD-13');
+  assert.equal(feed.overrides[0]!.status, 'alert');
+  assert.equal(feed.truncated, 2);
+  assert.ok(!feed.entities.includes('NODATE'), 'ontbrekende datum sorteert achteraan en valt af');
+});
+
+test('een datum zonder tijd telt vanaf middernacht: om tien uur is vandaag nog niet verlopen', () => {
+  const tenAm = NOW + 10 * 60 * 60 * 1000;
+  const fleet = stationsFromSources(
+    'blex',
+    { 'vehicles.csv': table('blex', 'Kenteken, APK-datum, kilometerstand', `kenteken;apk\nA;${iso(0)}\n`) },
+    tenAm,
+  )!;
+  assert.equal(fleet.overrides[0]!.metrics!.find((m) => m.label === 'APK')!.value, '0 d');
+  const tms = stationsFromSources(
+    'traject',
+    { 'ritten.csv': table('traject', 'Ritten en ETA per wagen', `rit;kenteken;van;naar;eta;status\nR1;A;X;Y;${iso(0)} 14:30;onderweg\n`) },
+    tenAm,
+  )!;
+  assert.ok(!tms.overrides[0]!.metrics!.find((m) => m.label === 'ETA')!.value.includes('voorbij'));
+  const studio = stationsFromSources(
+    'uprising',
+    { 'boekingen.csv': table('uprising', 'Agenda en boekingen', `datum;klant;ruimte;status\n${iso(3)};Later;B;bevestigd\n${iso(0)};Vandaag;A;bevestigd\n`) },
+    tenAm,
+  )!;
+  assert.equal(studio.entities[0], 'Vandaag · A', 'vandaag is niet "geweest"');
+});
+
+test('een dubbele regel is één bureau en telt één keer in de weging', () => {
+  const feed = stationsFromSources(
+    'crypto',
+    { 'portefeuille.csv': table('crypto', 'Portefeuille en posities', 'munt;aantal;waarde_usd\nBTC;1;100\nBTC;1;100\nETH;1;100\n') },
+    NOW,
+  )!;
+  assert.deepEqual(feed.entities, ['BTC', 'ETH']);
+  assert.match(feed.overrides[0]!.sub!, /^50\.0%/);
 });

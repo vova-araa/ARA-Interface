@@ -15,7 +15,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { readTable, sourceSpecs, type SourceSpec, type SourceTable } from '@ara/shared';
-import { DATA_DIR } from './config.ts';
+import { DATA_DIR, REPO_ROOT } from './config.ts';
 import { limitsPath } from './trading.ts';
 
 export const SOURCES_DIR = process.env.ARA_SOURCES_DIR ?? path.join(DATA_DIR, 'sources');
@@ -23,6 +23,8 @@ export const SOURCES_DIR = process.env.ARA_SOURCES_DIR ?? path.join(DATA_DIR, 's
 export type SourceState = 'ontbreekt' | 'leeg' | 'gevuld';
 
 export interface SourceStatus extends SourceTable {
+  /** Eigen verversingstermijn uit de spec (leeg = een week). */
+  staleAfterMs?: number;
   venture: string;
   label: string;
   file: string;
@@ -43,9 +45,16 @@ export function sourcePath(venture: string, file: string): string {
 
 const CACHE_MS = 60_000;
 const cache = new Map<string, { at: number; status: SourceStatus }>();
+const forgetListeners: (() => void)[] = [];
+
+/** Andere caches op dezelfde bestanden (het wagenparkrapport) haken hier aan. */
+export function onForgetSources(listener: () => void): void {
+  forgetListeners.push(listener);
+}
 
 export function forgetSources(): void {
   cache.clear();
+  for (const listener of forgetListeners) listener();
 }
 
 export function readSource(spec: SourceSpec, now = Date.now()): SourceStatus {
@@ -57,26 +66,31 @@ export function readSource(spec: SourceSpec, now = Date.now()): SourceStatus {
     ...(spec.dates ?? []).filter((c) => !spec.required.includes(c)),
     ...(spec.numbers ?? []).filter((c) => !spec.required.includes(c) && !(spec.dates ?? []).includes(c)),
   ];
-  const base = { venture: spec.venture, label: spec.label, file: spec.file, path: file, columns, note: spec.note };
+  const base = { venture: spec.venture, label: spec.label, file: spec.file, path: file, columns, note: spec.note, staleAfterMs: spec.staleAfterMs };
   let status: SourceStatus;
-  if (!fs.existsSync(file)) {
+  // Lezen én stat in één try: een bestand dat tussen twee aanroepen verdwijnt
+  // is een bron die ontbreekt, geen 500.
+  let text: string | undefined;
+  let updatedAt: number | undefined;
+  try {
+    updatedAt = fs.statSync(file).mtimeMs;
+    if (!spec.file.endsWith('.json')) text = fs.readFileSync(file, 'utf8');
+  } catch {
+    updatedAt = undefined;
+  }
+  if (updatedAt === undefined) {
     status = { ...base, state: 'ontbreekt', rows: [], errors: [] };
   } else if (spec.file.endsWith('.json')) {
     // Het bestand van de risicomotor: aanwezig is genoeg, bruikbaar zegt /actions.
-    status = { ...base, state: 'gevuld', updatedAt: fs.statSync(file).mtimeMs, rows: [], errors: [] };
+    status = { ...base, state: 'gevuld', updatedAt, rows: [], errors: [] };
   } else {
     let table: SourceTable;
     try {
-      table = readTable(fs.readFileSync(file, 'utf8'), spec);
+      table = readTable(text ?? '', spec);
     } catch (error) {
       table = { rows: [], errors: [String(error).slice(0, 200)] };
     }
-    status = {
-      ...base,
-      state: table.rows.length > 0 ? 'gevuld' : 'leeg',
-      updatedAt: fs.statSync(file).mtimeMs,
-      ...table,
-    };
+    status = { ...base, state: table.rows.length > 0 ? 'gevuld' : 'leeg', updatedAt, ...table };
   }
   cache.set(file, { at: now, status });
   return status;
@@ -103,7 +117,9 @@ export function withFileSources<T extends { dataSources: { label: string; how: s
     dataSources: playbook.dataSources.map((source) => {
       const status = byLabel.get(source.label);
       if (!status) return source;
-      const rel = path.relative(process.cwd(), status.path);
+      // Relatief aan de repo, niet aan cwd: onder pnpm is cwd apps/collector en
+      // dan leest de eigenaar "../../data/…" terwijl hij in de repo staat.
+      const rel = path.relative(REPO_ROOT, status.path);
       if (status.state === 'gevuld') {
         return { ...source, configured: true, how: `${rel} (${status.rows.length} regel(s), GET /sources/${ventureId}/${status.file})` };
       }

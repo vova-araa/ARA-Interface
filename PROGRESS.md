@@ -565,3 +565,30 @@ alleen als élke regel een waarde heeft; boven `max_pct` = alarm), opdrachten (d
   en `120.500` las als 120,5. Nu: één punt met drie cijfers erachter is een NL-duizendtal.
 - Endpoint-test: zonder bron voorbeeldcijfers, met `vehicles.csv` echte bureaus,
   agent-push wint. Zeven tests op de voeding zelf.
+
+## Vier agents tegelijk, en een review die vijftien dingen vond (2026-09-19)
+
+Parallel gedraaid in eigen worktrees: viewer-herkomst (`source` op elke werkplek, "uit
+vehicles.csv · 3d oud" in het detailpaneel), zeventien rolbestanden met een sectie "Waar je
+leest" (`GET /sources/<tak>/<bestand>`, gepind in `agents.test.ts`), watchdog sectie 7c
+(onleesbaar bronbestand → één Telegram-melding per dag; levensteken telt "X van Y gevuld"),
+en een read-only review van de bronnenlaag. Die review vond één blocker en zeven bugs, alle
+verholpen mét test:
+
+- **Blocker**: een lege sleutelcel (`;;` als laatste regel van een Excel-export) gaf een
+  TypeError in een async Express-handler zonder catch → proces dood → launchd herstart →
+  viewer vraagt opnieuw: crash-lus uit een CSV. Nu: `readTable` slaat de regel over en
+  meldt hem; `/office` zit in try/catch en antwoordt 500. Data doodt de collector nooit.
+- **Afkappen zonder sortering**: een verlopen APK op regel 13 was onzichtbaar. Elke branche
+  sorteert nu op ernst vóór `STATION_CAP`, en `stationsTruncated` zegt hoeveel er afviel.
+- **Regel 4**: `pnl ?? 0`, `streams ?? 0`, "0 storingen" zonder garagelijst — verzonnen
+  nullen op een echte werkplek. Nu `valueMissing`; de viewer laat het zwevende cijfer weg.
+- **Twee getalparsers** op hetzelfde bestand (`120.500` → 120500 óf 120,5): één parser.
+- **Daggrens**: `Math.floor` vanaf `now` maakte een APK van vandaag om tien uur "verlopen";
+  rekenen vanaf middernacht UTC, ook voor ETA's en boekingen.
+- **Caches**: `/fleet` had een eigen cache die `?refresh=1` niet leegde; nu één signaal.
+- **`sources:init`** kon een vers geüpload bestand overschrijven (warme cache + `writeFile`):
+  nu `?refresh=1`, `flag: 'wx'`, en weigeren als de collector op een andere machine draait.
+- Verder: verouderde agent-push wint niet meer van een vers bestand, paden relatief aan de
+  repo i.p.v. cwd, `ARA_BACKUP_HOURS=abc` valt terug op 24, `statSync` binnen de try,
+  ISO-datums met `Z`/ms, dubbele munten één bureau, `staleAfterMs` per bron (maandexport 40 d).

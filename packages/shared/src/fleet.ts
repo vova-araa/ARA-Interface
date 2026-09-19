@@ -134,8 +134,8 @@ export function parseCsv(text: string): { header: string[]; records: Record<stri
  * 14/03/2026. Alles anders is geen datum — en dus `undefined`, niet "vandaag".
  */
 export function parseDate(raw: string | undefined): number | undefined {
-  // Een tijd erachter (ETA "2026-09-20 14:30", ook met T) mag; de dag telt.
-  const s = (raw ?? '').trim().replace(/[ T]\d{1,2}:\d{2}(:\d{2})?$/, '');
+  // Een tijd erachter (ETA "2026-09-20 14:30", ook met T, seconden, ms of Z) mag; de dag telt.
+  const s = (raw ?? '').trim().replace(/[ T]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?Z?$/, '');
   if (!s) return undefined;
   let y: number, m: number, d: number;
   let match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
@@ -154,10 +154,22 @@ export function parseDate(raw: string | undefined): number | undefined {
   return ts;
 }
 
-function parseNumber(raw: string | undefined): number | undefined {
-  const s = (raw ?? '').replace(/\./g, '').replace(',', '.').trim();
+/**
+ * 1.250,50 (NL) → 1250.50; 1,5 → 1.5; 1250.50 (EN) blijft. Eén punt met
+ * precies drie cijfers erachter en geen komma (120.500) is een Nederlands
+ * duizendtal, geen 120 en een half — de lijsten komen uit een NL-Excel.
+ * Eén parser voor álle bronnen: twee lezingen van hetzelfde bestand die een
+ * ander getal geven, is erger dan geen getal.
+ */
+export function parseNumber(raw: string | undefined): number | undefined {
+  const s = (raw ?? '').trim();
   if (!s) return undefined;
-  const n = Number(s);
+  let normalized: string;
+  if (s.includes(',') && s.includes('.')) normalized = s.replace(/\./g, '').replace(',', '.');
+  else if (s.includes(',')) normalized = s.replace(',', '.');
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) normalized = s.replace(/\./g, '');
+  else normalized = s;
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -237,7 +249,9 @@ export function fleetDeadlines(vehicles: Vehicle[], drivers: Driver[], now: numb
       out.push({ kind, subject, term, window: 'ontbreekt', tone: 'warn' });
       return;
     }
-    const daysLeft = Math.floor((dueAt - now) / DAY_MS);
+    // Een datum heeft geen tijd, dus rekenen vanaf middernacht: een APK van
+    // vandaag is vandaag nog geldig, ook om tien uur 's ochtends.
+    const daysLeft = Math.round((dueAt - Math.floor(now / DAY_MS) * DAY_MS) / DAY_MS);
     const w = windowFor(daysLeft);
     if (!w) return;
     out.push({ kind, subject, term, dueAt, daysLeft, ...w });

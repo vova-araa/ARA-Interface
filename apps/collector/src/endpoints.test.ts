@@ -825,7 +825,7 @@ test('/office: een gevuld bronbestand vult de bureaus — echt, niet verouderd, 
     assert.equal(after.stations[0]!.metrics.find((m) => m.label === 'Km-stand')!.value, '120.500');
     assert.equal(after.stations[1]!.metrics.find((m) => m.label === 'APK')!.value, 'ontbreekt');
 
-    // Een agent-push over dezelfde werkplek wint van het bestand.
+    // Een verse agent-push over dezelfde werkplek wint van het bestand.
     await fetch(`${base}/office/truck-trailers/station`, {
       method: 'POST',
       headers: json,
@@ -834,6 +834,18 @@ test('/office: een gevuld bronbestand vult de bureaus — echt, niet verouderd, 
     const pushed = (await (await fetch(`${base}/office/truck-trailers`)).json()) as Office & { stations: { value: number; sub: string }[] };
     assert.equal(pushed.stations[0]!.value, 7);
     assert.equal(pushed.stations[0]!.sub, 'net uit de garage');
+    // Maar een push die ouder is dan het bestand niet: de lijst van vandaag telt.
+    store.upsertStation({ project: 'truck-trailers', stationId: '45-XYZ-9', json: JSON.stringify({ value: 99 }), updatedAt: Date.now() - 3 * 86_400_000 });
+    const fresh = (await (await fetch(`${base}/office/truck-trailers`)).json()) as Office & { stations: { value: number; valueMissing?: boolean }[] };
+    assert.notEqual(fresh.stations[1]!.value, 99);
+    assert.equal(fresh.stations[1]!.valueMissing, true, 'geen garagelijst: geen storingencijfer');
+    // Een kapotte regel (lege verplichte cel) haalt de collector niet neer.
+    fs.writeFileSync(file, `Kenteken;Km;APK\n12-abc-3;120.500;${soon}\n;;\n`);
+    const survived = await fetch(`${base}/office/truck-trailers?x=${Date.now()}`);
+    assert.equal(survived.status, 200);
+    const fleetFresh = await (await fetch(`${base}/fleet?refresh=1`)).json();
+    assert.equal(fleetFresh.vehicles.rows.length, 1);
+    assert.equal(fleetFresh.vehicles.errors.length, 1, 'de lege regel is een gemelde fout');
   } finally {
     server.close();
     store.close();

@@ -19,7 +19,7 @@ curl -s localhost:4747/sources | jq '.ventures[] | {id, open: [.sources[] | sele
 - **Nooit een sleutel.** Posities en portefeuilles komen uit een export of het
   statusbestand dat je bot zelf schrijft. ARA vraagt nooit zelf de broker of de exchange.
 
-| tak | bron | bestand | kolommen (verplicht eerst) | opmerking |
+| tak | bron | bestand | kolommen (kop verplicht; de eerste kolom is de sleutel en mag per regel niet leeg zijn) | opmerking |
 |---|---|---|---|---|
 | `traject` | Ritten en ETA per wagen | `ritten.csv` | `rit; kenteken; van; naar; eta; status` | status: gepland | onderweg | geleverd | vertraagd |
 | `traject` | Facturatiestand | `facturen.csv` | `factuur; klant; bedrag; verstuurd; vervalt; betaald` | kolom betaald leeg = openstaand |

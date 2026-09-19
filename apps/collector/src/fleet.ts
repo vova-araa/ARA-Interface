@@ -18,7 +18,7 @@ import {
   type ParsedTable,
   type Vehicle,
 } from '@ara/shared';
-import { sourcePath } from './sources.ts';
+import { onForgetSources, sourcePath } from './sources.ts';
 
 export const VEHICLES_FILE = sourcePath('blex', 'vehicles.csv');
 export const DRIVERS_FILE = sourcePath('blex', 'drivers.csv');
@@ -65,3 +65,6 @@ export function fleetReport(now = Date.now()): FleetReport {
 export function forgetFleet(): void {
   cached = undefined;
 }
+// Eén verversing voor alle lezers van dezelfde bestanden: /sources?refresh=1
+// mag niet een nieuwe lijst tonen terwijl /fleet nog een minuut de oude rekent.
+onForgetSources(forgetFleet);
