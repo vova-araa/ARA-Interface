@@ -28,7 +28,8 @@ plugins/ara/        Claude Code plugin: hooks, commands, org.json, agents:
                       handel   — market-analyst, risk-guard, trade-journal, event-scout, bot-maintainer
                       crypto   — + allocation-guard, token-safety, narrative-scout
                       creatief — designer (Elevate), studio-producer (Uprising),
-                                 release-manager (Vovara), copywriter, site-watch, booking-watch
+                                 release-manager (Vovara), copywriter, site-watch, booking-watch,
+                                 social-scheduler (contentkalender als concept — plaatst nooit)
                       aandelen — equity-analyst (these + breekpunt), earnings-watch
                       uitvoering — execution-trader (dient voorstellen in bij de risicomotor;
                                  gedeeld door handel, crypto en aandelen)
@@ -66,6 +67,7 @@ pnpm retro [dagen]           # terugblik op het bord: wie liep waarop vast (0 to
 pnpm ara:update              # Mac bijwerken: pull → install → viewer-build → launchd herstart → /health
 pnpm --filter @ara/viewer build:artifact   # viewer als losse pagina (dist-artifact/, relatieve
 #   paden) om ergens anders te hosten; hij vindt de collector via ?api=https://…
+pnpm --filter @ara/collector backup   # db-backup; ara-backup-verifier zet 'm wekelijks terug als proef
 pnpm verify:agents           # end-to-end: spawn-keten + kantoorchat + 7 harde rolgrenzen
 #   Kost één korte haiku-sessie aan tokens — het enige stuk dat niet zonder LLM
 #   te testen is. Draai 'm na installatie en na elke Claude Code-update.
