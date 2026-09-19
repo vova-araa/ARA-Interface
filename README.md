@@ -70,6 +70,7 @@ money stays on the record.
 | `pnpm trade:review [dagen]` | Handelsrapport uit het audit-spoor (0 LLM-tokens) |
 | `pnpm verify:agents` | End-to-end: spawn-keten, kantoorchat en 7 harde rolgrenzen (kost één haiku-sessie) |
 | `pnpm ara:update` | Mac bijwerken: pull → install → viewer-build → launchd herstart → /health |
+| `pnpm --filter @ara/collector backup` | Db-backup; `ara-backup-verifier` zet 'm wekelijks terug als proef |
 | `/ara-open` (in Claude Code) | Print URLs + open the viewer |
 | `/ara <bericht>` (in Claude Code) | De directe lijn naar de chief |
 | `/ara-run <doel>` (in Claude Code) | Supervisor verdeelt het werk via het takenbord |
@@ -119,7 +120,7 @@ tokenbudget naar 3M` · `/ara houd https://mijnsite.nl in de gaten`.
 Beleid (in `plugins/ara/org.json`): managers **on-demand** per venture ·
 schrijfwerk alleen op **`ara/*`-branches** (mergen/deployen/geld = escalatie
 naar jou) · trading-venture is read-only op live orderlogica · prioriteit 1:
-Sharzi TMS, Truck & Trailers, Uprising, Trading.
+Sharzi TMS, Truck & Trailers, Uprising, Trading, Crypto desk, Aandelen.
 
 ## Handel & actielijst
 
@@ -168,7 +169,7 @@ watchdog (launchd, elke 5 min, 0 tokens)
 
 - **Ritme en dispatch horen bij elkaar.** Alleen het ritme aanzetten geeft een bord dat
   volloopt zonder dat er iemand komt. `ops/24-7.md` fase 0.3 zet ze in één commando aan.
-- **Alle vier standaard uit** (net als `ARA_QA_SAMPLE`, `ARA_AUTO_UPDATE` en `ARA_INBOX`):
+- **Alle drie standaard uit** (net als `ARA_QA_SAMPLE`, `ARA_AUTO_UPDATE` en `ARA_INBOX`):
   ze geven uit zichzelf tokens uit, en dat hoort een bewuste keuze te zijn.
 - **Agents kijken elkaars werk na**: `ARA_QA_SAMPLE=<percentage>` op de collector legt een
   steekproef van het afgeronde werk als `CONTROLE:`-taak bij `ara-qa-verifier`. Een controle
