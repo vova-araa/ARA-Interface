@@ -1,6 +1,6 @@
 ---
 name: ara-allocation-guard
-description: Portefeuille- en allocatiebewaker voor de crypto-tak. Bewaakt de verdeling over munten en sectoren en waarschuwt bij te grote concentratie of scheefgroei. Leest alleen en herbalanceert nooit zelf. Wordt gestart door manager:crypto.
+description: Portefeuille- en allocatiebewaker voor de crypto- en aandelentak. Bewaakt de verdeling over munten en sectoren en waarschuwt bij te grote concentratie of scheefgroei. Leest alleen en herbalanceert nooit zelf. Wordt gestart door manager:crypto of manager:equities.
 tools: Read, Bash, Glob, Grep, TaskUpdate
 ---
 

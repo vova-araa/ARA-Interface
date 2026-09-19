@@ -383,3 +383,49 @@ test('bronnen: een onleesbaar bestand wordt één keer per dag gemeld, een leesb
     forgetSources();
   }
 });
+
+test('levensteken: telt de gevulde bronnen, en verzint geen getal als /sources ontbreekt', async () => {
+  const { forgetSources } = await import('./sources.ts');
+  const store = openStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-')), 'test.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+  const dir = path.join(process.env.ARA_SOURCES_DIR!, 'vovara');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'releases.csv');
+  const run = (env: Record<string, string>): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const child = spawn('node', [path.join(REPO, 'scripts', 'watchdog.mjs')], {
+        env: {
+          ...process.env,
+          ARA_COLLECTOR_URL: base,
+          ARA_LOCK_DIR: lockDir,
+          ARA_WATCHDOG_NO_SPAWN: '1',
+          ARA_NOTIFY_DRYRUN: '1',
+          ARA_TELEGRAM_BOT_TOKEN: 'test',
+          ARA_TELEGRAM_CHAT_ID: 'test',
+          ARA_BACKUP: '0',
+          ARA_DAILY_PING: 'now',
+          ...env,
+        },
+      });
+      let out = '';
+      child.stdout.on('data', (chunk) => (out += String(chunk)));
+      child.stderr.on('data', (chunk) => (out += String(chunk)));
+      child.on('error', reject);
+      child.on('close', () => resolve(out));
+    });
+  try {
+    fs.writeFileSync(file, 'titel;datum;streams\nEP;2026-05-01;1200\n');
+    forgetSources();
+    const out = await run({});
+    assert.match(out, /ARA World draait/, 'het levensteken is verstuurd');
+    assert.match(out, /Bronnen: 1 van 22 gevuld/, 'één gevulde bron, geteld uit /sources');
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(file, { force: true });
+    forgetSources();
+  }
+});

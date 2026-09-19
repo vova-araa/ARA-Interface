@@ -188,3 +188,19 @@ test('een dubbele regel is één bureau en telt één keer in de weging', () => 
   assert.deepEqual(feed.entities, ['BTC', 'ETH']);
   assert.match(feed.overrides[0]!.sub!, /^50\.0%/);
 });
+
+test('het detailpaneel van een bestand-gevoed bureau noemt het bestand en vult geen resultaat in', () => {
+  const feed = stationsFromSources(
+    'blex',
+    { 'vehicles.csv': table('blex', 'Kenteken, APK-datum, kilometerstand', `kenteken;km;apk\nA;1;${iso(100)}\n`) },
+    NOW,
+  )!;
+  const venture = VENTURES.find((v) => v.id === 'blex')!;
+  const office = buildOffice({ project: 'p', venture, sessions: [], tasks: [], entities: feed.entities, overrides: feed.overrides, now: NOW });
+  const kpis = office.stations[0]!.detail.kpis;
+  assert.equal(kpis.find((k) => k.label === 'Laatste update')!.value, 'uit vehicles.csv');
+  // Geen garagelijst ⇒ geen gemeten waarde ⇒ "Resultaat vandaag" is een invulling en zegt dat.
+  assert.equal(office.stations[0]!.valueMissing, true);
+  assert.equal(kpis.find((k) => k.label === 'Resultaat vandaag')!.estimated, true);
+  assert.equal(office.stations[0]!.detail.estimated, true);
+});

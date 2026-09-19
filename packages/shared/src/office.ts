@@ -609,7 +609,7 @@ export function buildOffice(input: OfficeInput): OfficeSnapshot {
       stale,
       updatedAt: override?.updatedAt,
       source: override?.source,
-      detail: buildDetail(kind, spec, label, project, key, value, metrics, !isReal, stale),
+      detail: buildDetail(kind, spec, label, project, key, value, metrics, !isReal, stale, valueMissing, override?.source),
     };
   });
 
@@ -1101,10 +1101,16 @@ function buildDetail(
   key: string,
   value: number,
   metrics: Metric[],
-  estimated: boolean,
+  /** true = deze hele werkplek is ingevuld: er is geen bron. */
+  simulated: boolean,
   /** true = er is wél een bron, maar die stuurt al te lang niets meer. */
   stale: boolean,
+  /** true = er is een bron, maar zonder waarde voor het cijfer — de afgeleide KPI's zijn dan óók invullingen. */
+  valueMissing = false,
+  /** Bestand waar de werkplek uit komt; leeg = agent-push of ingevuld. */
+  source?: string,
 ): StationDetail {
+  const estimated = simulated || valueMissing;
   const curve: number[] = [];
   let walk = 0;
   for (let i = 0; i < 24; i += 1) {
@@ -1134,7 +1140,7 @@ function buildDetail(
         // het hele kantoor onbetrouwbaar maakt: oude cijfers die er vers
         // uitzien. De werkplek weet dat hij stil is, dit paneel zegt het nu ook.
         label: 'Laatste update',
-        value: estimated ? 'geen bron' : stale ? 'stilgevallen' : 'live',
+        value: simulated ? 'geen bron' : stale ? 'stilgevallen' : source ? `uit ${source}` : 'live',
         tone: stale ? 'warn' : 'muted',
       },
     ],

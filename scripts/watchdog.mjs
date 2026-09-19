@@ -32,7 +32,7 @@
  * dagbudget uit org.json bereikt, dan start er niets meer.
  *
  * Env: ARA_COLLECTOR_URL, ARA_TOKEN, ARA_REPO, ARA_LOCK_DIR,
- *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit),
+ *      ARA_WATCHDOG_NO_SPAWN=1 (test), ARA_DAILY_PING=0 (levensteken uit) of =now (nu sturen),
  *      ARA_BACKUP=0 (sectie 7b uit), ARA_BACKUP_DIR=~/Backups/ara, ARA_BACKUP_HOURS=24,
  *      ARA_SOURCES_ALERT=0 (sectie 7c uit),
  *      ARA_TRADE_WEEKLY=0 (wekelijks handelsrapport uit) of =now (nu sturen),
@@ -861,7 +861,9 @@ if (process.env.ARA_TRADE_WEEKLY !== '0') {
 // zélf het signaal: geen bericht = de watchdog of de Mac ligt eruit.
 if (process.env.ARA_DAILY_PING !== '0') {
   const hour = new Date().getHours();
-  if (hour >= 8 && hour < 9) {
+  // ARA_DAILY_PING=now: meteen sturen, net als ARA_TRADE_WEEKLY=now — zo is de
+  // inhoud van het bericht te testen zonder op acht uur te wachten.
+  if ((hour >= 8 && hour < 9) || process.env.ARA_DAILY_PING === 'now') {
     try {
       const state = await api('/state');
       const running = Object.values(state.sessions).filter(

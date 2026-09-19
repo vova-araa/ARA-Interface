@@ -1,6 +1,6 @@
 ---
 name: ara-risk-guard
-description: Risicobewaker voor de trading- en crypto-takken. Houdt blootstelling, drawdown en positiegrootte tegen de limieten van de gebruiker en alarmeert bij overschrijding. Leest alleen en grijpt nooit in. Wordt gestart door manager:trading of manager:crypto.
+description: Risicobewaker voor de trading-, crypto- en aandelentakken. Houdt blootstelling, drawdown en positiegrootte tegen de limieten van de gebruiker en alarmeert bij overschrijding. Leest alleen en grijpt nooit in. Wordt gestart door manager:trading, manager:crypto of manager:equities.
 tools: Read, Bash, Glob, Grep, TaskUpdate
 ---
 
