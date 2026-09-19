@@ -1,4 +1,4 @@
-import { isEscalated, type WorldSnapshot } from '@ara/shared';
+import { isEscalated, type SourceAlert, type WorldSnapshot } from '@ara/shared';
 import type { EventStore } from './db.ts';
 
 /**
@@ -28,7 +28,7 @@ export interface ActionButton {
 
 export interface Action {
   id: string;
-  kind: 'trade-approval' | 'needs-human' | 'escalation' | 'incident' | 'data-source' | 'config';
+  kind: 'trade-approval' | 'needs-human' | 'escalation' | 'incident' | 'data-source' | 'config' | 'source-alert';
   urgency: ActionUrgency;
   title: string;
   detail: string;
@@ -51,6 +51,8 @@ export interface ActionInput {
     playbook: { dataSources: { label: string; how: string; configured: boolean }[] };
   }[];
   tradingProblems: string[];
+  /** Uit de bronbestanden (`sourceAlerts()` in @ara/shared): verlopen termijnen, posities zonder stop, … */
+  sourceAlerts?: SourceAlert[];
   tradingHalted: boolean;
   haltReason: string;
   now: number;
@@ -177,6 +179,24 @@ export function buildActions(input: ActionInput): Action[] {
         buttons: [],
       });
     }
+  }
+
+  // ── Wat in de bronbestanden ligt ───────────────────────────────────────
+  // Een verlopen APK of een positie zonder stop stond alleen in het kantoor
+  // van die tak — een plek waar je toevallig wel of niet in kijkt. Hier staat
+  // het naast de rest van wat op jou wacht. Geen knop: ARA plant geen keuring
+  // en zet geen stop; de lijst zegt wát er ligt.
+  for (const alert of input.sourceAlerts ?? []) {
+    actions.push({
+      id: `src-${alert.id}`,
+      kind: 'source-alert',
+      urgency: alert.urgency,
+      title: `${ventures.find((v) => v.id === alert.venture)?.label ?? alert.venture}: ${alert.title}`,
+      detail: `${alert.detail}\n\nBron: data/sources/${alert.venture}/${alert.source}`,
+      venture: alert.venture,
+      createdAt: 0,
+      buttons: [],
+    });
   }
 
   // ── Handelsconfiguratie die niet deugt ─────────────────────────────────

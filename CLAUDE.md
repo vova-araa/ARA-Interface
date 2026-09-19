@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 147 unit tests (shared 93 + collector 54) + de viewer-smoke
+pnpm test                    # 153 unit tests (shared 98 + collector 55) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -222,6 +222,13 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
 - `GET /actions` verzamelt alles wat op een mens wacht: handelsakkoorden, stilgelegde
   handel, vastzittende sessies, escalaties, storingen, niet-aangesloten databronnen,
   onbruikbare limieten. Knop ✓ in de balk, toets `a`.
+- **Wat in de bronbestanden ligt staat er ook** (`sourceAlerts()` in
+  `packages/shared/src/sourcealerts.ts`, pure, 0 tokens, dezelfde tabellen als het kantoor):
+  verlopen APK/rijbewijs (blokkerend), termijn ≤14 d, garagepunt >14 d open, rit vertraagd of
+  over zijn ETA, factuur onbetaald na vervaldatum, positie zonder stop (blokkerend), munt of
+  sector boven `max_pct`, opdracht-deadline <7 d, aanvraag >2 d onbeantwoord, boeking niet
+  bevestigd. Grenzen in `ALERT_THRESHOLDS`/`DEADLINE_WINDOWS`. Nooit een knop: ARA plant geen
+  keuring en zet geen stop. Ids zijn stabiel per feit. Kind `source-alert`.
 - **Elke actie draagt zijn eigen verzoek** (`method` + `path` + `body`). De viewer weet
   niets over endpoints; een nieuw soort actie kost dus geen UI-wijziging. Zet
   `confirm: true` bij alles wat geld raakt of onomkeerbaar is.

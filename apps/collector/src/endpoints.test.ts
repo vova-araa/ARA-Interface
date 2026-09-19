@@ -853,3 +853,40 @@ test('/office: een gevuld bronbestand vult de bureaus — echt, niet verouderd, 
     forgetSources();
   }
 });
+
+test('/actions: wat in de bronbestanden ligt staat naast de rest, zonder knop', async () => {
+  const { forgetSources } = await import('./sources.ts');
+  const { store, server, base } = boot();
+  const blex = path.join(process.env.ARA_SOURCES_DIR!, 'blex');
+  const trading = path.join(process.env.ARA_SOURCES_DIR!, 'trading');
+  fs.mkdirSync(blex, { recursive: true });
+  fs.mkdirSync(trading, { recursive: true });
+  const vehicles = path.join(blex, 'vehicles.csv');
+  const positions = path.join(trading, 'posities.csv');
+  try {
+    const gone = new Date(Date.now() - 3 * 86_400_000).toISOString().slice(0, 10);
+    fs.writeFileSync(vehicles, `kenteken;km;apk\n12-ABC-3;1000;${gone}\n`);
+    fs.writeFileSync(positions, 'instrument;richting;inzet;entry;stop\nXAUUSD;long;500;2410;\n');
+    forgetSources();
+    const { actions } = (await (await fetch(`${base}/actions`)).json()) as {
+      actions: { kind: string; urgency: string; title: string; detail: string; buttons: unknown[]; venture?: string }[];
+    };
+    const apk = actions.find((a) => a.kind === 'source-alert' && a.title.includes('APK van wagen 12-ABC-3'))!;
+    assert.ok(apk, 'de verlopen APK staat in de actielijst');
+    assert.equal(apk.urgency, 'blocking');
+    assert.match(apk.title, /^Truck & Trailers: /);
+    assert.match(apk.detail, /Bron: data\/sources\/blex\/vehicles\.csv/);
+    assert.deepEqual(apk.buttons, [], 'ARA plant geen keuring: geen knop');
+    const stop = actions.find((a) => a.kind === 'source-alert' && a.title.includes('geen stop'))!;
+    assert.equal(stop.urgency, 'blocking');
+    assert.equal(stop.venture, 'trading');
+    // En de bron zelf is niet meer "nog niet aangesloten".
+    assert.ok(!actions.some((a) => a.title.includes('Kenteken, APK-datum, kilometerstand nog niet aangesloten')));
+  } finally {
+    server.close();
+    store.close();
+    fs.rmSync(vehicles, { force: true });
+    fs.rmSync(positions, { force: true });
+    forgetSources();
+  }
+});

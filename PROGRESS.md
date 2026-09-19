@@ -592,3 +592,20 @@ verholpen mét test:
 - Verder: verouderde agent-push wint niet meer van een vers bestand, paden relatief aan de
   repo i.p.v. cwd, `ARA_BACKUP_HOURS=abc` valt terug op 24, `statSync` binnen de try,
   ISO-datums met `Z`/ms, dubbele munten één bureau, `staleAfterMs` per bron (maandexport 40 d).
+
+## Wat in de bronnen ligt, staat in de actielijst (2026-09-19)
+
+Een verlopen APK stond in het Blex-kantoor — een plek waar je toevallig wel of niet in
+kijkt. `sourceAlerts()` (`packages/shared/src/sourcealerts.ts`, pure, 0 tokens) leest
+dezelfde tabellen als het kantoor en zet in `GET /actions` wat op een mens wacht:
+verlopen termijnen van wagens en chauffeurs (blokkerend), termijnen ≤14 d, garagepunten
+>14 d open, ritten vertraagd of over hun ETA, onbetaalde facturen na de vervaldatum,
+posities zonder stop (blokkerend), munt of sector boven `max_pct` (aandelen per sector,
+dus `portefeuille.csv` krijgt een `sector`-kolom; ontbreekt die ergens, dan zwijgt het
+oordeel), opdracht-deadlines <7 d, aanvragen >2 d onbeantwoord, onbevestigde boekingen.
+
+- Grenzen als getal: `ALERT_THRESHOLDS` + `DEADLINE_WINDOWS`. Termijnen lopen via
+  `fleetDeadlines`, dezelfde functie als `/fleet` — geen tweede lezing die net anders telt.
+- Nooit een knop: ARA plant geen keuring en zet geen stop. Ids zijn stabiel per feit.
+- Kind `source-alert` in de actielijst ("📋 Uit de bronnen"). Vijf tests op de regels, één
+  endpoint-test die een verlopen APK en een positie zonder stop bovenaan de lijst ziet.

@@ -14,7 +14,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { readTable, sourceSpecs, type SourceSpec, type SourceTable } from '@ara/shared';
+import { readTable, sourceSpecs, type SourceSpec, type SourceTable, type SourceTables } from '@ara/shared';
 import { DATA_DIR, REPO_ROOT } from './config.ts';
 import { limitsPath } from './trading.ts';
 
@@ -133,4 +133,15 @@ export function withFileSources<T extends { dataSources: { label: string; how: s
       };
     }),
   };
+}
+
+/** De gevulde bronnen van een tak in de vorm die kantoor en actielijst lezen. */
+export function ventureTables(venture: string, now = Date.now()): SourceTables {
+  const tables: SourceTables = {};
+  for (const source of ventureSources(venture, now)) {
+    if (source.state === 'gevuld') {
+      tables[source.file] = { rows: source.rows, updatedAt: source.updatedAt, staleAfterMs: source.staleAfterMs };
+    }
+  }
+  return tables;
 }

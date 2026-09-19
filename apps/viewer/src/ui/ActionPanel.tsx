@@ -20,7 +20,7 @@ interface ActionButton {
 
 interface Action {
   id: string;
-  kind: 'trade-approval' | 'needs-human' | 'escalation' | 'incident' | 'data-source' | 'config';
+  kind: 'trade-approval' | 'needs-human' | 'escalation' | 'incident' | 'data-source' | 'config' | 'source-alert';
   urgency: 'blocking' | 'soon' | 'whenever';
   title: string;
   detail: string;
@@ -37,6 +37,7 @@ const KIND_LABEL: Record<Action['kind'], string> = {
   incident: '🔧 Storing',
   'data-source': '🔌 Databron',
   config: '⚙️ Instelling',
+  'source-alert': '📋 Uit de bronnen',
 };
 
 /**

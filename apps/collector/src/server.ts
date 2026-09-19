@@ -12,7 +12,7 @@ import {
   resolvePlaybook,
   sourceSpecs,
   stationsFromSources,
-  type SourceTables,
+  sourceAlerts,
   evaluateIntent,
   routeIntent,
   autoHaltReason,
@@ -38,7 +38,7 @@ import { projectPulse } from './pulse.ts';
 import * as trading from './trading.ts';
 import { buildActions } from './actions.ts';
 import { fleetReport } from './fleet.ts';
-import { SOURCES_DIR, forgetSources, readSource, ventureSources, withFileSources } from './sources.ts';
+import { SOURCES_DIR, forgetSources, readSource, ventureSources, ventureTables, withFileSources } from './sources.ts';
 import { ARA_TOKEN, COLLECTOR_PORT, FIXTURE_PATH, ORG_JSON_PATH, projectsJsonPath, VIEWER_DIST, WORLD_CONFIG_PATH } from './config.ts';
 import { mapHookPayload, type HookPayload } from './hookmap.ts';
 
@@ -701,13 +701,7 @@ export function createCollector(store: EventStore): CollectorApp {
       }));
     // Eerst de bronbestanden (0 tokens), daarna wat agents zelf duwden: een
     // agent-push over dezelfde werkplek wint, want die is bewuster en verser.
-    const tables: SourceTables = {};
-    for (const source of ventureSources(venture.id)) {
-      if (source.state === 'gevuld') {
-        tables[source.file] = { rows: source.rows, updatedAt: source.updatedAt, staleAfterMs: source.staleAfterMs };
-      }
-    }
-    const feed = stationsFromSources(venture.id, tables, Date.now());
+    const feed = stationsFromSources(venture.id, ventureTables(venture.id), Date.now());
     const overrides: StationOverride[] = [...(feed?.overrides ?? [])];
     const fromFile = new Map(overrides.map((o) => [o.id, o.updatedAt ?? 0]));
     for (const row of store.listStations(project)) {
@@ -801,6 +795,11 @@ export function createCollector(store: EventStore): CollectorApp {
           ),
         })),
         tradingProblems: report.problems,
+        // Wat in de bronbestanden op een mens wacht: verlopen APK, positie
+        // zonder stop, onbetaalde factuur. Zelfde tabellen als het kantoor.
+        sourceAlerts: VENTURES.filter((v) => v.id !== 'misc').flatMap((v) =>
+          sourceAlerts(v.id, ventureTables(v.id), Date.now()),
+        ),
         tradingHalted: tradingState.halted,
         haltReason: tradingState.haltReason,
         now: Date.now(),
