@@ -14,7 +14,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { readTable, sourceSpecs, type SourceSpec, type SourceTable, type SourceTables } from '@ara/shared';
+import { readTable, sourceSpecs, specColumns, type SourceSpec, type SourceTable, type SourceTables } from '@ara/shared';
 import { DATA_DIR, REPO_ROOT } from './config.ts';
 import { limitsPath } from './trading.ts';
 
@@ -61,11 +61,7 @@ export function readSource(spec: SourceSpec, now = Date.now()): SourceStatus {
   const file = sourcePath(spec.venture, spec.file);
   const hit = cache.get(file);
   if (hit && now - hit.at < CACHE_MS) return hit.status;
-  const columns = [
-    ...spec.required,
-    ...(spec.dates ?? []).filter((c) => !spec.required.includes(c)),
-    ...(spec.numbers ?? []).filter((c) => !spec.required.includes(c) && !(spec.dates ?? []).includes(c)),
-  ];
+  const columns = specColumns(spec);
   const base = { venture: spec.venture, label: spec.label, file: spec.file, path: file, columns, note: spec.note, staleAfterMs: spec.staleAfterMs };
   let status: SourceStatus;
   // Lezen én stat in één try: een bestand dat tussen twee aanroepen verdwijnt
@@ -117,6 +113,8 @@ export function withFileSources<T extends { dataSources: { label: string; how: s
     dataSources: playbook.dataSources.map((source) => {
       const status = byLabel.get(source.label);
       if (!status) return source;
+      // Handmatig aangesloten in org.json (eigen koppeling, eigen `how`): daar blijft dit af.
+      if (source.configured) return source;
       // Relatief aan de repo, niet aan cwd: onder pnpm is cwd apps/collector en
       // dan leest de eigenaar "../../data/…" terwijl hij in de repo staat.
       const rel = path.relative(REPO_ROOT, status.path);

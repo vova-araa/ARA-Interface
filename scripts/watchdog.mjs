@@ -910,7 +910,8 @@ if (process.env.ARA_DAILY_PING !== '0') {
         /* geen cijfer = geen regel */
       }
       await alertOnce(
-        `heartbeat-${new Date().toISOString().slice(0, 10)}`,
+        // =now: altijd sturen, ook als het dagbericht al weg is — anders lijkt Telegram stuk.
+        process.env.ARA_DAILY_PING === 'now' ? `heartbeat-forced-${Date.now()}` : `heartbeat-${new Date().toISOString().slice(0, 10)}`,
         20 * 60 * 60 * 1000,
         `🟢 ARA World draait\n${running} sessie(s) aan het werk · ${incidentsToHandle.length} open incident(en) · ${failures} monitor(s) stuk\nTokens vandaag: ${used.toLocaleString('nl-NL')}${budget ? ` van ${budget.toLocaleString('nl-NL')}` : ''}${sourcesLine}`,
       );
@@ -986,10 +987,16 @@ if (process.env.ARA_SOURCES_ALERT !== '0') {
     for (const venture of ventures) {
       for (const source of venture.sources) {
         if (source.state === 'ontbreekt' || !source.errors?.length) continue;
+        // Onleesbaar (niets bruikbaars) is een storing; gevuld met een paar
+        // geweigerde regels is een opmerking — anders staat er elke ochtend
+        // "onleesbaar" boven een bestand dat gewoon werkt.
+        const broken = source.state !== 'gevuld';
         await alertOnce(
-          `source-broken-${venture.id}-${source.file}-${day}`,
+          `source-${broken ? 'broken' : 'rows'}-${venture.id}-${source.file}-${day}`,
           20 * 60 * 60 * 1000,
-          `⚠️ Bronbestand onleesbaar (${venture.label})\n${source.label}: ${source.errors[0]}\nBestand: ${source.path}`,
+          broken
+            ? `⚠️ Bronbestand onleesbaar (${venture.label})\n${source.label}: ${source.errors[0]}\nBestand: ${source.path}`
+            : `ℹ️ ${source.errors.length} regel(s) geweigerd in ${source.file} (${venture.label})\n${source.errors[0]}\nBestand: ${source.path}`,
         );
       }
     }

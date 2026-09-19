@@ -12,8 +12,8 @@
  * een prompt. En er is nooit een knop: ARA kan een APK niet afspreken en een
  * stop niet zetten; de lijst zegt wát er ligt, de eigenaar doet het.
  */
-import { DRIVER_TERMS, VEHICLE_TERMS, fleetDeadlines, type Deadline, type Driver, type Vehicle } from './fleet.ts';
-import { dayStartUtc, type SourceTables } from './officefeed.ts';
+import { DRIVER_TERMS, VEHICLE_TERMS, dayStart, fleetDeadlines, type Deadline, type Driver, type Vehicle } from './fleet.ts';
+import type { SourceTables } from './officefeed.ts';
 import type { SourceRow } from './sources.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,7 +43,7 @@ export interface SourceAlert {
 
 const str = (v: SourceRow[string]): string | undefined => (typeof v === 'string' && v.trim() ? v.trim() : undefined);
 const num = (v: SourceRow[string]): number | undefined => (typeof v === 'number' ? v : undefined);
-const days = (ts: number, now: number): number => Math.round((ts - dayStartUtc(now)) / DAY_MS);
+const days = (ts: number, now: number): number => Math.round((ts - dayStart(now)) / DAY_MS);
 
 const TERM_LABEL: Record<Deadline['term'], string> = {
   apk: 'APK',
@@ -68,6 +68,7 @@ function fleetRows(tables: SourceTables): { vehicles: Vehicle[]; drivers: Driver
       const terms: Vehicle['terms'] = {};
       const missing: Vehicle['missing'] = [];
       for (const term of VEHICLE_TERMS) {
+        if (!(term in r)) continue; // kolom weggelaten = termijn geldt niet
         const at = num(r[term]);
         if (at === undefined) missing.push(term);
         else terms[term] = at;
@@ -80,6 +81,7 @@ function fleetRows(tables: SourceTables): { vehicles: Vehicle[]; drivers: Driver
       const terms: Driver['terms'] = {};
       const missing: Driver['missing'] = [];
       for (const term of DRIVER_TERMS) {
+        if (!(term in r)) continue;
         const at = num(r[term]);
         if (at === undefined) missing.push(term);
         else terms[term] = at;
@@ -133,7 +135,7 @@ function fleet(v: string, t: SourceTables, now: number): SourceAlert[] {
     const open = -days(gemeld, now);
     if (open <= ALERT_THRESHOLDS.garageOpenDays) continue;
     out.push({
-      id: `${v}-garage-${str(g.kenteken)}-${str(g.punt)}`,
+      id: `${v}-garage-${str(g.kenteken)}-${str(g.punt)}-${new Date(gemeld).toISOString().slice(0, 10)}`,
       venture: v,
       urgency: 'soon',
       title: `Garagepunt "${str(g.punt) ?? '?'}" van ${str(g.kenteken) ?? '?'} staat ${open} dagen open`,
@@ -146,7 +148,7 @@ function fleet(v: string, t: SourceTables, now: number): SourceAlert[] {
 
 function tms(v: string, t: SourceTables, now: number): SourceAlert[] {
   const out: SourceAlert[] = [];
-  const today = dayStartUtc(now);
+  const today = dayStart(now);
   for (const r of t['ritten.csv']?.rows ?? []) {
     const st = str(r.status)?.toLowerCase();
     const eta = num(r.eta);
@@ -268,7 +270,7 @@ function studio(v: string, t: SourceTables, now: number): SourceAlert[] {
     const open = -days(at, now);
     if (open < ALERT_THRESHOLDS.requestOpenDays) continue;
     out.push({
-      id: `${v}-aanvraag-${str(a.van)}-${str(a.onderwerp)}`,
+      id: `${v}-aanvraag-${str(a.van)}-${str(a.onderwerp)}-${new Date(at).toISOString().slice(0, 10)}`,
       venture: v,
       urgency: 'soon',
       title: `Aanvraag van ${str(a.van) ?? '?'} ("${str(a.onderwerp) ?? '?'}") wacht ${open} dagen op antwoord`,
@@ -280,7 +282,7 @@ function studio(v: string, t: SourceTables, now: number): SourceAlert[] {
     if (str(b.status)?.toLowerCase() !== 'aanvraag') continue;
     const at = num(b.datum);
     out.push({
-      id: `${v}-boeking-${str(b.klant)}-${at ?? '?'}`,
+      id: `${v}-boeking-${str(b.klant)}-${str(b.ruimte) ?? '?'}-${at !== undefined ? new Date(at).toISOString().slice(0, 10) : '?'}`,
       venture: v,
       urgency: 'soon',
       title: `Boeking van ${str(b.klant) ?? '?'}${at !== undefined ? ` op ${new Date(at).toISOString().slice(0, 10)}` : ''} is nog niet bevestigd`,
@@ -293,6 +295,18 @@ function studio(v: string, t: SourceTables, now: number): SourceAlert[] {
 
 /** Alle acties uit de bronnen van één tak; leeg als er niets ligt of niets gevuld is. */
 export function sourceAlerts(ventureId: string, tables: SourceTables, now: number): SourceAlert[] {
+  // Ids zijn stabiel per feit én uniek: staat hetzelfde feit twee keer in het
+  // bestand (dezelfde rit twee regels), dan krijgt de tweede een volgnummer in
+  // plaats van dat twee acties dezelfde sleutel dragen.
+  const seen = new Map<string, number>();
+  return alertsFor(ventureId, tables, now).map((a) => {
+    const n = (seen.get(a.id) ?? 0) + 1;
+    seen.set(a.id, n);
+    return n === 1 ? a : { ...a, id: `${a.id}#${n}` };
+  });
+}
+
+function alertsFor(ventureId: string, tables: SourceTables, now: number): SourceAlert[] {
   switch (ventureId) {
     case 'blex':
       return fleet(ventureId, tables, now);

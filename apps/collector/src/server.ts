@@ -779,6 +779,9 @@ export function createCollector(store: EventStore): CollectorApp {
    */
   app.get('/actions', (req, res) => {
     allowOrigin(req, res);
+    // Eén klok voor de hele lijst: acht takken die elk hun eigen Date.now()
+    // trekken kunnen op een daggrens acht verschillende "vandaag"s hebben.
+    const now = Date.now();
     const org = readOrg();
     const report = trading.readLimits();
     const tradingState = trading.readState();
@@ -798,11 +801,11 @@ export function createCollector(store: EventStore): CollectorApp {
         // Wat in de bronbestanden op een mens wacht: verlopen APK, positie
         // zonder stop, onbetaalde factuur. Zelfde tabellen als het kantoor.
         sourceAlerts: VENTURES.filter((v) => v.id !== 'misc').flatMap((v) =>
-          sourceAlerts(v.id, ventureTables(v.id), Date.now()),
+          sourceAlerts(v.id, ventureTables(v.id, now), now),
         ),
         tradingHalted: tradingState.halted,
         haltReason: tradingState.haltReason,
-        now: Date.now(),
+        now,
       }),
     });
   });

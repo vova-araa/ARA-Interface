@@ -118,3 +118,13 @@ test('opdrachten en studio: deadline binnen een week, aanvraag die te lang stil 
   assert.ok(titles.some((t) => t.startsWith('Boeking van Duo') && t.includes('niet bevestigd')));
   assert.ok(!titles.some((t) => t.startsWith('Boeking van Trio')));
 });
+
+test('ids blijven uniek als hetzelfde feit twee keer in het bestand staat', () => {
+  const alerts = sourceAlerts('trading', { 'posities.csv': table('trading', 'Posities, P&L, stops', 'instrument;richting;inzet;entry;stop\nXAUUSD;long;500;2410;\nXAUUSD;long;100;2400;\n') }, NOW);
+  assert.deepEqual(alerts.map((a) => a.id), ['trading-nostop-XAUUSD', 'trading-nostop-XAUUSD#2']);
+});
+
+test('een weggelaten kolom is geen ontbrekende termijn', () => {
+  const alerts = sourceAlerts('blex', { 'vehicles.csv': table('blex', 'Kenteken, APK-datum, kilometerstand', `kenteken;apk\nAA-1;${iso(100)}\n`) }, NOW);
+  assert.deepEqual(alerts, [], 'geen adr-kolom betekent: adr geldt niet');
+});

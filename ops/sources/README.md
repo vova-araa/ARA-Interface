@@ -31,7 +31,7 @@ curl -s localhost:4747/sources | jq '.ventures[] | {id, open: [.sources[] | sele
 | `trading` | Posities, P&L, stops | `posities.csv` | `instrument; richting; inzet; entry; stop; geopend; pnl` | het statusbestand dat de bot zélf schrijft — ARA leest, nooit de broker |
 | `trading` | Risicolimieten (max inzet per trade, drawdown) | `trading-limits.json` | `—` | dit is data/trading-limits.json van de risicomotor zelf; de actielijst zegt of hij bruikbaar is |
 | `trading` | Handelslogboek van afgesloten trades | `trades.csv` | `datum; instrument; richting; resultaat_r; inzet` | resultaat in R (winst gedeeld door risico), niet in geld |
-| `crypto` | Portefeuille en posities | `portefeuille.csv` | `munt; aantal; peildatum; waarde_usd` | wallet-export of het statusbestand van je bot — geen exchange-sleutel |
+| `crypto` | Portefeuille en posities | `portefeuille.csv` | `munt; aantal; peildatum; koers; waarde_usd` | wallet-export of het statusbestand van je bot — geen exchange-sleutel |
 | `crypto` | Streefverdeling en concentratiegrenzen | `allocatie.csv` | `munt_of_sector; doel_pct; max_pct` | — |
 | `elevate` | Lopende opdrachten | `opdrachten.csv` | `klant; opdracht; status; deadline` | status: offerte | lopend | review | af |
 | `elevate` | Te bewaken sites | `sites.csv` | `url; klant` | de site-watch leest alleen; niets gaat naar buiten |
@@ -39,7 +39,7 @@ curl -s localhost:4747/sources | jq '.ventures[] | {id, open: [.sources[] | sele
 | `uprising` | Openstaande aanvragen | `aanvragen.csv` | `ontvangen; van; onderwerp; status` | status: nieuw | beantwoord | gesloten |
 | `vovara` | Releases en streams | `releases.csv` | `titel; datum; streams` | distributeur-export, streams als getal |
 | `vovara` | Releaseplanning en metadata | `releaseplanning.csv` | `titel; geplande_datum; status` | status: idee | productie | ingeleverd | uit — uitbrengen doet ARA nooit |
-| `equities` | Koersen en portefeuille | `portefeuille.csv` | `ticker; aantal; peildatum; koers; waarde` | broker-export — ARA vraagt nooit zelf de broker |
+| `equities` | Koersen en portefeuille | `portefeuille.csv` | `ticker; aantal; peildatum; koers; waarde; sector` | broker-export — ARA vraagt nooit zelf de broker |
 | `equities` | Kwartaalagenda | `kwartaalagenda.csv` | `ticker; datum; soort` | soort: kwartaalcijfers | jaarcijfers | ava | ex-dividend |
 | `equities` | Jaarverslagen en kwartaalcijfers | `cijfers.csv` | `ticker; periode; bron_url; omzet; winst` | bron_url = de primaire bron (IR-site), niet een samenvatting |
 | `equities` | Streefverdeling per sector | `sectorallocatie.csv` | `sector; doel_pct; max_pct` | — |

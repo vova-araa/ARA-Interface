@@ -735,8 +735,9 @@ test('/fleet: zonder bestand niet aangesloten, met bestand uitgerekend en in /or
     assert.equal(report.vehicles.rows.length, 1);
     assert.equal(report.deadlines[0].window, '14');
     assert.equal(report.summary.binnen14, 1);
-    // Drie termijnen ontbreken in deze lijst, en dat staat erbij.
-    assert.equal(report.summary.ontbreekt, 3);
+    // Alleen kolommen die in de kop staan tellen: deze lijst kent alleen apk,
+    // en die is gevuld — dus geen gaten.
+    assert.equal(report.summary.ontbreekt, 0);
 
     const orgAfter = await (await fetch(`${base}/org`)).json();
     assert.equal(src(orgAfter, 'Kenteken').configured, true);
@@ -840,7 +841,7 @@ test('/office: een gevuld bronbestand vult de bureaus — echt, niet verouderd, 
     assert.notEqual(fresh.stations[1]!.value, 99);
     assert.equal(fresh.stations[1]!.valueMissing, true, 'geen garagelijst: geen storingencijfer');
     // Een kapotte regel (lege verplichte cel) haalt de collector niet neer.
-    fs.writeFileSync(file, `Kenteken;Km;APK\n12-abc-3;120.500;${soon}\n;;\n`);
+    fs.writeFileSync(file, `Kenteken;Km;APK\n12-abc-3;120.500;${soon}\n;9;\n`);
     const survived = await fetch(`${base}/office/truck-trailers?x=${Date.now()}`);
     assert.equal(survived.status, 200);
     const fleetFresh = await (await fetch(`${base}/fleet?refresh=1`)).json();

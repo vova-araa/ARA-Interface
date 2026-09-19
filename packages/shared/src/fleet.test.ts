@@ -41,7 +41,9 @@ test('voertuigen: kenteken genormaliseerd, km met punt, ontbrekende termijn geme
   assert.equal(rows.length, 1);
   assert.equal(rows[0]!.kenteken, '12-ABC-3');
   assert.equal(rows[0]!.km, 120500);
-  assert.deepEqual(rows[0]!.missing, ['tachograaf', 'adr', 'verzekering']);
+  // Alleen een lege cel in een bestaande kolom is een gat; adr en verzekering
+  // staan niet in de kop en gelden dus niet voor deze lijst.
+  assert.deepEqual(rows[0]!.missing, ['tachograaf']);
   assert.match(errors[0]!, /leeg kenteken/);
   assert.match(readVehicles('nummer;apk\nx;2026-01-01\n').errors[0]!, /"kenteken" ontbreekt/);
 });
@@ -76,7 +78,7 @@ test('om tien uur is een APK van vandaag nog niet verlopen', () => {
 test('een lege datum wordt "ontbreekt", nooit stilzwijgend in orde', () => {
   const { rows } = readVehicles(`kenteken;apk\nA;\n`);
   const found = fleetDeadlines(rows, [], NOW);
-  assert.equal(found.length, 4, 'alle vier termijnen ontbreken en staan er alle vier');
+  assert.equal(found.length, 1, 'de apk-kolom bestaat en is leeg: één gat; de andere drie kolommen bestaan niet en gelden dus niet');
   assert.ok(found.every((d) => d.window === 'ontbreekt' && d.daysLeft === undefined));
 });
 
@@ -90,19 +92,15 @@ test('ergste geval eerst: verlopen, dan op datum, ontbrekend achteraan', () => {
     'Karapetyan:code95:14',
     'Z:apk:14',
     'A:tachograaf:30',
-    'A:adr:ontbreekt',
-    'A:verzekering:ontbreekt',
-    'Karapetyan:chauffeurskaart:ontbreekt',
-    // Binnen één onderwerp in kolomvolgorde van de bron, niet alfabetisch.
+    // Alleen kolommen die in de kop staan: adr, verzekering en chauffeurskaart
+    // zijn hier weggelaten en gelden dus niet.
     'Z:tachograaf:ontbreekt',
-    'Z:adr:ontbreekt',
-    'Z:verzekering:ontbreekt',
   ]);
   assert.deepEqual(summarizeDeadlines(fleetDeadlines(rows, drivers, NOW)), {
     verlopen: 2,
     binnen14: 2,
     binnen30: 1,
     binnen60: 0,
-    ontbreekt: 6,
+    ontbreekt: 1,
   });
 });

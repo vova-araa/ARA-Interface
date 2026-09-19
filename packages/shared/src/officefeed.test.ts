@@ -103,7 +103,7 @@ test('ritten: vertraagd eerst, ETA in het verleden is voorbij; boekingen: komend
     { 'boekingen.csv': table('uprising', 'Agenda en boekingen', `datum;klant;ruimte;status;uren\n${iso(-5)};Oud;A;bevestigd;4\n${iso(3)};Nieuw;B;aanvraag;2\n`) },
     NOW,
   )!;
-  assert.equal(studio.entities[0], 'Nieuw · B');
+  assert.match(studio.entities[0]!, /^Nieuw · B · \d{4}-/);
   assert.equal(studio.overrides[0]!.status, 'alert', 'een aanvraag wacht op een antwoord');
 });
 
@@ -176,17 +176,30 @@ test('een datum zonder tijd telt vanaf middernacht: om tien uur is vandaag nog n
     { 'boekingen.csv': table('uprising', 'Agenda en boekingen', `datum;klant;ruimte;status\n${iso(3)};Later;B;bevestigd\n${iso(0)};Vandaag;A;bevestigd\n`) },
     tenAm,
   )!;
-  assert.equal(studio.entities[0], 'Vandaag · A', 'vandaag is niet "geweest"');
+  assert.match(studio.entities[0]!, /^Vandaag · A/, 'vandaag is niet "geweest"');
 });
 
-test('een dubbele regel is één bureau en telt één keer in de weging', () => {
+test('twee lots van dezelfde munt zijn één bureau met de som — dezelfde lezing als de actielijst', () => {
   const feed = stationsFromSources(
     'crypto',
     { 'portefeuille.csv': table('crypto', 'Portefeuille en posities', 'munt;aantal;waarde_usd\nBTC;1;100\nBTC;1;100\nETH;1;100\n') },
     NOW,
   )!;
   assert.deepEqual(feed.entities, ['BTC', 'ETH']);
-  assert.match(feed.overrides[0]!.sub!, /^50\.0%/);
+  assert.match(feed.overrides[0]!.sub!, /^66\.7%/);
+  assert.equal(feed.overrides[0]!.metrics!.find((m) => m.label === 'Aantal')!.value, '2');
+  assert.equal(feed.overrides[0]!.value, 200);
+});
+
+test('studio: een aanvraag verdwijnt niet achter een bevestigde boeking van dezelfde klant', () => {
+  const feed = stationsFromSources(
+    'uprising',
+    { 'boekingen.csv': table('uprising', 'Agenda en boekingen', `datum;klant;ruimte;status\n${iso(3)};Duo;A;bevestigd\n${iso(5)};Duo;A;aanvraag\n`) },
+    NOW,
+  )!;
+  assert.equal(feed.entities.length, 2, 'twee dagen, twee boekingen');
+  assert.equal(feed.overrides[0]!.status, 'alert', 'de aanvraag staat vooraan');
+  assert.equal(feed.truncated, 0);
 });
 
 test('het detailpaneel van een bestand-gevoed bureau noemt het bestand en vult geen resultaat in', () => {

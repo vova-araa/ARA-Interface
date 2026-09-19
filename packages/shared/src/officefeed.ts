@@ -19,7 +19,7 @@
  */
 import type { Metric, StationOverride, StationStatus } from './office.ts';
 import { officeKindForVenture } from './office.ts';
-import { DEADLINE_WINDOWS } from './fleet.ts';
+import { DEADLINE_WINDOWS, dayStart } from './fleet.ts';
 import type { SourceRow } from './sources.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -48,10 +48,10 @@ const str = (v: SourceRow[string]): string | undefined => (typeof v === 'string'
 const num = (v: SourceRow[string]): number | undefined => (typeof v === 'number' ? v : undefined);
 const dateText = (ts: number | undefined): string | undefined =>
   ts === undefined ? undefined : new Date(ts).toISOString().slice(0, 10);
-/** Middernacht UTC van de dag van `now`: een datumkolom heeft geen tijd, dus vandaag is dag 0, niet dag -1. */
-export const dayStartUtc = (now: number): number => Math.floor(now / DAY_MS) * DAY_MS;
+/** Zie `dayStart` in fleet.ts: een datumkolom heeft geen tijd, dus vandaag is dag 0, niet dag -1. */
+export const dayStartUtc = dayStart;
 const daysLeft = (ts: number | undefined, now: number): number | undefined =>
-  ts === undefined ? undefined : Math.round((ts - dayStartUtc(now)) / DAY_MS);
+  ts === undefined ? undefined : Math.round((ts - dayStart(now)) / DAY_MS);
 const money = (n: number | undefined): string | undefined =>
   n === undefined ? undefined : n.toLocaleString('nl-NL', { maximumFractionDigits: 2 });
 const plate = (v: SourceRow[string]): string | undefined => str(v)?.toUpperCase().replace(/\s+/g, '');
@@ -84,7 +84,7 @@ function feed(overrides: StationOverride[]): OfficeFeed {
   const seen = new Set<string>();
   const unique = overrides.filter((o) => (seen.has(o.id) ? false : (seen.add(o.id), true)));
   const kept = unique.slice(0, STATION_CAP);
-  return { entities: kept.map((o) => o.id), overrides: kept, truncated: unique.length - kept.length };
+  return { entities: kept.map((o) => o.id), overrides: kept, truncated: overrides.length - kept.length };
 }
 
 // ── per branche ──────────────────────────────────────────────────────────
@@ -206,12 +206,23 @@ function portfolio(
 ): OfficeFeed | undefined {
   const pf = t['portefeuille.csv'];
   if (!pf || pf.rows.length === 0) return undefined;
-  const seen = new Set<string>();
-  const rows = pf.rows
-    .filter((r) => str(r[idKey]))
-    .map((r) => ({ r, id: str(r[idKey])!.toUpperCase(), value: num(r[valueKey]) }))
-    // Eén regel per munt: een dubbele regel zou de weging dubbel tellen.
-    .filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
+  // Twee regels voor dezelfde munt zijn twee lots: één bureau met de som —
+  // dezelfde lezing als de actielijst, anders zegt het bureau "in orde" en de
+  // lijst "boven je grens" over hetzelfde bestand.
+  const lots = new Map<string, { r: SourceRow; id: string; value: number | undefined; aantal: number | undefined }>();
+  for (const r of pf.rows) {
+    if (!str(r[idKey])) continue;
+    const id = str(r[idKey])!.toUpperCase();
+    const prev = lots.get(id);
+    const value = num(r[valueKey]);
+    const aantal = num(r.aantal);
+    if (!prev) lots.set(id, { r, id, value, aantal });
+    else {
+      prev.value = prev.value === undefined || value === undefined ? undefined : prev.value + value;
+      prev.aantal = prev.aantal === undefined || aantal === undefined ? undefined : prev.aantal + aantal;
+    }
+  }
+  const rows = [...lots.values()];
   const w = weights(rows);
   const maxPct = new Map((alloc?.rows ?? []).map((a) => [str(a[alloc!.key])?.toUpperCase() ?? '', num(a.max_pct)]));
   const judged = rows
@@ -223,14 +234,14 @@ function portfolio(
     // Boven zijn grens eerst, dan de zwaarste posities.
     .sort((a, b) => Number(b.over) - Number(a.over) || (b.weight ?? 0) - (a.weight ?? 0));
   return feed(
-    judged.map(({ r, id, value, weight, max, over }) =>
+    judged.map(({ r, id, value, aantal, weight, max, over }) =>
       station(id, 'portefeuille.csv', pf, {
         label: id,
         sub: weight === undefined ? 'positie' : `${weight.toFixed(1)}% van de portefeuille`,
         status: over ? 'alert' : 'working',
         value,
         metrics: metrics([
-          ['Aantal', num(r.aantal)?.toLocaleString('nl-NL')],
+          ['Aantal', aantal?.toLocaleString('nl-NL')],
           ['Koers', money(num(r.koers))],
           ['Weging', weight === undefined ? undefined : `${weight.toFixed(1)}%${max !== undefined ? ` (max ${max}%)` : ''}`, over ? 'bad' : undefined],
         ]),
@@ -272,17 +283,22 @@ function studio(t: SourceTables, now: number): OfficeFeed | undefined {
   const bookings = t['boekingen.csv'];
   if (!bookings || bookings.rows.length === 0) return undefined;
   const today = dayStartUtc(now);
-  // Wat eraan komt op datum (vandaag hoort daarbij); wat geweest is achteraan.
+  // Onbeantwoorde aanvragen eerst, dan wat eraan komt op datum (vandaag hoort
+  // daarbij), en wat geweest is achteraan.
   const rows = [...bookings.rows].sort((a, b) => {
     const da = num(a.datum);
     const db = num(b.datum);
+    const ra = str(a.status)?.toLowerCase() === 'aanvraag' ? 0 : 1;
+    const rb = str(b.status)?.toLowerCase() === 'aanvraag' ? 0 : 1;
     const pa = da !== undefined && da < today ? 1 : 0;
     const pb = db !== undefined && db < today ? 1 : 0;
-    return pa - pb || asc(da, db);
+    return ra - rb || pa - pb || asc(da, db);
   });
   return feed(
     rows.map((b, i) => {
-      const id = `${str(b.klant) ?? 'boeking'} · ${str(b.ruimte) ?? i + 1}`;
+      // De datum hoort bij het feit: dezelfde klant in dezelfde ruimte op twee
+      // dagen zijn twee boekingen, niet één.
+      const id = `${str(b.klant) ?? 'boeking'} · ${str(b.ruimte) ?? i + 1} · ${dateText(num(b.datum)) ?? '?'}`;
       return station(id, 'boekingen.csv', bookings, {
         label: id,
         sub: dateText(num(b.datum)) ?? 'datum ontbreekt',

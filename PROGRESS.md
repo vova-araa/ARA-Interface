@@ -609,3 +609,35 @@ oordeel), opdracht-deadlines <7 d, aanvragen >2 d onbeantwoord, onbevestigde boe
 - Nooit een knop: ARA plant geen keuring en zet geen stop. Ids zijn stabiel per feit.
 - Kind `source-alert` in de actielijst ("📋 Uit de bronnen"). Vijf tests op de regels, één
   endpoint-test die een verlopen APK en een positie zonder stop bovenaan de lijst ziet.
+
+## Tweede review, twaalf punten (2026-09-19)
+
+Een tweede read-only review op de bronacties en de herschreven kantoorvoeding. Alles
+verholpen, elk met test:
+
+- **Weggelaten kolom ≠ ontbrekende termijn.** De tekst zei "laat de kolom weg als de termijn
+  niet geldt", de code telde élke afwezige kolom als gat. Nu geldt: geen kolom = geldt niet;
+  lege cel in een bestaande kolom = gat. In `readVehicles`, `fleetRows` én `fleetDeadlines`.
+- **Twee lezingen van dezelfde portefeuille**: kantoor dedupte (eerste lot), actielijst
+  sommeerde — bureau "in orde", lijst "boven je grens". Nu sommeren beide (twee lots = één
+  positie).
+- **Studio**: een aanvraag verdween achter een bevestigde boeking van dezelfde klant/ruimte;
+  aanvragen sorteren vooraan en de datum zit in het bureau-id. `truncated` telt nu ook wat
+  de dedupe wegliet.
+- **Actie-ids uniek**: datumfeit in het id (garagepunt, aanvraag, boeking) en een volgnummer
+  (`#2`) als hetzelfde feit twee keer in het bestand staat.
+- **Onleesbaar ≠ leeg**: `betaald: ja` werd stil `undefined` en dus "onbetaald". `readTable`
+  meldt nu een onleesbare cel als fout; sectie 7c pikt dat op. Een `;;;;`-staart is een lege
+  regel (geen fout meer), een 0-byte bestand is *leeg*, niet *onleesbaar*.
+- **Volgorde**: `createdAt: 0` zette een APK van gisteren bóven een handelsvoorstel dat
+  straks verloopt; bronacties zijn nu zo oud als de lijst zelf.
+- **Watchdog**: `ARA_DAILY_PING=now` stuurde niets als het dagbericht al weg was (eigen
+  sleutel); 7c zegt "onleesbaar" alleen bij een bron zonder bruikbare regels en "N regel(s)
+  geweigerd" bij een gevulde bron met fouten.
+- **Spec-dekking**: `sector` (aandelen) en `koers` (crypto) stonden niet in de spec, dus
+  `sources:init` schreef ze niet in de kop en niemand kreeg ooit een sectoralarm. Nu
+  `optional`-kolommen, en een Proxy-test die per tak vastpint dat kantoor en actielijst
+  alleen spec-kolommen lezen.
+- **Kalenderdag lokaal** (`dayStart` in fleet.ts, één plek): om 00:30 in Amsterdam is
+  "vandaag" niet gisteren. `configured: true` uit org.json houdt zijn eigen `how`. `/actions`
+  trekt één klok voor alle takken.

@@ -35,6 +35,8 @@ export interface SourceSpec {
   dates?: string[];
   /** Kolommen die als getal gelezen worden (1.250,50 en 1250.50 allebei). */
   numbers?: string[];
+  /** Tekstkolommen die de lezers kennen maar die niet hoeven te bestaan (bv. `sector`). */
+  optional?: string[];
   note?: string;
   /** Eigen verversingstermijn; leeg = een week (plus een dag speling). */
   staleAfterMs?: number;
@@ -53,7 +55,7 @@ export const SOURCE_SPECS: SourceSpec[] = [
   { venture: 'trading', label: "Posities, P&L, stops", file: 'posities.csv', required: ['instrument', 'richting', 'inzet', 'entry', 'stop'], dates: ['geopend'], numbers: ['inzet', 'entry', 'stop', 'pnl'], note: "het statusbestand dat de bot z\u00e9lf schrijft \u2014 ARA leest, nooit de broker" },
   { venture: 'trading', label: "Risicolimieten (max inzet per trade, drawdown)", file: 'trading-limits.json', required: [], note: "dit is data/trading-limits.json van de risicomotor zelf; de actielijst zegt of hij bruikbaar is" },
   { venture: 'trading', label: "Handelslogboek van afgesloten trades", file: 'trades.csv', required: ['datum', 'instrument', 'richting', 'resultaat_r'], dates: ['datum'], numbers: ['resultaat_r', 'inzet'], note: "resultaat in R (winst gedeeld door risico), niet in geld" },
-  { venture: 'crypto', label: "Portefeuille en posities", file: 'portefeuille.csv', required: ['munt', 'aantal'], dates: ['peildatum'], numbers: ['aantal', 'waarde_usd'], note: "wallet-export of het statusbestand van je bot \u2014 geen exchange-sleutel" },
+  { venture: 'crypto', label: "Portefeuille en posities", file: 'portefeuille.csv', required: ['munt', 'aantal'], dates: ['peildatum'], numbers: ['aantal', 'koers', 'waarde_usd'], note: "wallet-export of het statusbestand van je bot \u2014 geen exchange-sleutel" },
   { venture: 'crypto', label: "Streefverdeling en concentratiegrenzen", file: 'allocatie.csv', required: ['munt_of_sector', 'doel_pct', 'max_pct'], numbers: ['doel_pct', 'max_pct'] },
   { venture: 'elevate', label: "Lopende opdrachten", file: 'opdrachten.csv', required: ['klant', 'opdracht', 'status'], dates: ['deadline'], note: "status: offerte | lopend | review | af" },
   { venture: 'elevate', label: "Te bewaken sites", file: 'sites.csv', required: ['url', 'klant'], note: "de site-watch leest alleen; niets gaat naar buiten" },
@@ -61,7 +63,7 @@ export const SOURCE_SPECS: SourceSpec[] = [
   { venture: 'uprising', label: "Openstaande aanvragen", file: 'aanvragen.csv', required: ['ontvangen', 'van', 'onderwerp', 'status'], dates: ['ontvangen'], note: "status: nieuw | beantwoord | gesloten" },
   { venture: 'vovara', label: "Releases en streams", file: 'releases.csv', staleAfterMs: MONTH_MS, required: ['titel', 'datum'], dates: ['datum'], numbers: ['streams'], note: "distributeur-export, streams als getal" },
   { venture: 'vovara', label: "Releaseplanning en metadata", file: 'releaseplanning.csv', required: ['titel', 'geplande_datum', 'status'], dates: ['geplande_datum'], note: "status: idee | productie | ingeleverd | uit \u2014 uitbrengen doet ARA nooit" },
-  { venture: 'equities', label: "Koersen en portefeuille", file: 'portefeuille.csv', required: ['ticker', 'aantal'], dates: ['peildatum'], numbers: ['aantal', 'koers', 'waarde'], note: "broker-export \u2014 ARA vraagt nooit zelf de broker; kolom sector erbij en de streefverdeling per sector wordt bewaakt" },
+  { venture: 'equities', label: "Koersen en portefeuille", file: 'portefeuille.csv', required: ['ticker', 'aantal'], dates: ['peildatum'], numbers: ['aantal', 'koers', 'waarde'], optional: ['sector'], note: "broker-export \u2014 ARA vraagt nooit zelf de broker; kolom sector erbij en de streefverdeling per sector wordt bewaakt" },
   { venture: 'equities', label: "Kwartaalagenda", file: 'kwartaalagenda.csv', required: ['ticker', 'datum', 'soort'], dates: ['datum'], note: "soort: kwartaalcijfers | jaarcijfers | ava | ex-dividend" },
   { venture: 'equities', label: "Jaarverslagen en kwartaalcijfers", file: 'cijfers.csv', staleAfterMs: MONTH_MS, required: ['ticker', 'periode', 'bron_url'], numbers: ['omzet', 'winst'], note: "bron_url = de primaire bron (IR-site), niet een samenvatting" },
   { venture: 'equities', label: "Streefverdeling per sector", file: 'sectorallocatie.csv', required: ['sector', 'doel_pct', 'max_pct'], numbers: ['doel_pct', 'max_pct'] },
@@ -90,7 +92,8 @@ export interface SourceTable {
  */
 export function readTable(text: string, spec: SourceSpec): SourceTable {
   const { header, records, errors } = parseCsv(text);
-  if (header.length === 0) return { rows: [], errors };
+  // Een leeg bestand is een lege bron, geen onleesbare: niets te melden.
+  if (header.length === 0) return { rows: [], errors: [] };
   const missing = spec.required.filter((c) => !header.includes(c));
   if (missing.length > 0) {
     return { rows: [], errors: [...errors, `kolom(men) ontbreken in de kop: ${missing.join(', ')}`] };
@@ -108,11 +111,26 @@ export function readTable(text: string, spec: SourceSpec): SourceTable {
     }
     const row: SourceRow = {};
     for (const [key, raw] of Object.entries(rec)) {
-      if (dates.has(key)) row[key] = parseDate(raw);
-      else if (numbers.has(key)) row[key] = parseNumber(raw);
-      else row[key] = raw;
+      if (dates.has(key) || numbers.has(key)) {
+        const parsed = dates.has(key) ? parseDate(raw) : parseNumber(raw);
+        // "betaald: ja" is geen datum. Onleesbaar is niet hetzelfde als leeg:
+        // stil `undefined` zou "onbetaald" opleveren uit een cel die "ja" zegt.
+        if (parsed === undefined && raw.trim() !== '') {
+          errors.push(`regel ${i + 2}: kolom ${key} onleesbaar: "${raw.trim().slice(0, 20)}"`);
+        }
+        row[key] = parsed;
+      } else row[key] = raw;
     }
     rows.push(row);
   });
   return { rows, errors };
+}
+
+/** Alle kolommen die een lezer van deze bron mag aanraken — in de volgorde van de kop. */
+export function specColumns(spec: SourceSpec): string[] {
+  const out: string[] = [];
+  for (const c of [...spec.required, ...(spec.dates ?? []), ...(spec.numbers ?? []), ...(spec.optional ?? [])]) {
+    if (!out.includes(c)) out.push(c);
+  }
+  return out;
 }

@@ -194,7 +194,9 @@ export function buildActions(input: ActionInput): Action[] {
       title: `${ventures.find((v) => v.id === alert.venture)?.label ?? alert.venture}: ${alert.title}`,
       detail: `${alert.detail}\n\nBron: data/sources/${alert.venture}/${alert.source}`,
       venture: alert.venture,
-      createdAt: 0,
+      // Zo oud als de lijst zelf: met 0 stond een APK van gisteren bóven een
+      // handelsvoorstel dat over een uur verloopt, en die volgorde is precies verkeerd.
+      createdAt: now,
       buttons: [],
     });
   }

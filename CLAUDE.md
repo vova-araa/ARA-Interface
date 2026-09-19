@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 154 unit tests (shared 98 + collector 56) + de viewer-smoke
+pnpm test                    # 158 unit tests (shared 102 + collector 56) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen

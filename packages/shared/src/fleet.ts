@@ -18,6 +18,17 @@
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Middernacht (UTC) van de kalenderdag waarin `now` lokaal valt. Datumkolommen
+ * zijn UTC-middernacht; dit vergelijkt kalenderdag met kalenderdag, zodat om
+ * 00:30 in Amsterdam "vandaag" niet nog gisteren is. Alleen de collector rekent
+ * hiermee (één tijdzone: die van de Mac).
+ */
+export function dayStart(now: number): number {
+  const d = new Date(now);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
 /** Dagen tot de vervaldatum waarbinnen een termijn iets te zeggen heeft. */
 export const DEADLINE_WINDOWS = { soon: 14, plan: 30, watch: 60 } as const;
 
@@ -108,7 +119,9 @@ function normalizeHeader(name: string): string {
 }
 
 export function parseCsv(text: string): { header: string[]; records: Record<string, string>[]; errors: string[] } {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  // Een regel met alleen scheidingstekens (";;;;" — de staart van een Excel-
+  // export) is een lege regel, geen rij met lege cellen.
+  const lines = text.split(/\r?\n/).filter((l) => l.replace(/[;,\s]/g, '').length > 0);
   if (lines.length === 0) return { header: [], records: [], errors: ['leeg bestand'] };
   const first = lines[0]!;
   // De scheiding die het vaakst in de kopregel staat, wint.
@@ -192,7 +205,10 @@ export function readVehicles(text: string): ParsedTable<Vehicle> {
     }
     const terms: Vehicle['terms'] = {};
     const missing: VehicleTerm[] = [];
+    // Een kolom die niet in de kop staat is een termijn die niet geldt (geen
+    // ADR op een bestelbus); alleen een lege cel in een bestaande kolom is een gat.
     for (const term of VEHICLE_TERMS) {
+      if (!(term in rec)) continue;
       const at = parseDate(rec[term]);
       if (at === undefined) missing.push(term);
       else terms[term] = at;
@@ -218,6 +234,7 @@ export function readDrivers(text: string): ParsedTable<Driver> {
     const terms: Driver['terms'] = {};
     const missing: DriverTerm[] = [];
     for (const term of DRIVER_TERMS) {
+      if (!(term in rec)) continue;
       const at = parseDate(rec[term]);
       if (at === undefined) missing.push(term);
       else terms[term] = at;
@@ -251,16 +268,24 @@ export function fleetDeadlines(vehicles: Vehicle[], drivers: Driver[], now: numb
     }
     // Een datum heeft geen tijd, dus rekenen vanaf middernacht: een APK van
     // vandaag is vandaag nog geldig, ook om tien uur 's ochtends.
-    const daysLeft = Math.round((dueAt - Math.floor(now / DAY_MS) * DAY_MS) / DAY_MS);
+    const daysLeft = Math.round((dueAt - dayStart(now)) / DAY_MS);
     const w = windowFor(daysLeft);
     if (!w) return;
     out.push({ kind, subject, term, dueAt, daysLeft, ...w });
   };
+  // Alleen termijnen die in de bron bestaan: een kolom die niet in de kop
+  // staat is een termijn die niet geldt, geen gat.
   for (const v of vehicles) {
-    for (const term of VEHICLE_TERMS) push('voertuig', v.kenteken, term, v.terms[term]);
+    for (const term of VEHICLE_TERMS) {
+      if (!(term in v.terms) && !v.missing.includes(term)) continue;
+      push('voertuig', v.kenteken, term, v.terms[term]);
+    }
   }
   for (const d of drivers) {
-    for (const term of DRIVER_TERMS) push('chauffeur', d.naam, term, d.terms[term]);
+    for (const term of DRIVER_TERMS) {
+      if (!(term in d.terms) && !d.missing.includes(term)) continue;
+      push('chauffeur', d.naam, term, d.terms[term]);
+    }
   }
   // Verlopen vóór aflopend, aflopend op datum, en ontbrekend achteraan: dat
   // laatste is een gat in de administratie, geen wagen die nu stilstaat.
