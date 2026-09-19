@@ -54,7 +54,7 @@ Belangrijke leesvolgorde voor context: `PROGRESS.md` (wat af is + Mac-stappen),
 pnpm install                 # workspace
 pnpm dev                     # collector (4747) + viewer (4748) parallel
 pnpm -r typecheck            # 3 packages
-pnpm test                    # 164 unit tests (shared 102 + collector 62) + de viewer-smoke
+pnpm test                    # 165 unit tests (shared 102 + collector 63) + de viewer-smoke
 pnpm --filter @ara/viewer exec playwright test   # 6 smoke-flows (desktop, iPhone×2, kantoor, acties); workers: 1, want vijf WebGL-flows tegelijk zonder GPU vallen om op timeouts
 #   Let op: preview serveert dist/ — draai eerst `pnpm --filter @ara/viewer build`,
 #   anders test je een oude build (CI bouwt wél eerst). De suite start zijn eigen
@@ -335,7 +335,15 @@ De vier regels die niet mogen sneuvelen (elk heeft een test die 'm vastpint):
 - `watchdog.mjs` draait via launchd elke 5 min met 0 LLM-tokens; spawnt alléén agents
   bij incidenten, geplande taken, open bordwerk (sectie 11) of de verbeterronde (sectie 12).
   Niet ombouwen naar iets dat continu LLM-calls doet.
-- **`ARA_LOCK_DIR` moet bestaan.** Alle kostenremmen van de watchdog wonen daar: de
+- **De pogingenteller telt echte starts.** `spawnClaude()` geeft `true` terug als er een proces
+  gestart is en alleen dán telt de poging; "draait al (lock)" en "claude niet gevonden" tellen
+  niet. Daarvóór telde elke tick: een agent die twaalf minuten werkte gaf na drie ticks "kwam
+  er 2× niet uit". `claude` niet op het launchd-PATH is nu een Telegram-melding (install.sh
+  zet de map van `claude` en `~/.local/bin` in `__PATH__`). De verbeterronde heeft een
+  dagmarker (`ara-improve-<dag>.mark`), niet de 6-uurs teller. Dispatch geeft elke rol de
+  tools uit zijn eigen frontmatter (`toolsFor`), niet één vaste lijst zonder WebFetch.
+- **`ARA_LOCK_DIR` moet bestaan én schrijfbaar zijn** (install.sh zet `data/locks`). Alle
+  kostenremmen van de watchdog wonen daar: de
   eenmalige alarmen, de pogingenteller die na twee keer stopt met spawnen, en het slot tegen
   dubbele spawns. Elke schrijfactie daarvan zit in een lege catch, dus een map die niet
   bestaat zette alle drie stil **zonder één foutmelding** — eindeloos alarmeren en doorspawnen

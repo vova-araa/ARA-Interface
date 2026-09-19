@@ -693,3 +693,26 @@ gedrag raakt:
   het event-schema), `/hook/constructor` en onbekende hooks netjes, `INSERT OR IGNORE` op
   events (replay-volgorde), `office_stations` geprund, token uit de adresbalk na opslaan en
   `<meta name="referrer" content="no-referrer">`.
+
+## Watchdog-review: achttien punten (2026-09-19)
+
+- **Pogingenteller telde ticks, geen spawns**: een lopende agent gaf na drie ticks "kwam er
+  2× niet uit" op Telegram. `spawnClaude()` meldt nu of er echt gestart is; alleen dan telt het.
+- **Verbeterronde tot 4×/dag**: de 6-uurs teller viel terug; nu een dagmarker.
+- **Inbox-taken voor de supervisor werden nooit opgepakt** (`createdBy` leeg viel buiten
+  het filter): nu `createdBy: 'inbox'`, en `agent:<rol>` wordt `ara-<rol>`. Vingerafdruk op
+  inhoud, zoals de docs al zeiden.
+- **`ARA_DISPATCH_MAX=abc` = geen grens** (NaN), idem `ARA_IMPROVE_DAYS`: terug op 2 / 7, test.
+- **`claude` niet op het launchd-PATH was stil**: nu één Telegram-melding per dag, en
+  install.sh zet de map van `claude` plus `~/.local/bin` in het PATH.
+- **"Viel direct om" was een race** met het einde van de watchdog (`unref` meteen): loslaten
+  na 30 s, zodat een sessie die na 2 s omvalt wél gemeld wordt en zijn lock opruimt.
+- **Onschrijfbare lock-map** alarmeerde elke tick: nu één poging te melden en stoppen.
+  `ARA_LOCK_DIR` staat nu in plist en install.sh (`data/locks`); daarvoor landde alles in tmp.
+- **Dispatch gaf elke rol dezelfde tools** zonder WebFetch — zeven scouts konden hun werk
+  niet doen: tools per rol uit de frontmatter.
+- Verder: dedupe-vensters 500 i.p.v. 100/200, ongecommit werk blokkeert auto-update met een
+  dagelijkse melding, onbekende cadans overgeslagen i.p.v. "Maandelijks", collector-herstart
+  pollt 20 s i.p.v. 3 s, ops-signatuur op titels (flapperende monitor), lange sleutels gehasht
+  i.p.v. afgekapt, budgetalarm op de lokale dag, install.sh escapet sed-waarden en schrijft
+  met `umask 077`, `expose.sh public` eist dat de collector écht 401 geeft.

@@ -30,6 +30,13 @@ case "$MODE" in
       echo "    export ARA_TOKEN=\"\$(openssl rand -hex 24)\" && ./scripts/install.sh"
       exit 1
     fi
+    # De env-variabele is niet genoeg: de collector moet 'm ook echt eisen.
+    # Een `export ARA_TOKEN` zonder herinstallatie zet anders een open collector op internet.
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/state" 2>/dev/null)" != "401" ]; then
+      echo "✗ Weiger: de collector op :${PORT} eist nog geen token (geen 401 op /state)."
+      echo "  Herinstalleer eerst met ARA_TOKEN gezet: ./scripts/install.sh"
+      exit 1
+    fi
     tailscale funnel --bg "localhost:${PORT}" >/dev/null
     echo "✔ Publieke HTTPS aan (Tailscale Funnel):"
     echo "   https://$(host_url)/?token=${ARA_TOKEN}"

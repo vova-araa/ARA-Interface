@@ -70,8 +70,18 @@ const LOCK_DIR = process.env.ARA_LOCK_DIR ?? os.tmpdir();
 // spawnt hij door tot het budget op is. Eén mkdir scheelt dat.
 try {
   fs.mkdirSync(LOCK_DIR, { recursive: true });
+  fs.accessSync(LOCK_DIR, fs.constants.W_OK);
 } catch (error) {
-  console.error(`[watchdog] kan lock-map ${LOCK_DIR} niet maken: ${String(error).slice(0, 80)}`);
+  // Onschrijfbaar betekent: geen rem werkt. Dan liever stoppen dan elke vijf
+  // minuten opnieuw alarmeren en spawnen — met één poging het te zeggen.
+  console.error(`[watchdog] lock-map ${LOCK_DIR} is niet schrijfbaar: ${String(error).slice(0, 80)} — stop, geen remmen mogelijk`);
+  try {
+    const { sendTelegram } = await import('./notify.mjs');
+    await sendTelegram(`🔴 ARA World — watchdog gestopt\nLock-map ${LOCK_DIR} is niet schrijfbaar; zonder die map werkt geen enkele rem. Zet ARA_LOCK_DIR op een schrijfbare map.`);
+  } catch {
+    /* ook dat lukt niet: dan staat het in het log */
+  }
+  process.exit(0);
 }
 const LOCK_TTL_MS = 30 * 60 * 1000;
 
@@ -116,8 +126,19 @@ function shortHash(text) {
   return (h >>> 0).toString(36);
 }
 
+/**
+ * Bestandsveilige sleutel. Langer dan 80 tekens wordt niet afgekapt maar
+ * gehasht: afkappen maakte van drie taak-ids "dezelfde situatie" zodra alleen
+ * het staartje verschilde, en dan reset de pogingenteller willekeurig wel of niet.
+ */
+function safeKey(key) {
+  const text = String(key);
+  const safe = text.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return safe.length <= 80 ? safe : `${safe.slice(0, 40)}-${shortHash(text)}`;
+}
+
 async function alertOnce(key, ttlMs, text) {
-  const safe = String(key).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  const safe = safeKey(key);
   const file = path.join(LOCK_DIR, `ara-alert-${safe}.mark`);
   try {
     if (Date.now() - fs.statSync(file).mtimeMs < ttlMs) return false;
@@ -141,8 +162,14 @@ async function alertOnce(key, ttlMs, text) {
  * blijvend open incident elke 5 minuten opnieuw een sessie (en dus tokens)
  * kost wanneer de gespawnde agent er niet uit komt.
  */
+/** Kalenderdag van de Mac, niet van UTC: om 00:30 zomertijd is UTC nog gisteren. */
+function localDay(now = Date.now()) {
+  const d = new Date(now);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function spawnAttempts(signature, { increment = false } = {}) {
-  const safe = String(signature).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80);
+  const safe = safeKey(signature);
   const file = path.join(LOCK_DIR, `ara-try-${safe}.count`);
   let count = 0;
   try {
@@ -183,7 +210,7 @@ async function budgetExceeded() {
         `dagbudget bereikt (${used}/${budget}, waarvan ${usedCache} cache-creatie) — geen nieuwe agents deze tick`,
       );
       await alertOnce(
-        `budget-${new Date().toISOString().slice(0, 10)}`,
+        `budget-${localDay()}`,
         12 * 60 * 60 * 1000,
         `🟠 ARA World — dagbudget bereikt\n${used.toLocaleString('nl-NL')} van ${budget.toLocaleString('nl-NL')} tokens door agents gebruikt (waarvan ${usedCache.toLocaleString('nl-NL')} cache-creatie). Er worden vandaag geen nieuwe agents meer gestart.\nJe eigen Claude Code-werk telt hier niet in mee.`,
       );
@@ -276,21 +303,35 @@ function childEnv(role) {
   return env;
 }
 
+/**
+ * Start een agent. Geeft `true` terug als er echt een proces gestart is — alleen
+ * dán telt de pogingenteller mee. Daarvóór telde elke tick: een agent die
+ * twaalf minuten bezig was, gaf na drie ticks "kwam er 2× niet uit" terwijl
+ * hij gewoon werkte. In de test (NO_SPAWN) geldt een onderdrukte start als
+ * gestart, zodat de teller daar wél te toetsen is.
+ */
 function spawnClaude(name, prompt, { agent, tools } = {}) {
   if (NO_SPAWN) {
     log(`SPAWN onderdrukt (test): ${name}`);
-    return;
+    return true;
   }
   try {
     execFileSync('sh', ['-c', 'command -v claude'], { timeout: 5000 });
   } catch {
+    // Stil loggen was hier het probleem: launchd heeft een ander PATH dan de
+    // shell van de eigenaar, en dan draait er maandenlang niets zonder bericht.
     log(`claude CLI niet gevonden — kan ${name} niet spawnen`);
-    return;
+    void alertOnce(
+      'claude-missing',
+      24 * 60 * 60 * 1000,
+      `🔴 ARA World — claude CLI niet gevonden\nDe watchdog kan geen agents starten: \`claude\` staat niet op het PATH van launchd. Draai ./scripts/install.sh opnieuw vanuit een shell waarin \`claude\` werkt.`,
+    );
+    return false;
   }
   const lockFile = acquireSpawnLock(`ara-${name}`);
   if (!lockFile) {
     log(`${name} draait al (lock) — geen nieuwe spawn`);
-    return;
+    return false;
   }
   // Logrotatie: zonder dit groeit het logbestand maandenlang door.
   const logPath = path.join(LOCK_DIR, `ara-${name}.log`);
@@ -359,13 +400,19 @@ function spawnClaude(name, prompt, { agent, tools } = {}) {
       /* leeg */
     }
   });
-  child.unref();
+  // Pas na dertig seconden loslaten: een sessie die na twee seconden omvalt
+  // (niet ingelogd) deed dat anders ná het einde van de watchdog, en dan
+  // draaide de exit-handler nooit — geen alarm, en een lock met een dode pid.
+  const release = setTimeout(() => child.unref(), 30_000);
+  release.unref();
+  child.on('exit', () => clearTimeout(release));
   try {
     fs.writeFileSync(lockFile, String(child.pid ?? 0));
   } catch {
     /* leeg */
   }
   log(`gespawnd: ${name} (pid ${child.pid})`);
+  return true;
 }
 
 async function checkMonitor(monitor) {
@@ -390,8 +437,13 @@ let collectorUp = await checkMonitor({ url: `${COLLECTOR}/health` }).then((e) =>
 if (!collectorUp) {
   log('collector down — kickstart');
   kickstart('com.ara.collector');
-  await new Promise((r) => setTimeout(r, 3000));
-  collectorUp = await checkMonitor({ url: `${COLLECTOR}/health` }).then((e) => e === null);
+  // pnpm → tsx → better-sqlite3 + migraties duurt makkelijk meer dan drie
+  // seconden; te vroeg opgeven start de fallback ernaast (EADDRINUSE) én
+  // stuurt een alarm over een collector die seconden later gewoon draait.
+  for (let waited = 0; waited < 20_000 && !collectorUp; waited += 2000) {
+    await new Promise((r) => setTimeout(r, 2000));
+    collectorUp = await checkMonitor({ url: `${COLLECTOR}/health` }).then((e) => e === null);
+  }
   if (!collectorUp) {
     log('collector blijft down — pnpm fallback');
     try {
@@ -670,10 +722,31 @@ try {
   log(`ops-stap overgeslagen: ${String(error).slice(0, 80)}`);
 }
 const OPS_TOOLS = 'Bash,Read,Write,Edit,Grep,Glob';
+
+/**
+ * De toegestane tools van een rol komen uit zijn eigen frontmatter. Eén vaste
+ * lijst gaf elke rol Bash+Edit maar nooit WebFetch — en de scouts die juist
+ * het web moeten lezen werden gewekt, kostten een sessie en konden niets.
+ * De frontmatter beperkt de set, allowedTools verruimt die niet: Write in de
+ * lijst geeft een read-only rol dus geen Write.
+ */
+function toolsFor(agent) {
+  try {
+    const raw = fs.readFileSync(path.join(REPO, 'plugins', 'ara', 'agents', `${agent}.md`), 'utf8');
+    const front = /^---\n([\s\S]*?)\n---/.exec(raw)?.[1] ?? '';
+    const line = /^tools:\s*(.+)$/m.exec(front)?.[1];
+    if (line) return line.split(',').map((t) => t.trim()).filter(Boolean).join(',');
+  } catch {
+    /* geen bestand: de vaste lijst */
+  }
+  return OPS_TOOLS;
+}
 if (incidentsToHandle.length > 0) {
   // Signatuur van dít incidentbeeld: blijft het na twee pogingen hetzelfde,
   // dan komt de agent er niet uit en is doorspawnen alleen tokens verbranden.
-  const signature = `ops-${incidentsToHandle.map((t) => t.id).sort().join('-')}`;
+  // Op titels, niet op ids: een flapperende monitor krijgt elke keer een nieuw
+  // taak-id en dus telkens twee verse pogingen.
+  const signature = `ops-${incidentsToHandle.map((t) => t.title).sort().join('|')}`;
   const tries = spawnAttempts(signature);
   if (tries >= 2) {
     log(`ops-manager kwam er ${tries}× niet uit — niet opnieuw spawnen, mens vragen`);
@@ -683,12 +756,12 @@ if (incidentsToHandle.length > 0) {
       `🔴 ARA World — ops komt er niet uit\n${incidentsToHandle.length} incident(en) blijven open na ${tries} pogingen:\n${incidentsToHandle.map((t) => `• ${t.title}`).join('\n')}\n\nHier is een mens nodig.`,
     );
   } else if (!(await budgetExceeded())) {
-    spawnAttempts(signature, { increment: true });
-    spawnClaude(
+    const started = spawnClaude(
       'ops-manager',
       `Je bent manager:ops van de ARA-organisatie. Er staan ${incidentsToHandle.length} open incident-taken op het bord (GET ${COLLECTOR}/tasks?assignee=manager:ops&status=open). Claim ze, diagnosticeer en herstel. Operationele fixes (restart, config terugzetten) mag je direct; codefixes op een ara/*-branch. Kom je er niet uit: maak een bord-taak voor 'supervisor' met result-prefix ESCALATE:. Sluit ALTIJD elke taak af met een resultaat.`,
       { agent: 'ara-ops-manager', tools: OPS_TOOLS },
     );
+    if (started) spawnAttempts(signature, { increment: true });
   }
 }
 
@@ -719,11 +792,13 @@ let chiefChats = [];
 try {
   const escalated = await api('/tasks?assignee=supervisor&status=open&limit=50');
   opsEscalations = escalated.tasks.filter((t) => t.createdBy === 'manager:ops');
-  userTasks = escalated.tasks.filter((t) => t.createdBy === 'user' || t.createdBy === 'chief');
+  // 'inbox' hoort erbij: een taak uit ops/inbox/ voor de supervisor bleef anders
+  // eeuwig liggen (sectie 11 slaat de supervisor over, en hier telde hij niet).
+  userTasks = escalated.tasks.filter((t) => t.createdBy === 'user' || t.createdBy === 'chief' || t.createdBy === 'inbox');
   // Vragen uit een kantoorchat staan bij de aangesproken rol (manager:blex,
   // een agent-id, …) — niet bij de supervisor. Die werden daardoor nooit
   // opgepakt: je praatte tegen een muur. Ze horen hier óók opgehaald te worden.
-  const all = await api('/tasks?status=open&limit=100');
+  const all = await api('/tasks?status=open&limit=500');
   chatTasks = all.tasks.filter((t) => t.createdBy === 'user' && t.title.startsWith('CHAT:'));
   // Een vraag die aan de chief gericht is, hoort ook bij de chief te landen.
   // Die ging hier altijd naar de supervisor, en dan antwoordt de verkeerde:
@@ -748,12 +823,12 @@ if (chiefChats.length > 0) {
       `🟠 ARA World — chief komt er niet uit\n${chiefChats.length} vraag/vragen aan de chief blijven open na ${tries} pogingen. Kijk even mee op het bord.`,
     );
   } else if (!(await budgetExceeded())) {
-    spawnAttempts(signature, { increment: true });
-    spawnClaude(
+    const started = spawnClaude(
       'chief-chat',
       `Je bent ara-chief. Er staan ${chiefChats.length} vraag/vragen van de gebruiker rechtstreeks aan jou op het bord (GET ${COLLECTOR}/tasks?status=open, titel begint met "CHAT:", assignee "chief"). Lees per taak het detail: daar staan de ruimte (room) en de letterlijke curl-regels om te antwoorden en de taak te sluiten. Beantwoord ze zelf of haal eerst op wat je nodig hebt; de gebruiker zit te wachten.`,
       { agent: 'ara-chief', tools: 'Bash,Read,Write,Edit,Grep,Glob,Task' },
     );
+    if (started) spawnAttempts(signature, { increment: true });
   }
 }
 
@@ -781,12 +856,12 @@ if (opsEscalations.length > 0 || userTasks.length > 0 || chatTasks.length > 0) {
       `🟠 ARA World — supervisor komt er niet uit\n${opsEscalations.length + userTasks.length + chatTasks.length} taak/taken blijven open na ${tries} pogingen. Kijk even mee op het bord.`,
     );
   } else if (!(await budgetExceeded())) {
-    spawnAttempts(signature, { increment: true });
-    spawnClaude(
+    const started = spawnClaude(
       'supervisor-ops',
       `Je bent ara-supervisor. Op het bord (GET ${COLLECTOR}/tasks?status=open): ${parts.join(' Daarnaast: ')}`,
       { agent: 'ara-supervisor', tools: 'Bash,Read,Write,Edit,Grep,Glob,Task' },
     );
+    if (started) spawnAttempts(signature, { increment: true });
   }
 }
 
@@ -1032,6 +1107,12 @@ if (process.env.ARA_AUTO_UPDATE === '1') {
     const dirty = git('status', '--porcelain');
     if (dirty) {
       log(`auto-update overgeslagen: ${dirty.split('\n').length} bestand(en) ongecommit`);
+      // Eén keer per dag zeggen, anders denkt de eigenaar dat updates binnenkomen.
+      await alertOnce(
+        'autoupdate-dirty',
+        24 * 60 * 60 * 1000,
+        `🟠 ARA World — auto-update staat stil\n${dirty.split('\n').length} bestand(en) ongecommit in ${REPO}; zolang dat zo is haalt de watchdog geen nieuwe commits op.`,
+      );
     } else {
       const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
       git('fetch', 'origin', branch);
@@ -1114,7 +1195,7 @@ if (process.env.ARA_INBOX === '1') {
     // Op de inhoud, niet op de naam: een hernoemd bestand met dezelfde tekst
     // is hetzelfde werk, en een gewijzigd bestand is nieuw werk.
     const fingerprint = shortHash(raw);
-    if (seen[file] === fingerprint) continue;
+    if (seen[fingerprint]) continue;
 
     const front = /^---\n([\s\S]*?)\n---\n?/.exec(raw);
     const meta = {};
@@ -1133,12 +1214,14 @@ if (process.env.ARA_INBOX === '1') {
         body: JSON.stringify({
           title,
           detail: body,
-          assignee: meta.assignee ?? 'supervisor',
+          // "agent:planner" uit de README wordt de rol-id die dispatch kent.
+          assignee: (meta.assignee ?? 'supervisor').replace(/^agent:(?!ara-)/, 'ara-'),
           project: meta.project ?? '',
           status: 'open',
+          createdBy: 'inbox',
         }),
       });
-      seen[file] = fingerprint;
+      seen[fingerprint] = file;
       log(`inbox: "${title}" op het bord voor ${meta.assignee ?? 'supervisor'}`);
       // Werk dat vanzelf begint hoort niet ongezien te beginnen.
       await alertOnce(
@@ -1189,7 +1272,7 @@ if (process.env.ARA_RHYTHM === '1') {
       log('ritme overgeslagen: dagbudget bereikt');
     } else {
       const org = await api('/org');
-      const open = await api('/tasks?status=open&limit=200').catch(() => ({ tasks: [] }));
+      const open = await api('/tasks?status=open&limit=500').catch(() => ({ tasks: [] }));
       const openTitles = new Set((open.tasks ?? []).map((t) => t.title));
       const now = Date.now();
       let placed = 0;
@@ -1210,7 +1293,11 @@ if (process.env.ARA_RHYTHM === '1') {
         if (only.length > 0 && !only.includes(venture.id)) continue;
         for (const duty of venture.playbook?.duties ?? []) {
           const key = `${venture.id}:${duty.text}`;
-          const interval = MS[duty.every] ?? MS.week;
+          const interval = MS[duty.every];
+          if (!interval) {
+            log(`ritme: onbekende cadans "${duty.every}" bij ${venture.id} — overgeslagen`);
+            continue;
+          }
           if (now - (last[key] ?? 0) < interval) continue;
 
           // Staat dezelfde taak nog open, dan is hij niet af — en dan is een
@@ -1284,9 +1371,11 @@ if (process.env.ARA_DISPATCH === '1') {
     // Hoeveel rollen we per ronde wakker maken. De watchdog draait elke vijf
     // minuten; zonder deze grens start één volle bordronde tien sessies naast
     // elkaar en is het dagbudget voor de middag op.
-    const maxPerTick = Math.max(1, Number(process.env.ARA_DISPATCH_MAX ?? 2));
+    // Onleesbaar mag geen 'geen grens' worden: NaN vergelijkt altijd als false.
+    const maxRaw = Number(process.env.ARA_DISPATCH_MAX ?? 2);
+    const maxPerTick = Number.isFinite(maxRaw) && maxRaw >= 1 ? Math.floor(maxRaw) : 2;
 
-    const [board, org] = await Promise.all([api('/tasks?status=open&limit=200'), api('/org')]);
+    const [board, org] = await Promise.all([api('/tasks?status=open&limit=500'), api('/org')]);
 
     // Rollen die elders in dit bestand al hun eigen spawn hebben. Twee keer
     // dezelfde rol wekken voor dezelfde taak is niet dubbel werk maar dubbel
@@ -1364,10 +1453,9 @@ if (process.env.ARA_DISPATCH === '1') {
         continue;
       }
 
-      spawnAttempts(signature, { increment: true });
       const agent = agentFor.get(who);
       const titles = tasks.slice(0, 5).map((t) => `• ${t.title}`).join('\n');
-      spawnClaude(
+      const started = spawnClaude(
         `bord-${who.replace(/[^a-z0-9]+/gi, '-')}`,
         `Je bent ${agent}. Op het bord staan ${tasks.length} open taak/taken voor jou (GET ${COLLECTOR}/tasks?assignee=${encodeURIComponent(who)}&status=open):\n${titles}\n\n` +
           `Claim er één tegelijk (PATCH ${COLLECTOR}/tasks/<id> met {"status":"claimed"}), doe het werk, en sluit af met een resultaat: ` +
@@ -1375,8 +1463,10 @@ if (process.env.ARA_DISPATCH === '1') {
           `Een lege ronde is ook een uitkomst — zeg dán dat er niets te melden was, in plaats van iets te verzinnen. ` +
           `Ontbreekt de databron die je nodig hebt, sluit de taak dan af met precies welke koppeling ontbreekt. ` +
           `Gaat iets boven je grens, begin je resultaat met ESCALATE:.`,
-        { agent, tools: OPS_TOOLS },
+        { agent, tools: toolsFor(agent) },
       );
+      if (!started) continue;
+      spawnAttempts(signature, { increment: true });
       woken += 1;
       log(`bord: ${who} gewekt voor ${tasks.length} taak/taken`);
     }
@@ -1398,7 +1488,8 @@ if (process.env.ARA_DISPATCH === '1') {
 // Standaard uit. ARA_IMPROVE=1 zet hem aan; ARA_IMPROVE_DAYS zet het venster.
 if (process.env.ARA_IMPROVE === '1') {
   try {
-    const days = Math.max(1, Number(process.env.ARA_IMPROVE_DAYS ?? 7));
+    const daysRaw = Number(process.env.ARA_IMPROVE_DAYS ?? 7);
+    const days = Number.isFinite(daysRaw) && daysRaw >= 1 ? Math.floor(daysRaw) : 7;
     const retro = await api(`/retro?days=${days}`);
 
     if (retro.tooQuiet) {
@@ -1411,12 +1502,17 @@ if (process.env.ARA_IMPROVE === '1') {
       // Eén ronde per dag. Vaker heeft geen zin — het bord verandert niet zo
       // snel dat er 's middags andere patronen in staan dan 's ochtends, en
       // elke ronde kost een sessie.
-      const stamp = new Date().toISOString().slice(0, 10);
-      const signature = `verbeterronde-${stamp}`;
-      if (spawnAttempts(signature) >= 1) {
+      // Een dagmarker op mtime, niet de pogingenteller: die valt na zes uur
+      // terug op nul en gaf zo tot vier rondes per dag.
+      const marker = path.join(LOCK_DIR, `ara-improve-${localDay()}.mark`);
+      if (fs.existsSync(marker)) {
         log('verbeterronde: vandaag al gedraaid');
       } else if (!(await budgetExceeded())) {
-        spawnAttempts(signature, { increment: true });
+        try {
+          fs.writeFileSync(marker, String(Date.now()));
+        } catch {
+          /* de lock-map is bij het starten op schrijfbaarheid getoetst */
+        }
         const summary = retro.findings
           .map((f) => {
             const ids = f.evidence.map((e) => e.id).join(', ');

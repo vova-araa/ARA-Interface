@@ -29,31 +29,40 @@ echo "▸ Installing headless Chromium for web-scout/QA (one-time, ~120MB)…"
 
 mkdir -p "$LOGS" "$AGENTS"
 
+# Waarden in een sed-vervanging: '&' betekent "de match", '|' sluit het patroon,
+# '\' escapet. Een Telegram-token of backup-pad met zo'n teken gaf een kapotte plist.
+esc() { printf '%s' "$1" | sed -e 's/[&|\\]/\\&/g'; }
+CLAUDE_DIR="$(dirname "$(command -v claude 2>/dev/null || echo /usr/local/bin/claude)")"
+
 install_agent() {
   local name="$1"
   local plist="$AGENTS/$name.plist"
-  sed -e "s|__REPO__|$REPO|g" \
+  # De plist bevat sleutels: nooit ook maar even 0644 op schijf.
+  umask 077
+  sed -e "s|__REPO__|$(esc "$REPO")|g" \
       -e "s|__PNPM__|$PNPM|g" \
-      -e "s|__PATH__|$(dirname "$PNPM"):/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin|g" \
-      -e "s|__LOGS__|$LOGS|g" \
-      -e "s|__ARA_TOKEN__|${ARA_TOKEN:-}|g" \
-      -e "s|__TG_TOKEN__|${ARA_TELEGRAM_BOT_TOKEN:-}|g" \
-      -e "s|__TG_CHAT__|${ARA_TELEGRAM_CHAT_ID:-}|g" \
-      -e "s|__AUTO_UPDATE__|${ARA_AUTO_UPDATE:-}|g" \
-      -e "s|__INBOX__|${ARA_INBOX:-}|g" \
-      -e "s|__RHYTHM__|${ARA_RHYTHM:-}|g" \
-      -e "s|__RHYTHM_VENTURES__|${ARA_RHYTHM_VENTURES:-}|g" \
-      -e "s|__DISPATCH__|${ARA_DISPATCH:-}|g" \
-      -e "s|__DISPATCH_MAX__|${ARA_DISPATCH_MAX:-2}|g" \
-      -e "s|__IMPROVE__|${ARA_IMPROVE:-}|g" \
-      -e "s|__IMPROVE_DAYS__|${ARA_IMPROVE_DAYS:-7}|g" \
-      -e "s|__BACKUP__|${ARA_BACKUP:-}|g" \
-      -e "s|__BACKUP_DIR__|${ARA_BACKUP_DIR:-}|g" \
-      -e "s|__QA_SAMPLE__|${ARA_QA_SAMPLE:-0}|g" \
+      -e "s|__PATH__|$(esc "$(dirname "$PNPM"):$CLAUDE_DIR:$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin")|g" \
+      -e "s|__LOGS__|$(esc "$LOGS")|g" \
+      -e "s|__LOCK_DIR__|$(esc "$REPO/data/locks")|g" \
+      -e "s|__ARA_TOKEN__|$(esc "${ARA_TOKEN:-}")|g" \
+      -e "s|__TG_TOKEN__|$(esc "${ARA_TELEGRAM_BOT_TOKEN:-}")|g" \
+      -e "s|__TG_CHAT__|$(esc "${ARA_TELEGRAM_CHAT_ID:-}")|g" \
+      -e "s|__AUTO_UPDATE__|$(esc "${ARA_AUTO_UPDATE:-}")|g" \
+      -e "s|__INBOX__|$(esc "${ARA_INBOX:-}")|g" \
+      -e "s|__RHYTHM__|$(esc "${ARA_RHYTHM:-}")|g" \
+      -e "s|__RHYTHM_VENTURES__|$(esc "${ARA_RHYTHM_VENTURES:-}")|g" \
+      -e "s|__DISPATCH__|$(esc "${ARA_DISPATCH:-}")|g" \
+      -e "s|__DISPATCH_MAX__|$(esc "${ARA_DISPATCH_MAX:-2}")|g" \
+      -e "s|__IMPROVE__|$(esc "${ARA_IMPROVE:-}")|g" \
+      -e "s|__IMPROVE_DAYS__|$(esc "${ARA_IMPROVE_DAYS:-7}")|g" \
+      -e "s|__BACKUP__|$(esc "${ARA_BACKUP:-}")|g" \
+      -e "s|__BACKUP_DIR__|$(esc "${ARA_BACKUP_DIR:-}")|g" \
+      -e "s|__QA_SAMPLE__|$(esc "${ARA_QA_SAMPLE:-0}")|g" \
       "$REPO/ops/launchd/$name.plist" > "$plist"
   # De plist bevat ARA_TOKEN en de Telegram-sleutel. Standaard schrijft sed 'm
   # als 0644 weg — leesbaar voor elke andere gebruiker en elk proces op de Mac.
   chmod 600 "$plist"
+  umask 022
   launchctl bootout "gui/$UID_NUM/$name" 2>/dev/null || true
   launchctl bootstrap "gui/$UID_NUM" "$plist"
   launchctl enable "gui/$UID_NUM/$name"

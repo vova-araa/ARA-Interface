@@ -22,7 +22,8 @@ De opdracht in gewone taal. Wat af is, en waaraan je dat ziet.
 ```
 
 Alleen `title` is verplicht. `assignee` is standaard `supervisor`; andere
-geldige waarden zijn `manager:<venture>`, `agent:<rol>` en `gepland` (met
+geldige waarden zijn `manager:<venture>`, een rol-id zoals `ara-planner` (of `agent:planner`,
+dat wordt hetzelfde) en `gepland` (met
 `due: <datum>` in de tekst).
 
 ## Grenzen
@@ -32,7 +33,8 @@ geldige waarden zijn `manager:<venture>`, `agent:<rol>` en `gepland` (met
   eigenaar uitgevoerd wordt; dat hoort een bewuste keuze te zijn, geen bijwerking
   van een `git pull`.
 - **Eenmalig.** Een verwerkt bestand komt niet nog eens op het bord, ook niet na
-  een herstart. Wil je iets herhalen, geef het bestand dan een nieuwe naam.
+  een herstart — de vingerafdruk staat op de inhoud, niet op de naam. Wil je iets
+  herhalen, wijzig dan de tekst (een datum erbij is genoeg).
 - **Telegram.** Elke taak die van hier op het bord komt, wordt gemeld. Werk dat
   vanzelf begint hoort niet ongezien te beginnen.
 - Een taak is een *opdracht*, geen commando. De agent die hem oppakt houdt al

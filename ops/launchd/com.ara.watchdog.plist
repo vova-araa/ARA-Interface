@@ -17,6 +17,9 @@
     <string>__PATH__</string>
     <key>ARA_TOKEN</key>
     <string>__ARA_TOKEN__</string>
+    <!-- Alle remmen van de watchdog wonen hier; install.sh vult de repo-map in. -->
+    <key>ARA_LOCK_DIR</key>
+    <string>__LOCK_DIR__</string>
     <key>ARA_TELEGRAM_BOT_TOKEN</key>
     <string>__TG_TOKEN__</string>
     <key>ARA_TELEGRAM_CHAT_ID</key>

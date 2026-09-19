@@ -479,3 +479,48 @@ test('bronacties: een verlopen APK gaat één keer per dag naar Telegram, niet e
     forgetSources();
   }
 });
+
+test('dispatch: een onleesbare ARA_DISPATCH_MAX is geen ongelimiteerde ronde', async () => {
+  const store = openStore(path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-')), 'test.db'));
+  const { app } = createCollector(store);
+  const server = app.listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const lockDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ara-wd-locks-'));
+  try {
+    for (const who of ['ara-fleet-tech', 'ara-fleet-cost', 'ara-trailer-manager']) {
+      await fetch(`${base}/tasks`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: `Werk voor ${who}`, assignee: who, project: 'truck-trailers', createdBy: 'user' }),
+      });
+    }
+    const out = await new Promise<string>((resolve, reject) => {
+      const child = spawn('node', [path.join(REPO, 'scripts', 'watchdog.mjs')], {
+        env: {
+          ...process.env,
+          ARA_COLLECTOR_URL: base,
+          ARA_LOCK_DIR: lockDir,
+          ARA_WATCHDOG_NO_SPAWN: '1',
+          ARA_NOTIFY_DRYRUN: '1',
+          ARA_TELEGRAM_BOT_TOKEN: 'test',
+          ARA_TELEGRAM_CHAT_ID: 'test',
+          ARA_DAILY_PING: '0',
+          ARA_BACKUP: '0',
+          ARA_DISPATCH: '1',
+          ARA_DISPATCH_MAX: 'abc',
+        },
+      });
+      let buf = '';
+      child.stdout.on('data', (c) => (buf += String(c)));
+      child.stderr.on('data', (c) => (buf += String(c)));
+      child.on('error', reject);
+      child.on('close', () => resolve(buf));
+    });
+    // "abc" valt terug op 2: twee gewekt, één wacht — niet drie tegelijk.
+    assert.equal((out.match(/gewekt voor/g) ?? []).length, 2, out);
+    assert.match(out, /1 rol\(len\) wachten/);
+  } finally {
+    server.close();
+    store.close();
+  }
+});
