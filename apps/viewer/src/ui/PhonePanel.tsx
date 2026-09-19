@@ -47,12 +47,14 @@ export function PhonePanel(): JSX.Element | null {
       ? `${info.tailnet}${getToken() ? `?token=${encodeURIComponent(getToken())}` : ''}`
       : '';
 
+  // Ook op `open`: de tweede keer openen mount een nieuwe canvas terwijl `url`
+  // gelijk bleef, en dan tekende het effect niet en bleef het vlak leeg.
   useEffect(() => {
-    if (!url || !canvas.current) return;
+    if (!open || !url || !canvas.current) return;
     QRCode.toCanvas(canvas.current, url, { width: 220, margin: 1, errorCorrectionLevel: 'M' }).catch(() => {
       /* een QR die niet tekent: het adres staat er ook in tekst */
     });
-  }, [url]);
+  }, [url, open]);
 
   if (!open) return null;
 

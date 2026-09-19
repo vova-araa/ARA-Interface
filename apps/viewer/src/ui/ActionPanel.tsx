@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAra } from '../store.ts';
+import { withToken } from '../api.ts';
 import { ageString } from '../util.ts';
 
 /**
@@ -51,13 +52,11 @@ const URGENCY_SECTION: Record<Action['urgency'], { title: string; hint: string }
   whenever: { title: 'Wanneer het uitkomt', hint: 'losse eindjes, geen haast' },
 };
 
-function token(): string {
-  return new URLSearchParams(window.location.search).get('token') ?? '';
-}
-
+// Zelfde adres en zelfde token als de rest van de viewer (`withToken`): een
+// eigen lezing van `?token=` uit de URL zag het opgeslagen token niet en
+// gaf "actielijst niet bereikbaar" zodra je zonder ?token= binnenkwam.
 async function call(button: ActionButton): Promise<boolean> {
-  const t = token();
-  const res = await fetch(`${button.path}${t ? `?token=${encodeURIComponent(t)}` : ''}`, {
+  const res = await fetch(withToken(button.path), {
     method: button.method,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(button.body ?? {}),
@@ -81,8 +80,7 @@ export function ActionPanel(): JSX.Element | null {
       return;
     }
     try {
-      const t = token();
-      const res = await fetch(`/actions${t ? `?token=${encodeURIComponent(t)}` : ''}`);
+      const res = await fetch(withToken('/actions'));
       if (!res.ok) throw new Error(String(res.status));
       setActions(((await res.json()) as { actions: Action[] }).actions);
       setError('');

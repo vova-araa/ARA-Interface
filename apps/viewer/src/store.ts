@@ -420,7 +420,9 @@ export const useAra = create<AraStore>((set, get) => ({
   resetState: () => {
     worldState.hydrate(EMPTY);
     recentEvents.clear();
-    set({ snapshot: worldState.snapshot(), effects: [], bubbles: [], selectedEvents: [] });
+    // Ook de selectie: een lade die open blijft over een sessie die net is
+    // weggeveegd, toont een lege thread halverwege het lezen.
+    set({ snapshot: worldState.snapshot(), effects: [], bubbles: [], selectedEvents: [], selectedSessionId: null });
   },
 
   select: (sessionId) =>
@@ -488,7 +490,7 @@ export const useAra = create<AraStore>((set, get) => ({
     set({ liveStatus: Object.fromEntries(list.map((st) => [st.sessionId, st])) }),
   openOffice: (project) => {
     syncOfficeParam(project);
-    set({ officeProject: project, officeLoading: true, officeSelected: null, office: null });
+    set({ officeProject: project, officeLoading: true, officeSelected: null, office: null, chatMessages: [] });
   },
   closeOffice: () => {
     syncOfficeParam(null);

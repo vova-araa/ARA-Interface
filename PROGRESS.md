@@ -716,3 +716,17 @@ gedrag raakt:
   pollt 20 s i.p.v. 3 s, ops-signatuur op titels (flapperende monitor), lange sleutels gehasht
   i.p.v. afgekapt, budgetalarm op de lokale dag, install.sh escapet sed-waarden en schrijft
   met `umask 077`, `expose.sh public` eist dat de collector écht 401 geeft.
+
+## Viewer-review op de telefoon: tien punten (2026-09-19)
+
+Gemeten op 390×844 en 1280×800 (Chromium, SwiftShader): 0 runtime-fouten, 0 horizontale
+scroll, 0 elementen buiten beeld, geen lekken bij chat/bord open-dicht. Wat wél mis was:
+- **Actielijst las het token uit de URL en fetchte relatief** — zonder `?token=` in de
+  adresbalk (die halen we nu juist weg) "niet bereikbaar", en bij `?api=` de verkeerde host.
+  Nu `withToken()` zoals de rest.
+- **QR-canvas leeg bij de tweede keer openen** (effect hing alleen aan `url`).
+- **Telefoonkantoor**: het gesprek nam alle ruimte (Werkvloer/Bord/Team toonden één regel),
+  de inklapknop was 32 px hoog; de chat-FAB was 192 px breed en lag over de sheet-opener.
+- Sneltoetsen vingen Cmd/Ctrl+A/B/F/O af; dubbele `resync()` bij verbinden; chatberichten van
+  het vorige kantoor bleven staan tot de nieuwe fetch; demo-reset liet een lade open over een
+  weggeveegde sessie; het kantoor-canvas negeerde de kwaliteitsregelaar (bloom op dpr 2).

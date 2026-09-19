@@ -518,7 +518,14 @@ function OfficeChat({ project, room }: { project: string; room: string }): JSX.E
   }, [office, target.id]);
 
   useEffect(() => {
-    void loadChat(room).then(setChatMessages);
+    // Een traag antwoord van het vórige kantoor mag de nieuwe ruimte niet vullen.
+    let stale = false;
+    void loadChat(room).then((list) => {
+      if (!stale) setChatMessages(list);
+    });
+    return () => {
+      stale = true;
+    };
   }, [room, setChatMessages]);
 
   useEffect(() => {
@@ -604,6 +611,8 @@ function OfficeChat({ project, room }: { project: string; room: string }): JSX.E
 }
 
 export function OfficeOverlay(): JSX.Element | null {
+  const perfLow = useAra((s) => s.perfLow);
+  const postFxOn = useAra((s) => s.postFxOn);
   const project = useAra((s) => s.officeProject);
   const office = useAra((s) => s.office);
   const loading = useAra((s) => s.officeLoading);
@@ -772,8 +781,8 @@ export function OfficeOverlay(): JSX.Element | null {
         {office ? (
           <Canvas
             orthographic
-            shadows
-            dpr={[1, 2]}
+            shadows={!perfLow}
+            dpr={perfLow ? 1 : [1, 2]}
             camera={{ position: [20, 21, 20], zoom: 30, near: -200, far: 400 }}
             gl={{ antialias: true, toneMapping: THREE.NoToneMapping }}
             onPointerMissed={() => selectStation(null)}
@@ -793,11 +802,16 @@ export function OfficeOverlay(): JSX.Element | null {
               minPolarAngle={Math.PI / 6}
               screenSpacePanning={false}
             />
-            <EffectComposer multisampling={0}>
-              <Bloom intensity={0.55} luminanceThreshold={0.68} mipmapBlur radius={0.7} />
-              <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-              <Vignette eskil={false} offset={0.28} darkness={0.5} />
-            </EffectComposer>
+            {/* Dezelfde kwaliteitsregelaar als de wereld: op een telefoon (of
+                zonder GPU) is bloom op een dubbel-dpr canvas de eerste
+                schakelaar die om moet. */}
+            {postFxOn && !perfLow && (
+              <EffectComposer multisampling={0}>
+                <Bloom intensity={0.55} luminanceThreshold={0.68} mipmapBlur radius={0.7} />
+                <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                <Vignette eskil={false} offset={0.28} darkness={0.5} />
+              </EffectComposer>
+            )}
           </Canvas>
         ) : (
           <div className="office-loading">{loading ? 'Kantoor wordt geopend…' : 'Geen kantoorgegevens'}</div>

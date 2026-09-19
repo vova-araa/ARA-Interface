@@ -57,6 +57,8 @@ export function App(): JSX.Element {
         return;
       }
       if (typing) return;
+      // Cmd/Ctrl+A/B/F/O zijn van de browser, niet van ons.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === '/') {
         e.preventDefault();
         s.setPanelOpen(true);

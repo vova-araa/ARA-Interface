@@ -199,7 +199,9 @@ export function connectLive(): void {
     });
   };
 
-  void resync();
+  // Geen losse resync hier: het `open`-event doet hem al. Twee tegelijk lieten
+  // de eerste `finally` de buffer leegmaken terwijl de tweede /state nog
+  // onderweg was — precies de flits die de buffer moest voorkomen.
   open();
 
   // Ephemera pruning loop (speech bubbles, effects).

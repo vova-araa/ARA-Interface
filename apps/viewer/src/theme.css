@@ -2110,3 +2110,22 @@ button.office-task-esc:hover { background: rgba(255, 107, 107, 0.18); border-col
 @media (max-width: 800px) {
   .btn-phone { display: none; }
 }
+
+/* ── Telefoonkantoor: het tabblad krijgt de ruimte, het gesprek krimpt ─────
+   De late, onvoorwaardelijke regels hierboven (.office-side-body flex 0 en
+   .office-chat flex 1 0 auto) wonnen op 390px van de 36vh-regel: het gesprek
+   nam alle restruimte en Werkvloer/Bord/Team toonden één regel. En de kop van
+   het gesprek — de enige knop om het in te klappen — was 32px hoog. */
+@media (max-width: 900px) {
+  .office-side-body { flex: 1 1 auto; }
+  .office-chat { flex: 0 1 auto; max-height: 36vh; }
+  .office-chat-head { min-height: var(--tap, 44px); }
+}
+/* De chatknop rechtsonder: op een telefoon weer het rondje (het label maakte
+   hem 192px breed, over de sheet-opener heen), en weg zodra de tabstrook er
+   staat — Overleg heeft daar zijn eigen tab. */
+@media (max-width: 800px) {
+  .hq-fab { width: var(--tap, 44px); min-width: 0; padding: 0; }
+  .hq-fab-label { display: none; }
+  .app:has(.sidetabs) .hq-fab { display: none; }
+}
