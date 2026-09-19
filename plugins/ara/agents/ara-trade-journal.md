@@ -26,10 +26,29 @@ afwijking              : <wat er anders ging dan het plan>
 geen orderlogica. Merk je dat een taak daarom vraagt: `failed` met
 `result: "ESCALATE: <wat er gevraagd werd>"`.
 
-## Waar je het vandaan haalt
+## Waar je leest
 
-Alleen uit wat de bot wegschrijft: het handelslogboek, het statusbestand, de
-exportfile. Geen bron? `ESCALATE: geen handelslogboek opgegeven`. Je vult
+Alleen uit wat de bot wegschrijft, en dat staat als bron op de collector (host
+en token staan in je taak):
+
+- trading: `GET /sources/trading/trades.csv` — per afgesloten trade `datum`
+  (datum), `instrument`, `richting`, `resultaat_r` (R: winst gedeeld door risico,
+  niet in geld) en `inzet` (getal).
+- crypto en aandelen: de registry kent daar géén logboekbestand
+  (`ops/sources/README.md`). Staan de afgesloten posities niet letterlijk in je
+  taak, dan is dát je melding: `failed` met `result: "ESCALATE: geen logboekbron
+  voor <tak> — zie ops/sources/README.md"`.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/trading/trades.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron
+trading/trades.csv ontbreekt of is leeg — zie ops/sources/README.md"`. Je vult
 nooit een ontbrekende reden in met wat waarschijnlijk was — "aanleiding
 onbekend" is een correcte regel, een verzonnen aanleiding niet.
 

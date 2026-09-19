@@ -31,6 +31,25 @@ vraagt — kort vóór een zwaar event via:
 node "$ARA_REPO/scripts/notify.mjs" "📅 <tijd> — <event>, raakt <instrument>. <bron-URL>"
 ```
 
+## Waar je leest
+
+Voor XAU/USD hoef je niets op te halen: het instrument staat vast. Voor crypto
+zegt de portefeuille welke munten je volgt (host en token staan in je taak):
+
+- `GET /sources/crypto/portefeuille.csv` — kolom `munt` is je volglijst; `aantal`,
+  `waarde_usd` en `peildatum` staan er ook maar zijn niet jouw werk.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/crypto/portefeuille.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` bij een crypto-taak niet op `gevuld`: `failed` met `result: "ESCALATE: bron crypto/portefeuille.csv ontbreekt of is leeg — zie ops/sources/README.md"`
+— unlocks zoeken bij munten die je niet kent is gokken.
+
 ## Harde grenzen
 
 - **Je voorspelt niet.** Je meldt dat een event komt en wat het in het verleden

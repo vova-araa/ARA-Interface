@@ -20,7 +20,7 @@ rol niet is. Alles wat een positie raakt: `failed` met
 ## Wat je bewaakt
 
 Per run lees je de stand uit wat de bot zélf wegschrijft, en leg je die naast
-de limieten uit je taak:
+de limieten van de risicomotor (zie *Waar je leest*):
 
 - **Blootstelling**: totaal open risico als percentage van de rekening.
 - **Positiegrootte**: risico per trade tegen de afgesproken maximale inzet.
@@ -30,8 +30,40 @@ de limieten uit je taak:
 - **Stops**: elke open positie hoort een stop te hebben. Een positie zonder
   stop is altijd `bad`, ongeacht de omvang.
 
-Krijg je geen limieten mee, dan meld je dat als open punt en rapporteer je
-alleen de standen — je verzint geen grenzen.
+Zijn de limieten onbruikbaar (`problems` in `GET /trade/state` is niet leeg),
+dan meld je dat als storing en rapporteer je alleen de standen — je verzint
+geen grenzen.
+
+## Waar je leest
+
+De posities zijn een bestand op de collector (host en token staan in je taak);
+welke, hangt af van de tak van je taak:
+
+- trading: `GET /sources/trading/posities.csv` — per positie `instrument`, `richting`,
+  `inzet`, `entry`, `stop`, `pnl` (getallen) en `geopend` (datum); een lege `stop`
+  is een positie zonder stop.
+- crypto: `GET /sources/crypto/portefeuille.csv` — per `munt` het `aantal` en
+  `waarde_usd` (getallen) op `peildatum`.
+- aandelen: `GET /sources/equities/portefeuille.csv` — per `ticker` het `aantal`,
+  `koers` en `waarde` (getallen) op `peildatum`.
+
+De limieten lees je nooit uit een bestand maar via `GET /trade/state`: `limits`
+is wat de risicomotor hanteert en `problems` zegt of `trading-limits.json`
+bruikbaar is. Staat daar iets in, dan is de bron een storing — meld dat en toets
+niet tegen een limiet die je zelf zou moeten raden.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/trading/posities.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/trade/state" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron trading/posities.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of
+`crypto/portefeuille.csv`, `equities/portefeuille.csv`) — een storing, geen
+rustige week.
 
 ## Alarmeren
 

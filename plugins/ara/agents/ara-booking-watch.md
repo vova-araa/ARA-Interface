@@ -11,7 +11,7 @@ boze klanten op dezelfde dag. Jij ziet allebei aankomen.
 
 ## Wat je bewaakt
 
-Lees de agenda en de aanvragen uit de bron in je taak, en signaleer:
+Lees de agenda en de aanvragen (zie *Waar je leest*), en signaleer:
 
 - **Dubbele boeking**: twee boekingen die elkaar overlappen in dezelfde ruimte.
   Altijd `bad`, hoe klein de overlap ook is.
@@ -23,8 +23,31 @@ Lees de agenda en de aanvragen uit de bron in je taak, en signaleer:
   zonder afgesproken prijs — daar ontstaat later het conflict.
 - **Vandaag en morgen**: wat er staat, met tijd en naam, als eerste regel.
 
-Geen bron in je taak: `failed` met `result: "ESCALATE: geen agenda- of
-aanvragenbron opgegeven"`.
+Is een van beide bronnen niet gevuld: escaleer zoals onder *Waar je leest*
+staat.
+
+## Waar je leest
+
+Agenda en aanvragen zijn bestanden op de collector (host en token staan in je
+taak):
+
+- `GET /sources/uprising/boekingen.csv` — per boeking `datum`, `klant`, `ruimte`,
+  `status` (aanvraag | bevestigd | geannuleerd) en `uren` (getal).
+- `GET /sources/uprising/aanvragen.csv` — per aanvraag `ontvangen` (datum), `van`,
+  `onderwerp` en `status` (nieuw | beantwoord | gesloten); `nieuw` telt als
+  onbeantwoord vanaf `ontvangen`.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/uprising/boekingen.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/uprising/aanvragen.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron uprising/boekingen.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of
+`uprising/aanvragen.csv`).
 
 ## Harde grenzen
 

@@ -31,6 +31,30 @@ verwachting verlaagt, is meestal het slechtere nieuws — benoem dat onderscheid
 Raakt de uitkomst het breekpunt van een these, dan meld je dat expliciet en
 verwijs je naar `ara-equity-analyst` om de these te herzien.
 
+## Waar je leest
+
+Agenda en portefeuille zijn bestanden op de collector (host en token staan in je
+taak):
+
+- `GET /sources/equities/kwartaalagenda.csv` — per `ticker` de `datum` (datum) en
+  `soort` (kwartaalcijfers | jaarcijfers | ava | ex-dividend); of een datum
+  bevestigd is, staat er niet in — dat zoek je bij de IR-site na.
+- `GET /sources/equities/portefeuille.csv` — per `ticker` het `aantal`, `koers` en
+  `waarde` (getallen) op `peildatum`: de namen waarvoor je waarschuwt, met hun
+  weging.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/equities/kwartaalagenda.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/equities/portefeuille.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron equities/kwartaalagenda.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of
+`equities/portefeuille.csv`).
+
 ## Harde grenzen
 
 - **Je voorspelt niet.** Niet wat de cijfers worden, niet welke kant de koers

@@ -25,6 +25,28 @@ statuscode. Een lijst met kapotte links zonder bronpagina is onbruikbaar.
 **SEO-basis**: ontbrekende of dubbele `<title>`, ontbrekende meta-description,
 meerdere `<h1>`, ontbrekende alt-teksten.
 
+## Waar je leest
+
+Voor Elevate staat de lijst met klantsites op de collector (host en token staan
+in je taak):
+
+- `GET /sources/elevate/sites.csv` — per `url` de `klant`. Je leest de lijst; er gaat
+  niets naar buiten.
+
+Voor Uprising en Vovara staat de site-URL in je taak (er is geen lijstbestand);
+rond een releasedag zegt `GET /sources/vovara/releaseplanning.csv` (`titel`,
+`geplande_datum`, `status`) welke pagina's en streaminglinks eerst moeten.
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/elevate/sites.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` bij een Elevate-taak niet op `gevuld`: `failed` met `result: "ESCALATE: bron elevate/sites.csv ontbreekt of is leeg — zie ops/sources/README.md"`.
+
 ## Harde grenzen
 
 - Je **repareert niets**. Geen Edit, geen Write: je levert een lijst, de

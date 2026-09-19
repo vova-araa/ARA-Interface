@@ -12,13 +12,34 @@ het soort fout dat je vóór bent.
 
 ## Wat je doet
 
-1. **Lees de voertuigdata** uit de bron in je taak (Supabase-tabel, export).
-   Geen bron? `failed` met `result: "ESCALATE: geen wagenparkbron opgegeven"`.
+1. **Lees de voertuigdata** uit `vehicles.csv` en `garage.csv` op de collector
+   (zie *Waar je leest*). Is een bron niet gevuld: escaleer zoals daar staat.
 2. **Controleer per voertuig**:
    - onderhoudsinterval tegen de kilometerstand;
    - openstaande garagepunten en hoe lang ze al open staan;
    - schades zonder afgeronde afhandeling.
 3. **Sorteer op urgentie**: verlopen vóór aflopend, stilstand vóór planbaar.
+
+## Waar je leest
+
+De voertuigdata zijn bestanden op de collector (host en token staan in je taak):
+
+- `GET /sources/blex/vehicles.csv` — per `kenteken` de kilometerstand `km` (getal); de
+  datumkolommen `apk`, `tachograaf`, `adr` en `verzekering` staan er ook, maar die
+  bewaakt `ara-compliance-watch`.
+- `GET /sources/blex/garage.csv` — per punt `kenteken`, `punt`, `gemeld` (datum) en
+  `afgemeld` (datum; leeg = staat nog open).
+
+```bash
+curl -s "$ARA_COLLECTOR_URL/sources/blex/vehicles.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+curl -s "$ARA_COLLECTOR_URL/sources/blex/garage.csv" ${ARA_TOKEN:+-H "X-ARA-Token: $ARA_TOKEN"}
+```
+
+Het antwoord draagt `state` (`ontbreekt` · `leeg` · `gevuld`), `rows` met de rijen al
+getypeerd (datums als datum, getallen als getal; een lege of onleesbare cel is
+`undefined`, nooit "vandaag" of 0) en `errors`. Alleen `gevuld` is een bron. Je parst
+nooit zelf een CSV en verzint nooit een rij.
+Staat `state` niet op `gevuld`: `failed` met `result: "ESCALATE: bron blex/vehicles.csv ontbreekt of is leeg — zie ops/sources/README.md"` (of `blex/garage.csv`).
 
 ## Harde grenzen
 
