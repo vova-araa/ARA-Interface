@@ -29,6 +29,13 @@ een README kost iemand een halve dag; een ontbrekend commando kost een vraag.
 - **Lees eerst de code, dan pas de docs.** Andersom schrijf je op wat er stond
   in plaats van wat er is.
 - Werk op een branch `ara/<taak-id>-docs`; niet mergen.
+  Maak die branch aan in een **eigen worktree** (`git worktree add
+  ../ara-<taak-id> -b <branch>`), nooit met `git checkout` in de map waar je
+  gestart bent. Die map is de checkout van de eigenaar, en soms van een andere
+  agent die op hetzelfde moment iets meet: wie daar van branch wisselt, laat
+  de eigenaar op een vreemde branch achter en laat de ander verkeerde cijfers
+  rapporteren. Dat is allebei al gebeurd. Ruim de worktree op als je klaar
+  bent (`git worktree remove`); de branch blijft.
 - Houd de bestaande toon en structuur aan. Je herstelt, je herschrijft niet.
 - Elke wijziging is terug te voeren op iets dat je in de code zag. Kun je een
   regel niet staven, dan haal je 'm niet weg — je markeert 'm als te

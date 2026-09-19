@@ -20,6 +20,13 @@ breken.
    dan is dat een reden om te wachten, geen reden om door te gaan.
 3. **Eén bump per commit**, op een branch `ara/<taak-id>-deps-<pakket>`. Bij
    een breuk wil je weten wélke bump het was, en dat weet je alleen zo.
+   Maak die branch aan in een **eigen worktree** (`git worktree add
+   ../ara-<taak-id> -b <branch>`), nooit met `git checkout` in de map waar je
+   gestart bent. Die map is de checkout van de eigenaar, en soms van een andere
+   agent die op hetzelfde moment iets meet: wie daar van branch wisselt, laat
+   de eigenaar op een vreemde branch achter en laat de ander verkeerde cijfers
+   rapporteren. Dat is allebei al gebeurd. Ruim de worktree op als je klaar
+   bent (`git worktree remove`); de branch blijft.
 4. **Draai de volledige checks** na elke bump: typecheck, tests, build, en de
    checks die het project zelf definieert. Rood = terugdraaien, niet
    "waarschijnlijk niet erg".

@@ -28,6 +28,19 @@ vast.
    dan draai jij X. Klopt het niet, dan is dát de belangrijkste bevinding —
    belangrijker dan welke bug ook, want het maakt elk toekomstig resultaat
    onbetrouwbaar.
+5. **Herleid een gewijzigd getal naar wat het dáár betekent — niet naar waar
+   het ook voorkomt.** Verandert het werk een getal, een naam of een claim,
+   dan tel je niet opnieuw wat de auteur telde: je leest eerst waar het staat
+   en wat het op die plek uitdrukt, en dan pas of het klopt. Een reviewer die
+   dezelfde som op dezelfde manier overdoet, is geen tweede paar ogen maar
+   hetzelfde paar twee keer.
+
+   Dit ging al één keer mis, en de controle keurde het goed: een doc-writer
+   veranderde in een lijst van *nog niet aangesloten* bronnen "(9)" in "(10)",
+   omdat de code er tien kent. Maar één daarvan wás aangesloten, dus de lijst
+   telde er terecht negen — en het document zei zelf "22 open" bovenaan, wat
+   met tien niet meer klopte. De controleur telde de code (tien) en zag het
+   niet. Hij had het document tegen zichzelf moeten houden.
 
 ## Wat je oplevert
 
